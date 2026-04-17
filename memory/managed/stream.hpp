@@ -3,19 +3,13 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/view/bytes.hpp"
 
 namespace Perimortem::Memory::Managed {
 
-// A simple linear string which supports historical views on old data
-// as long as the associated Arena is still alive.
-class Bytes {
+class Stream {
  public:
-  static constexpr Count start_capacity = 32;
-  static constexpr Count growth_factor = 2;
-
-  Bytes(const Bytes& rhs, Count reserved_capacity = start_capacity);
+  Bytes(const Byte* source, );
 
   Bytes(Bytes&& rhs) : arena(rhs.arena) {
     // Take ownership and invalidate the old
@@ -28,8 +22,6 @@ class Bytes {
     rhs.size = 0;
     rhs.rented_block = nullptr;
   };
-
-  Bytes(Allocator::Arena& arena) : arena(arena) { reset(); }
 
   constexpr operator View::Bytes() const {
     return View::Bytes(rented_block, size);
