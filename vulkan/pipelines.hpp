@@ -8,6 +8,7 @@
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/object.hpp"
 
+#include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 
 #include "perimortem/graphics/frame/batch.hpp"
@@ -18,21 +19,20 @@
 
 namespace Perimortem::Vulkan {
 
-// SpriteRenderer realizes one compiled Graphics Program for a selected Vulkan
-// device. It owns target resources keyed by the retained Image identity while
-// each frame continues to own ordering, transforms, and draw inputs.
-class SpriteRenderer {
+// Pipelines realizes every generated Program selected by one application. It
+// caches target resources by their real Texture2D identity while frame Batches
+// keep exact program selection and parameter bytes.
+class Pipelines {
  public:
-  SpriteRenderer(
+  Pipelines(
       const Context& context,
       VkFormat color_format,
-      Perimortem::Graphics::Frame::Program program,
-      Description::Program description);
-  ~SpriteRenderer();
-  SpriteRenderer(const SpriteRenderer&) = delete;
-  SpriteRenderer(SpriteRenderer&&) = delete;
-  auto operator=(const SpriteRenderer&) -> SpriteRenderer& = delete;
-  auto operator=(SpriteRenderer&&) -> SpriteRenderer& = delete;
+      Perimortem::Core::View::Vector<Description::Program> descriptions);
+  ~Pipelines();
+  Pipelines(const Pipelines&) = delete;
+  Pipelines(Pipelines&&) = delete;
+  auto operator=(const Pipelines&) -> Pipelines& = delete;
+  auto operator=(Pipelines&&) -> Pipelines& = delete;
 
   auto rebuild(VkFormat color_format) -> void;
   auto record(
@@ -46,46 +46,50 @@ class SpriteRenderer {
   class CacheEntry {
    public:
     Perimortem::Graphics::Frame::Resource resource;
-    Perimortem::Graphics::Size2D size_pixels;
     Texture texture;
   };
 
-  struct PushConstants {
-    R32 transform_x[4];
-    R32 transform_y[4];
-    R32 tone[4];
+  class Realization {
+   public:
+    const Description::Program* description = nullptr;
+    ShaderProgram shader;
   };
-  static_assert(sizeof(PushConstants) == sizeof(R32) * 12);
 
+  auto validate_descriptions() const -> void;
   auto create_descriptor_layout() -> void;
   auto create_vertex_buffer() -> void;
   auto destroy_vertex_buffer() -> void;
   auto validate(
       Perimortem::Core::View::Vector<Perimortem::Graphics::Frame::Batch>
           batches) const -> Bool;
-  auto find_texture(
-      const Perimortem::Graphics::Frame::Resource& resource,
-      Perimortem::Graphics::Size2D size_pixels) -> Texture*;
-  auto realize_texture(
-      const Perimortem::Graphics::Frame::Resource& resource,
-      Perimortem::Graphics::Size2D size_pixels) -> Texture*;
-  auto sweep_textures() -> void;
-  static auto finalize_cache(U8* payload) -> void;
-  static auto get_cache_entry(Perimortem::Core::Object<> object) -> CacheEntry&;
-  static auto make_push_constants(
+  auto find_realization(const U8* locator) -> Realization*;
+  auto find_realization(const U8* locator) const -> const Realization*;
+  auto find_texture(const Perimortem::Graphics::Frame::Resource& resource)
+      -> Texture*;
+  auto realize_texture(const Perimortem::Graphics::Frame::Resource& resource)
+      -> Texture*;
+  auto make_host_inputs(
+      const Description::Program& description,
       const Perimortem::Graphics::Frame::Batch& batch,
       U32 width,
-      U32 height) -> PushConstants;
+      U32 height) const -> Perimortem::Memory::Dynamic::Bytes;
+  auto sweep_textures() -> void;
+
+  static auto finalize_cache(U8* payload) -> void;
+  static auto finalize_realization(U8* payload) -> void;
+  static auto get_cache_entry(Perimortem::Core::Object<> object) -> CacheEntry&;
+  static auto get_realization(Perimortem::Core::Object<> object)
+      -> Realization&;
 
   const Context& context;
-  Perimortem::Graphics::Frame::Program program;
-  Description::Program description;
+  Perimortem::Core::View::Vector<Description::Program> descriptions;
   VkDescriptorSetLayout descriptor_layout = VK_NULL_HANDLE;
   VkBuffer vertex_buffer = VK_NULL_HANDLE;
   VkDeviceMemory vertex_memory = VK_NULL_HANDLE;
-  ShaderProgram shader;
+  Perimortem::Memory::Dynamic::Vector<Perimortem::Core::Object<>> realizations;
   Perimortem::Memory::Dynamic::Vector<Perimortem::Core::Object<>> textures;
   static const Perimortem::Core::Object<>::Descriptor cache_descriptor;
+  static const Perimortem::Core::Object<>::Descriptor realization_descriptor;
 };
 
 }  // namespace Perimortem::Vulkan
