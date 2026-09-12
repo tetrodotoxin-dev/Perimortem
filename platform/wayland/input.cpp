@@ -3,7 +3,7 @@
 
 // Wayland and Linux input headers stay in the platform implementation so the
 // host neutral Input snapshot remains usable by headless code and other hosts.
-#include "perimortem/system/platform/wayland/input.hpp"
+#include "perimortem/platform/wayland/input.hpp"
 
 #include <linux/input-event-codes.h>
 #include <string.h>
@@ -11,7 +11,7 @@
 #include <wayland-client.h>
 
 using namespace Perimortem::Core;
-using namespace Perimortem::System;
+using namespace Perimortem;
 
 // Wayland added release requests after the original object destruction path.
 // Selecting from the proxy version keeps teardown valid for older seats while

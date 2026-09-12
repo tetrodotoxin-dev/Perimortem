@@ -4,8 +4,8 @@
 #pragma once
 
 #ifdef PERI_LINUX
-#include "perimortem/system/platform/wayland/input.hpp"
-#include "perimortem/system/platform/wayland/xdg_shell.hpp"
+#include "perimortem/platform/wayland/input.hpp"
+#include "perimortem/platform/wayland/xdg_shell.hpp"
 #else
 #error Perimortem does not have a window implementation for this platform.
 #endif
@@ -13,7 +13,7 @@
 #include "perimortem/system/input.hpp"
 #include "perimortem/system/presentation.hpp"
 
-namespace Perimortem::System {
+namespace Perimortem::Platform {
 
 // Window owns one platform toplevel and turns host events into stable System
 // values. Its public shape remains the same as platform implementations grow,
@@ -47,11 +47,11 @@ class Window {
 
   // poll_events publishes exactly one immutable input snapshot. Applications
   // can update the mapping between frames without exposing host keycodes.
-  auto get_input() const -> const Input&;
-  auto get_input_mapping() -> Input::Mapping&;
-  auto get_input_mapping() const -> const Input::Mapping&;
+  auto get_input() const -> const System::Input&;
+  auto get_input_mapping() -> System::Input::Mapping&;
+  auto get_input_mapping() const -> const System::Input::Mapping&;
 
-  auto get_presentation() const -> Presentation;
+  auto get_presentation() const -> System::Presentation;
 
  private:
   auto destroy() -> void;
@@ -68,11 +68,11 @@ class Window {
   static auto on_surface_scale(void* data, S32 factor) -> void;
 
 #ifdef PERI_LINUX
-  Platform::Wayland::XdgShell shell;
-  Platform::Wayland::Input input_collector;
+  Wayland::XdgShell shell;
+  Wayland::Input input_collector;
 #endif
-  Input::Mapping input_mapping;
-  Input input_snapshot;
+  System::Input::Mapping input_mapping;
+  System::Input input_snapshot;
   void* display = nullptr;
   void* registry = nullptr;
   void* compositor = nullptr;
@@ -87,4 +87,4 @@ class Window {
   Bool needs_resize = False;
 };
 
-}  // namespace Perimortem::System
+}  // namespace Perimortem::Platform

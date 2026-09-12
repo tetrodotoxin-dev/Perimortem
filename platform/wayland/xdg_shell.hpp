@@ -5,7 +5,7 @@
 
 #include "perimortem/core/perimortem.hpp"
 
-namespace Perimortem::System::Platform::Wayland {
+namespace Perimortem::Platform::Wayland {
 
 // Owns the XDG protocol proxies that turn one Wayland surface into a toplevel.
 // Protocol objects are generic Wayland proxies at the ABI boundary. Keeping
@@ -55,4 +55,4 @@ class XdgShell {
   void* wayland_surface = nullptr;
 };
 
-}  // namespace Perimortem::System::Platform::Wayland
+}  // namespace Perimortem::Platform::Wayland

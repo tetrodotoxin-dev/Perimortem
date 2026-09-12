@@ -1,9 +1,9 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-// Wayland stays in the platform implementation so System Window and
+// Wayland stays in the platform implementation so Window and
 // Presentation do not inherit its source or ABI vocabulary.
-#include "perimortem/system/window.hpp"
+#include "perimortem/platform/window.hpp"
 
 #if __has_include(<wayland-client.h>)
 #include <errno.h>
@@ -14,9 +14,10 @@
 #error Wayland client headers are required by the Wayland Window backend
 #endif
 
-#include "perimortem/system/platform/wayland/xdg_shell.hpp"
+#include "perimortem/platform/wayland/xdg_shell.hpp"
 
-using namespace Perimortem::System;
+using namespace Perimortem;
+using namespace Perimortem::Platform;
 
 static auto as_display(void* handle) -> wl_display* {
   return static_cast<wl_display*>(handle);

@@ -28,7 +28,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include "perimortem/system/platform/wayland/xdg_shell.hpp"
+#include "perimortem/platform/wayland/xdg_shell.hpp"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -174,7 +174,7 @@ extern WL_PRIVATE const struct wl_interface xdg_popup_interface = {
   "xdg_popup", 7, 3, xdg_popup_requests, 3, xdg_popup_events,
 };
 
-using namespace Perimortem::System;
+using namespace Perimortem;
 
 static auto as_proxy(void* handle) -> wl_proxy* {
   return static_cast<wl_proxy*>(handle);

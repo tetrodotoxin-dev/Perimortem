@@ -7,7 +7,7 @@
 
 #include "perimortem/system/input.hpp"
 
-namespace Perimortem::System::Platform::Wayland {
+namespace Perimortem::Platform::Wayland {
 
 // Input owns the Wayland seat objects that feed one Window. Native callbacks
 // retain only physical state and pointer motion. collect() then publishes one
@@ -79,4 +79,4 @@ class Input {
   Bool previous_pointer_focused = False;
 };
 
-}  // namespace Perimortem::System::Platform::Wayland
+}  // namespace Perimortem::Platform::Wayland
