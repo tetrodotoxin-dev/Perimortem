@@ -1,0 +1,13 @@
+common --symlink_prefix=.bin/
+run --run_in_cwd
+build --compilation_mode=dbg
+build:debug --copt=-DPERI_DEBUG
+build:release --compilation_mode=opt
+build:release --copt=-DPERI_RELEASE
+build:release --strip=always
+
+build:web --platforms=@tetro_toolchain//:wasm32
+build:scalar --define=perimortem_avx2=false
+
+build:windows --platforms=@tetro_toolchain//:windows_x64
+try-import %workspace%/.bazelrc.local
