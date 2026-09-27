@@ -12,6 +12,7 @@
 #endif
 
 #ifdef PERI_LINUX
+#include <linux/mman.h>
 #include <sys/mman.h>
 #endif
 
