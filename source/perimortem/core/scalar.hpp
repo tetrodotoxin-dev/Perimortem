@@ -1,11 +1,11 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/perimortem.hpp"
-
 #pragma once
 
-namespace Perimortem::Core::Math {
+#include "perimortem/core/perimortem.hpp"
+
+namespace Perimortem::Core::Scalar {
 
 template <typename type>
 constexpr auto max(type left, type right) -> type {
@@ -78,4 +78,4 @@ constexpr auto ceil(R64 value) -> Count {
   return Count(__builtin_ceil(value));
 }
 
-}  // namespace Perimortem::Core::Math
+}  // namespace Perimortem::Core::Scalar
