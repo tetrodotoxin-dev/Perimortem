@@ -152,19 +152,19 @@ auto ignored_characters(U8 c) {
   return c == ',' || c == '\n' || c == ' ';
 }
 
-auto Json::Node::set(const Core::View::Bytes value) -> void {
+auto Json::Node::set(const View::Bytes value) -> void {
   data.ptr = value.get_data();
   data.size = value.get_size();
   data.state = (U32)NodeState::String;
 }
 
-auto Json::Node::set(const Core::View::Vector<Node> value) -> void {
+auto Json::Node::set(const View::Vector<Node> value) -> void {
   data.ptr = value.get_data();
   data.size = value.get_size();
   data.state = (U32)NodeState::Array;
 }
 
-auto Json::Node::set(const Core::View::Vector<Member> value) -> void {
+auto Json::Node::set(const View::Vector<Member> value) -> void {
   data.ptr = value.get_data();
   data.size = value.get_size();
   data.state = (U32)NodeState::Object;

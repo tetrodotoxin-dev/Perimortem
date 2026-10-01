@@ -25,6 +25,7 @@ struct PhiloxState {
   static constexpr Count round_count = 10;
 
 #ifdef PERI_AVX2
+
   // Philox4x32 uses two multiplication constants and advances its key with two
   // Weyl constants after each round. Duplicating those pairs across the AVX2
   // lanes evaluates two independent Philox generators per vector.
@@ -46,28 +47,39 @@ struct PhiloxState {
   // Reorders the multiplied counter halves for the next round. The high half
   // crosses each 64 bit pair while the low half moves into the high position.
   static constexpr U8 counter_shuffle = 0b10'01'00'11;
+
 #endif
 
   alignas(32) U64 output[max_index];
+
 #ifdef PERI_AVX2
+
   __m256i dual_channel_key;
   __m256i dual_channel_counter;
+
 #else
+
   U64 keys[2];
   U64 counters[4];
+
 #endif
+
   Count index;
 };
 
 auto Random::read_entropy() -> U64 {
+
 #ifdef PERI_WASM
+
   U64 value;
   if (getentropy(&value, sizeof(value)) != 0) {
     Diagnostics::Log::fatal("Unable to obtain runtime seed entropy."_view);
   }
 
   return value;
+
 #else
+
   U64 value;
   Count timeout = 100000;
   while (!_rdrand64_step(&value) and timeout) {
@@ -82,7 +94,9 @@ auto Random::read_entropy() -> U64 {
   }
 
   return value;
+
 #endif
+
 }
 
 // Advances four counter depths for each of the two vectorized Philox channels.
@@ -91,7 +105,9 @@ auto Random::read_entropy() -> U64 {
 // every Philox round. Leaving depth zero as the raw counter would preserve
 // uniqueness while destroying the statistical meaning of the generator.
 static constexpr auto bump_counter(PhiloxState& state) -> void {
+
 #ifdef PERI_AVX2
+
   __m256i philox_keys = state.dual_channel_key;
   __m256i philox_channels[channel_depth];
   philox_channels[0] = state.dual_channel_counter;
@@ -124,7 +140,9 @@ static constexpr auto bump_counter(PhiloxState& state) -> void {
   // The next refill starts after every counter consumed by this batch.
   state.dual_channel_counter = _mm256_add_epi64(
       state.dual_channel_counter, _mm256_set1_epi64x(channel_depth));
+
 #else
+
   // Each AVX2 lane contains one four word Philox counter. Evaluate those same
   // lanes and depths in order so the scalar path preserves the generated
   // stream.
@@ -157,7 +175,9 @@ static constexpr auto bump_counter(PhiloxState& state) -> void {
   for (auto& counter : state.counters) {
     counter += channel_depth;
   }
+
 #endif
+
   state.index = 0;
 }
 
@@ -168,7 +188,9 @@ static auto create_prng() -> PhiloxState {
   PhiloxState state;
 
   U64 keys[] = {Random::read_entropy(), Random::read_entropy()};
+
 #ifdef PERI_AVX2
+
   state.dual_channel_key = _mm256_set_epi32(
       U32(keys[0] >> 32), 0, U32(keys[0]), 0, U32(keys[1] >> 32), 0,
       U32(keys[1]), 0);
@@ -176,12 +198,15 @@ static auto create_prng() -> PhiloxState {
   state.dual_channel_counter = _mm256_set_epi64x(
       Random::read_entropy(), Random::read_entropy(), Random::read_entropy(),
       Random::read_entropy());
+
 #else
+
   state.keys[0] = keys[1];
   state.keys[1] = keys[0];
   for (Count index = 4; index > 0; --index) {
     state.counters[index - 1] = Random::read_entropy();
   }
+
 #endif
 
   bump_counter(state);

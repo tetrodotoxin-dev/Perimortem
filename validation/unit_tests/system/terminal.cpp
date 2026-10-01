@@ -242,11 +242,17 @@ VALIDATION_TEST(SystemTerminal, sequential_lines) {
 }
 
 VALIDATION_TEST(SystemTerminal, read_failure) {
+
 #ifdef PERI_WINDOWS
+
   FILE* input = fopen("NUL", "wb");
+
 #else
+
   FILE* input = fopen("/dev/null", "wb");
+
 #endif
+
   FILE* output = open_stream();
   EXPECT(input != nullptr);
   EXPECT(output != nullptr);

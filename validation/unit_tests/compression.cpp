@@ -10,8 +10,8 @@
 #include "perimortem/compression/deflate.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Compression;
 using namespace Perimortem::Memory;
-using namespace Perimortem;
 
 using namespace Toolchain::Validation;
 
@@ -105,29 +105,32 @@ static constexpr Static::Bytes<9> single_compressed = {{
 }};
 
 // hello_compressed with the last byte of its checksum flipped
+
 #if PERI_DEBUG
+
 static constexpr Static::Bytes<26> bad_adler_compressed = {{
   0x78, 0xDA, 0xF3, 0x48, 0xCD, 0xC9, 0xC9, 0xD7, 0x51, 0x08, 0x48, 0x2D, 0xCA,
   0xCC, 0xCD, 0x2F, 0x2A, 0x49, 0xCD, 0x55, 0x04, 0x00, 0x3D, 0x2E, 0x06, 0x79,
 }};
+
 #endif
 
 VALIDATION_TEST(CompressionTests, dynamic_huffman) {
-  auto out = Compression::Deflate::inflate(hello_compressed);
+  auto out = Deflate::inflate(hello_compressed);
 
   ASSERT_EQ(out.get_size(), hello_raw.get_size());
   EXPECT_HEX(out.get_view(), hello_raw.get_view());
 }
 
 VALIDATION_TEST(CompressionTests, stored_blocks) {
-  auto out = Compression::Deflate::inflate(stored_compressed);
+  auto out = Deflate::inflate(stored_compressed);
 
   ASSERT_EQ(out.get_size(), stored_raw.get_size());
   EXPECT_HEX(out.get_view(), stored_raw.get_view());
 }
 
 VALIDATION_TEST(CompressionTests, back_references) {
-  auto out = Compression::Deflate::inflate(repeat_compressed);
+  auto out = Deflate::inflate(repeat_compressed);
 
   // Check that ABCD bytes are repeated 50 times.
   ASSERT_EQ(out.get_size(), 100);
@@ -138,12 +141,12 @@ VALIDATION_TEST(CompressionTests, back_references) {
 }
 
 VALIDATION_TEST(CompressionTests, empty_content) {
-  auto out = Compression::Deflate::inflate(empty_compressed);
+  auto out = Deflate::inflate(empty_compressed);
   EXPECT_EQ(out.get_size(), 0);
 }
 
 VALIDATION_TEST(CompressionTests, inflate_single_byte) {
-  auto out = Compression::Deflate::inflate(single_compressed);
+  auto out = Deflate::inflate(single_compressed);
 
   ASSERT_EQ(out.get_size(), 1);
   EXPECT_EQ(out[0], U8(0x42));
@@ -151,7 +154,7 @@ VALIDATION_TEST(CompressionTests, inflate_single_byte) {
 
 VALIDATION_TEST(CompressionTests, truncated_input) {
   // Exercise the boundary immediately below the minimum zlib stream size.
-  auto out = Compression::Deflate::inflate(hello_compressed.slice(0, 6));
+  auto out = Deflate::inflate(hello_compressed.slice(0, 6));
   EXPECT_EQ(out.get_size(), 0);
   EXPECT(
       Perimortem::Tests::Log::error_contains(
@@ -164,7 +167,7 @@ VALIDATION_TEST(CompressionTests, bad_method) {
   // Corrupt the CM nibble to 9 (DEFLATE requires exactly 8).
   bad_cm[0] = (bad_cm[0] & 0xF0) | 0x09;
 
-  auto out = Compression::Deflate::inflate(bad_cm);
+  auto out = Deflate::inflate(bad_cm);
   EXPECT_EQ(out.get_size(), 0);
   EXPECT(
       Perimortem::Tests::Log::error_contains(
@@ -172,21 +175,23 @@ VALIDATION_TEST(CompressionTests, bad_method) {
 }
 
 #if PERI_DEBUG
+
 VALIDATION_TEST(CompressionTests, inflate_bad_checksum) {
-  auto out = Compression::Deflate::inflate(bad_adler_compressed);
+  auto out = Deflate::inflate(bad_adler_compressed);
   EXPECT_EQ(out.get_size(), 0);
   EXPECT(Perimortem::Tests::Log::error_contains("Compression: Adler-32 checksum mismatch."_view));
 }
+
 #endif
 
 VALIDATION_TEST(CompressionTests, deflate_empty_input) {
-  auto compressed = Compression::Deflate::deflate(""_view);
+  auto compressed = Deflate::deflate(""_view);
 
   // A valid zlib stream must still have a header and a footer.
   EXPECT(compressed.get_size() >= 6);
 
   // Round tripping inflate should properly produce an empty buffer.
-  auto recovered = Compression::Deflate::inflate(compressed);
+  auto recovered = Deflate::inflate(compressed);
   EXPECT_EQ(recovered.get_size(), 0);
 }
 
@@ -194,19 +199,19 @@ VALIDATION_TEST(CompressionTests, deflate_single_byte) {
   constexpr Static::Bytes<1> source_bytes = {{
     0x42,
   }};
-  auto compressed = Compression::Deflate::deflate(source_bytes);
+  auto compressed = Deflate::deflate(source_bytes);
   EXPECT(compressed.get_size() > 0);
 
-  auto recovered = Compression::Deflate::inflate(compressed);
+  auto recovered = Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), Count(1));
   EXPECT_EQ(recovered[0], U8(0x42));
 }
 
 VALIDATION_TEST(CompressionTests, roundtrip_short) {
-  auto compressed = Compression::Deflate::deflate(hello_raw);
+  auto compressed = Deflate::deflate(hello_raw);
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Compression::Deflate::inflate(compressed);
+  auto recovered = Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), hello_raw.get_size());
   EXPECT_HEX(recovered.get_view(), hello_raw.get_view());
 }
@@ -218,16 +223,16 @@ VALIDATION_TEST(CompressionTests, roundtrip_binary) {
     all_bytes[i] = U8(i);
   }
 
-  auto compressed = Compression::Deflate::deflate(all_bytes);
+  auto compressed = Deflate::deflate(all_bytes);
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Compression::Deflate::inflate(compressed);
+  auto recovered = Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), 256);
   EXPECT_HEX(recovered.get_view(), all_bytes.get_view());
 }
 
 VALIDATION_TEST(CompressionTests, valid_header) {
-  auto compressed = Compression::Deflate::deflate(stored_raw);
+  auto compressed = Deflate::deflate(stored_raw);
 
   ASSERT(compressed.get_size() >= 6);
   EXPECT_EQ(U8(compressed[0] & 0x0F), U8(8));
@@ -241,10 +246,10 @@ VALIDATION_TEST(CompressionTests, repeating_value) {
     source[i] = U8(0xAA);
   }
 
-  auto compressed = Compression::Deflate::deflate(source);
+  auto compressed = Deflate::deflate(source);
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Compression::Deflate::inflate(compressed);
+  auto recovered = Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), source_size);
   EXPECT_HEX(recovered.get_view(), source.get_view());
 }
@@ -257,10 +262,10 @@ VALIDATION_TEST(CompressionTests, roundtrip_large) {
     large[i] = U8((i * 31 + i / 128) & 0xFF);
   }
 
-  auto compressed = Compression::Deflate::deflate(large);
+  auto compressed = Deflate::deflate(large);
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Compression::Deflate::inflate(compressed);
+  auto recovered = Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), size);
   EXPECT_HEX(recovered.get_view(), large.get_view());
 }
@@ -274,10 +279,10 @@ VALIDATION_TEST(CompressionTests, skewed_frequencies) {
     source.get_access().get_data()[i * 249] = U8(i);
   }
 
-  auto compressed = Compression::Deflate::deflate(source.get_view());
+  auto compressed = Deflate::deflate(source.get_view());
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Compression::Deflate::inflate(compressed);
+  auto recovered = Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), size);
   EXPECT_HEX(recovered.get_view(), source.get_view());
 }

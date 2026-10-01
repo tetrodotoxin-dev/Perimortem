@@ -8,6 +8,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
 
+using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Toolchain::Validation;
 
@@ -88,7 +89,7 @@ VALIDATION_TEST(ManagedMap, visit) {
 
 VALIDATION_TEST(ManagedMap, text_keys) {
   Allocator::Arena arena;
-  Managed::Map<Perimortem::Core::View::Bytes, S32> values(arena);
+  Managed::Map<View::Bytes, S32> values(arena);
 
   values["Hello"_view] = 1;
   values["World"_view] = 2;

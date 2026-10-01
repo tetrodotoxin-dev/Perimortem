@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/math.hpp"
+#include "perimortem/core/scalar.hpp"
 
 namespace Perimortem::Core::View {
 
@@ -68,7 +68,7 @@ class Bytes {
     }
 
     return View::Bytes(
-        source_block + start, Math::min(size, get_size() - start));
+        source_block + start, Core::Scalar::min(size, get_size() - start));
   };
 
   constexpr auto is_empty() const -> Bool { return size == 0; };

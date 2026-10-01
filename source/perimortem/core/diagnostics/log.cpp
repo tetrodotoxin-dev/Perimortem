@@ -318,6 +318,7 @@ auto Diagnostics::Log::fatal(View::Bytes message, const Source& location)
   flush();
 
 #ifdef PERI_LINUX
+
   Static::Vector<void*, 64> frames;
   int frame_count = backtrace(frames.get_data(), frames.get_size());
   char** symbols = backtrace_symbols(frames.get_data(), frame_count);
@@ -336,6 +337,7 @@ auto Diagnostics::Log::fatal(View::Bytes message, const Source& location)
         "The platform could not symbolize the fatal backtrace."_view, Source());
   }
   flush();
+
 #endif
 
   abort();

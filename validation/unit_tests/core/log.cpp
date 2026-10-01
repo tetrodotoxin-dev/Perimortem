@@ -11,6 +11,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
+#include "perimortem/core/scalar.hpp"
 
 using namespace Perimortem::Core;
 using namespace Toolchain::Validation;
@@ -35,7 +36,7 @@ static auto capture_sink(
       level, message, location, formatted.get_access());
   Count index = total_events++ % event_log_size;
   log_events[index].message_size =
-      Math::min(max_message_length, formatted_size);
+      Scalar::min(max_message_length, formatted_size);
   log_events[index].message = formatted;
 }
 

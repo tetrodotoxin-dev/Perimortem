@@ -7,7 +7,7 @@
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/math.hpp"
+#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/perimortem.hpp"
 
 namespace Perimortem::Memory::Dynamic {
@@ -296,7 +296,7 @@ class Vector {
     // Attempt to grow by a factor of 2 but if that doesn't work than grow to
     // exact size.
     const auto new_capacity =
-        Core::Math::max(get_capacity() * 2, required_size);
+        Core::Scalar::max(get_capacity() * 2, required_size);
 
     // Fetch and transfer to new block.
     auto alloc = Core::Bibliotheca::check_out(allocation_size(new_capacity));

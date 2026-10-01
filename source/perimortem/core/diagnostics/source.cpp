@@ -39,26 +39,26 @@ auto Diagnostics::Source::get_column() const -> Count {
   return Count(impl->_M_column);
 }
 
-auto Diagnostics::Source::get_file() const -> Core::View::Bytes {
+auto Diagnostics::Source::get_file() const -> View::Bytes {
   if (!file.is_empty()) {
     return file;
   }
 
   if (impl == nullptr) {
-    return Core::View::Bytes();
+    return View::Bytes();
   }
 
   return NullTerminated::convert_cstring(
       impl->_M_file_name, max_source_name_size);
 }
 
-auto Diagnostics::Source::get_function() const -> Core::View::Bytes {
+auto Diagnostics::Source::get_function() const -> View::Bytes {
   if (!file.is_empty()) {
     return function;
   }
 
   if (impl == nullptr) {
-    return Core::View::Bytes();
+    return View::Bytes();
   }
 
   return NullTerminated::convert_cstring(

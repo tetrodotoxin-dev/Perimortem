@@ -5,6 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/selection.hpp"
+#include "perimortem/core/scalar.hpp"
 
 namespace Perimortem::Core::View {
 
@@ -87,7 +88,7 @@ class Vector {
     }
 
     return View::Vector<data_type>(
-        source_block + start, Math::min(size, get_size() - start));
+        source_block + start, Core::Scalar::min(size, get_size() - start));
   };
 
   constexpr auto is_empty() const -> Bool { return size == 0; };

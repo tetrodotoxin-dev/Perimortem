@@ -32,7 +32,9 @@ auto write_fixed(Writer::Textual& writer, U64 value) -> void {
 }
 
 auto Time::now() -> Time {
+
 #ifdef PERI_WINDOWS
+
   LARGE_INTEGER counter, frequency;
   QueryPerformanceCounter(&counter);
   QueryPerformanceFrequency(&frequency);
@@ -40,26 +42,36 @@ auto Time::now() -> Time {
   const U64 rate = U64(frequency.QuadPart);
   return Time(
       ticks / rate * nano_to_seconds + ticks % rate * nano_to_seconds / rate);
+
 #else
+
   timespec time;
   clock_gettime(CLOCK_MONOTONIC, &time);
   return Time(time.tv_sec, time.tv_nsec);
+
 #endif
+
 }
 
 auto Time::clock() -> Time {
+
 #ifdef PERI_WINDOWS
+
   FILETIME stamp;
   GetSystemTimePreciseAsFileTime(&stamp);
   const U64 ticks = (U64(stamp.dwHighDateTime) << 32) | stamp.dwLowDateTime;
   // FILETIME counts 100 ns intervals since 1601. The public clock uses the
   // Unix epoch, keeping timestamps comparable across native hosts.
   return Time((ticks - 116444736000000000ULL) * 100);
+
 #else
+
   timespec time;
   clock_gettime(CLOCK_REALTIME, &time);
   return Time(time.tv_sec, time.tv_nsec);
+
 #endif
+
 }
 
 auto Time::boot() -> Time {

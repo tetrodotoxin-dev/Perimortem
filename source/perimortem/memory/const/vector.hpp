@@ -5,6 +5,7 @@
 
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/perimortem.hpp"
 
 namespace Perimortem::Memory::Const {
@@ -154,7 +155,7 @@ class Vector {
     // Attempt to grow by a factor of 2.
     // If that doesn't work than grow to exact size.
     const auto new_capacity =
-        Core::Math::max(get_capacity() * 2, required_size);
+        Core::Scalar::max(get_capacity() * 2, required_size);
 
     auto* new_block = new type[new_capacity]{};
     if (source_block) {

@@ -3,14 +3,14 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
-#include "perimortem/core/math.hpp"
+#include "perimortem/core/scalar.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 
 Managed::Bytes::Bytes(const Bytes& rhs, Count reserved_capacity)
     : arena(rhs.arena) {
-  reset(Math::max(rhs.get_size(), reserved_capacity));
+  reset(Scalar::max(rhs.get_size(), reserved_capacity));
   proxy(rhs);
 };
 
@@ -81,7 +81,7 @@ auto Managed::Bytes::ensure_capacity(Count required_bytes) -> void {
 
   // Attempt to grow by a factor of 2.
   // If that doesn't work than grow to exact size.
-  const auto new_capacity = Math::max(capacity * 2, required_bytes);
+  const auto new_capacity = Scalar::max(capacity * 2, required_bytes);
 
   // Fetch and transfer to new block.
   auto new_block = arena.allocate(new_capacity).get_data();

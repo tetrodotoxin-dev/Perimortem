@@ -9,10 +9,10 @@
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/math.hpp"
+#include "perimortem/core/scalar.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem;
+using namespace Perimortem::Compression;
 
 // `hash_table` maps a three byte hash to the most recent input position that
 // produced it. `chain_table` maps each window position to the previous input
@@ -40,7 +40,9 @@ constexpr auto extend_match(
     Count candidate,
     Count scan_limit) -> Count {
   Count match_length = 0;
+
 #ifdef PERI_AVX2
+
   // Do a vectorized scan until we find at least one byte that doesn't match.
   // Unrolling the loop fully causes short lengths to suffer. Two checks fit
   // nicely in a single 64 bit mask emulating AVX512 so we go with that.
@@ -110,13 +112,13 @@ constexpr auto extend_match(
   return match_length;
 }
 
-Compression::Lz77::Lz77() {
+Lz77::Lz77() {
   hash_table.forgetful_resize(hash_size);
   chain_table.forgetful_resize(window_size);
   reset();
 }
 
-auto Compression::Lz77::reset() -> void {
+auto Lz77::reset() -> void {
   Data::set(
       Data::cast<U8>(hash_table.get_data()), U8(0xFF), hash_size * sizeof(U32));
   Data::set(
@@ -124,7 +126,7 @@ auto Compression::Lz77::reset() -> void {
       window_size * sizeof(U32));
 }
 
-auto Compression::Lz77::insert(View::Bytes source, Count position) -> void {
+auto Lz77::insert(View::Bytes source, Count position) -> void {
   if (source.get_size() - position < min_match) {
     return;
   }
@@ -134,7 +136,7 @@ auto Compression::Lz77::insert(View::Bytes source, Count position) -> void {
   hash_table.get_data()[hash] = U32(position);
 }
 
-auto Compression::Lz77::find_match_and_insert(
+auto Lz77::find_match_and_insert(
     View::Bytes source,
     Count position,
     Count depth) -> Match {
@@ -155,7 +157,7 @@ auto Compression::Lz77::find_match_and_insert(
 
   Count best_length = min_match - 1;
   Count best_distance = 0;
-  const Count scan_limit = Math::min(max_match, remaining);
+  const Count scan_limit = Scalar::min(max_match, remaining);
   for (Count i = 0; i < depth && candidate != null_entry; i++) {
     const Count distance = position - candidate;
     if (distance > window_size) {
@@ -183,10 +185,8 @@ auto Compression::Lz77::find_match_and_insert(
   return Match(best_length, best_distance);
 }
 
-auto Compression::Lz77::find_match(
-    View::Bytes source,
-    Count position,
-    Count depth) const -> Match {
+auto Lz77::find_match(View::Bytes source, Count position, Count depth) const
+    -> Match {
   const U8* data = source.get_data();
   const Count remaining = source.get_size() - position;
 
@@ -199,7 +199,7 @@ auto Compression::Lz77::find_match(
   Count best_length = min_match - 1;
   Count best_distance = 0;
   U32 candidate = hash_table.get_data()[hash];
-  const Count scan_limit = Math::min(max_match, remaining);
+  const Count scan_limit = Scalar::min(max_match, remaining);
   for (Count i = 0; i < depth && candidate != null_entry; i++) {
     const Count distance = position - candidate;
     if (distance > window_size) {

@@ -6,7 +6,7 @@
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/math.hpp"
+#include "perimortem/core/scalar.hpp"
 
 namespace Perimortem::Core::Algorithm {
 
@@ -171,7 +171,7 @@ constexpr auto sort(Core::Access::Vector<type> access)
 
   // Perform the introsort to start fixing the array.
   // 2 times the log2 depth gives us the cutoff point for heap sorting.
-  introsort(data, size, 2 * Math::log2(size));
+  introsort(data, size, 2 * Core::Scalar::log2(size));
 
   // Fix residual fragmented chunks in the array.
   insertion_sort(data, size);

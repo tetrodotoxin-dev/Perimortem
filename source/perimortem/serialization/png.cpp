@@ -8,16 +8,17 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/math.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/compression/deflate.hpp"
-#include "perimortem/graphics/image.hpp"
+#include "perimortem/core/scalar.hpp"
+#include "perimortem/memory/matrix.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Compression;
 using namespace Perimortem::Memory;
-using namespace Perimortem::Graphics;
-using namespace Perimortem;
+using namespace Perimortem::Math;
+using namespace Perimortem::Serialization;
 
 // The color encoding used in a PNG file's IHDR chunk.
 enum class ColorType : U8 {
@@ -42,9 +43,9 @@ enum class FilterType : U8 {
 struct ImageInfo {
  public:
   constexpr ImageInfo() = default;
-  constexpr ImageInfo(const Image& image) {
-    Data::write<Data::ByteOrder::Big>(&width, image.get_width());
-    Data::write<Data::ByteOrder::Big>(&height, image.get_height());
+  constexpr ImageInfo(const Matrix<Rgba8>& image) {
+    Data::write<Data::ByteOrder::Big>(&width, image.get_column_count());
+    Data::write<Data::ByteOrder::Big>(&height, image.get_row_count());
     bit_depth = 8;
     color_type = ColorType::Rgba;
   }
@@ -186,7 +187,9 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
   // from a trusted source. The check is still used in debug builds, but in
   // release builds removing the CRC check improves throughput by as much as
   // 20% for large images.
+
 #if PERI_DEBUG
+
   U32 stored_crc;
   Data::copy(
       Data::cast<U8>(&stored_crc), source.get_data() + offset + 8 + length,
@@ -201,6 +204,7 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
                   << "' at offset "_view << S64(offset);
     return Chunk();
   }
+
 #endif
 
   return Chunk(data, type, length);
@@ -245,9 +249,10 @@ constexpr auto paeth_predictor(U8 left, U8 up, U8 upper_left) -> U8 {
   S16 signed_upper_left = S16(upper_left);
   S16 predictor = signed_left + signed_up - signed_upper_left;
 
-  S16 score_left = Math::absolute(predictor - signed_left);
-  S16 score_up = Math::absolute(predictor - signed_up);
-  S16 score_upper_left = Math::absolute(predictor - signed_upper_left);
+  S16 score_left = Scalar::absolute(predictor - signed_left);
+  S16 score_up = Scalar::absolute(predictor - signed_up);
+  S16 score_upper_left =
+      Scalar::absolute(predictor - signed_upper_left);
   if (score_left <= score_up && score_left <= score_upper_left) {
     return left;
   }
@@ -265,9 +270,9 @@ constexpr auto paeth_predictor(U8 left, U8 up, U8 upper_left) -> U8 {
 template <Bool first_row>
 auto score_row(View::Bytes current_row, View::Bytes previous_row)
     -> FilterType {
-  constexpr auto signed_abs = Math::absolute<S8>;
+  constexpr auto signed_abs = Scalar::absolute<S8>;
   constexpr auto filter_count = first_row ? 2 : 5;
-  constexpr auto channel_count = Image::get_channel_count();
+  constexpr auto channel_count = Rgba8::get_channel_count();
   Static::Vector<U64, filter_count> scores;
 
   auto current_row_data = current_row.get_data();
@@ -290,7 +295,7 @@ auto score_row(View::Bytes current_row, View::Bytes previous_row)
     U8 left = current_row_data[i - channel_count];
     scores[U8(FilterType::None)] += signed_abs(S8(current_row_data[i]));
     scores[U8(FilterType::Sub)] +=
-        Math::absolute<S8>(current_row_data[i] - left);
+        Scalar::absolute<S8>(current_row_data[i] - left);
     if constexpr (!first_row) {
       U8 up = previous_row_data[i];
       U8 upper_left = previous_row_data[i - channel_count];
@@ -316,7 +321,7 @@ constexpr auto apply_row_filter(
     Access::Bytes output_row,
     View::Bytes current_row,
     View::Bytes previous_row) -> void {
-  constexpr auto channel_count = Image::get_channel_count();
+  constexpr auto channel_count = Rgba8::get_channel_count();
   Count size = current_row.get_size();
 
   auto output_row_data = output_row.get_data();
@@ -324,6 +329,7 @@ constexpr auto apply_row_filter(
   auto previous_row_data = previous_row.get_data();
 
 #if PERI_DEBUG
+
   // All of the buffers should be appropriately sized so just work on the raw
   // data directly since this is hot path code.
   if (output_row.get_size() != size || previous_row.get_size() != size) {
@@ -331,6 +337,7 @@ constexpr auto apply_row_filter(
         "PNG: apply_filter_row was called with one or more invalid rows."_view);
     return;
   }
+
 #endif
 
   // Special case the first pixel in the row
@@ -408,10 +415,11 @@ constexpr auto apply_row_filter(
 
 // Applies adaptive PNG filtering to the source pixels, scoring all five filter
 // types per row and selecting the option with the lowest residual.
-constexpr auto apply_adaptive_filtering(const Image& image) -> Dynamic::Bytes {
-  const auto row_stride = Count(image.get_width()) * Pixel::get_byte_count();
-  const auto output_size = Count(image.get_height()) * (1 + row_stride);
-  const auto raw_bytes = Data::cast<U8>(image.get_pixels().get_data());
+constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
+    -> Dynamic::Bytes {
+  const auto row_stride = Count(image.get_column_count()) * Rgba8::get_byte_count();
+  const auto output_size = Count(image.get_row_count()) * (1 + row_stride);
+  const auto raw_bytes = Data::cast<U8>(image.get_values().get_data());
 
   // Create the full output buffer and resize it to the full size.
   Dynamic::Bytes output(output_size);
@@ -430,7 +438,7 @@ constexpr auto apply_adaptive_filtering(const Image& image) -> Dynamic::Bytes {
   output_data[0] = U8(best_filter);
 
   // The rest of the rows after the first are scored against all filters.
-  for (Count row = 1; row < image.get_height(); row++) {
+  for (Count row = 1; row < image.get_row_count(); row++) {
     // Update the previous and current rows.
     View::Bytes previous_row = current_row;
     current_row = View::Bytes(raw_bytes + row * row_stride, row_stride);
@@ -598,7 +606,7 @@ constexpr auto convert_to_pixels(
     Count height,
     ColorType color_type,
     View::Bytes palette,
-    Dynamic::Vector<Pixel>& output) -> Bool {
+    Dynamic::Vector<Rgba8>& output) -> Bool {
   Count source_channels = number_of_color_channels(color_type);
   if (source_channels == 0) [[unlikely]] {
     return False;
@@ -611,14 +619,14 @@ constexpr auto convert_to_pixels(
     Count source_offset = pixel_index * source_channels;
     switch (color_type) {
     case ColorType::Greyscale:
-      output[pixel_index] = Pixel::from_grey(data[source_offset]);
+      output[pixel_index] = Rgba8::from_grey(data[source_offset]);
       break;
     case ColorType::GreyscaleAlpha:
       output[pixel_index] =
-          Pixel::from_grey_alpha(data[source_offset], data[source_offset + 1]);
+          Rgba8::from_grey_alpha(data[source_offset], data[source_offset + 1]);
       break;
     case ColorType::Rgb:
-      output[pixel_index] = Pixel::from_rgb(
+      output[pixel_index] = Rgba8::from_rgb(
           data[source_offset + 0], data[source_offset + 1],
           data[source_offset + 2]);
       break;
@@ -637,7 +645,7 @@ constexpr auto convert_to_pixels(
         return False;
       }
 
-      output[pixel_index] = Pixel::from_rgb(
+      output[pixel_index] = Rgba8::from_rgb(
           palette[palette_offset + 0], palette[palette_offset + 1],
           palette[palette_offset + 2]);
       break;
@@ -689,7 +697,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
       ImageInfo::size);
 
   // Currently only support 8 bit color depth
-  if (image_info.get_bit_depth() != Image::get_color_depth()) [[unlikely]] {
+  if (image_info.get_bit_depth() != Rgba8::get_bit_depth()) [[unlikely]] {
     Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: Unsupported bit depth "_view
                   << U32(image_info.get_bit_depth())
@@ -717,67 +725,82 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
 constexpr auto process_data(
     const ImageInfo info,
     View::Bytes source,
-    View::Bytes palette) -> Option<Image> {
-  // The exact decompressed size can be derived from the image info so we can
-  // use that to preallocate the buffer.
-  Count bytes_per_pixel = number_of_color_channels(info.get_color_type());
-  const Count decompressed_capacity =
-      info.get_width() * info.get_height() * bytes_per_pixel +
-      /* Extra filter byte per row */ info.get_height();
-  Dynamic::Bytes filtered_rows =
-      Compression::Deflate::inflate(source, decompressed_capacity);
-  if (filtered_rows.is_empty()) [[unlikely]] {
-    return Option<Image>();
+    View::Bytes palette) -> Option<Matrix<Rgba8>> {
+  // Domain checks the pixel count before either decode path allocates. The
+  // filtered stream also carries one control byte per row, so its byte extent
+  // needs a separate check before the inflater reserves that storage.
+  const Domain<2, Boundary::Clip, Boundary::Clip> domain(
+      Size<U32, 2>({{info.get_width(), info.get_height()}}));
+  const auto pixel_count = domain.get_element_count();
+  const Count bytes_per_pixel =
+      number_of_color_channels(info.get_color_type());
+  const Count max_bytes = ~CppSize{};
+  if (!pixel_count || bytes_per_pixel == 0 ||
+      *pixel_count > max_bytes / sizeof(Rgba8) ||
+      *pixel_count > (max_bytes - info.get_height()) / bytes_per_pixel) {
+    Diagnostics::Log::error("Png: Decoded extent exceeds address space"_view);
+    return Option<Matrix<Rgba8>>();
   }
 
-  // If the target format is our desired format then we can reconstruct the data
-  // in place which saves a copy.
+  const Count decompressed_capacity =
+      *pixel_count * bytes_per_pixel + info.get_height();
+  Dynamic::Bytes filtered_rows =
+      Deflate::inflate(source, decompressed_capacity);
+  if (filtered_rows.is_empty()) [[unlikely]] {
+    return Option<Matrix<Rgba8>>();
+  }
+
+  Dynamic::Vector<Rgba8> pixels;
+
+  // RGBA rows can be reconstructed directly into their final sample storage.
   if (info.get_color_type() == ColorType::Rgba) {
-    Dynamic::Vector<Pixel> pixels;
-    pixels.resize(info.get_width() * info.get_height());
+    pixels.resize(*pixel_count);
     if (!reconstruct_filter(
             filtered_rows.get_view(), info.get_width(), info.get_height(),
             bytes_per_pixel, pixels.get_access().get_bytes())) [[unlikely]] {
       Diagnostics::Log::error(
           "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
-      return Option<Image>();
+      return Option<Matrix<Rgba8>>();
     }
 
-    return Image::create(
-        Size2D(info.get_width(), info.get_height()), Data::take(pixels));
+  } else {
+    // Other channel layouts need an intermediate byte buffer before conversion
+    // can fill the Rgba8 vector.
+    Dynamic::Bytes raw_pixels;
+    raw_pixels.forgetful_resize(*pixel_count * bytes_per_pixel);
+    if (!reconstruct_filter(
+            filtered_rows.get_view(), info.get_width(), info.get_height(),
+            bytes_per_pixel, raw_pixels)) [[unlikely]] {
+      Diagnostics::Log::error(
+          "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
+      return Option<Matrix<Rgba8>>();
+    }
+
+    if (!convert_to_pixels(
+            raw_pixels.get_view(), info.get_width(), info.get_height(),
+            info.get_color_type(), palette, pixels)) [[unlikely]] {
+      Diagnostics::Log::error("Png: Rgba8 conversion failed"_view);
+      return Option<Matrix<Rgba8>>();
+    }
   }
 
-  // If we can't construct in place then we have to use a temp buffer to store
-  // the intermediate data.
-  Dynamic::Bytes raw_pixels;
-  raw_pixels.forgetful_resize(
-      info.get_width() * info.get_height() * bytes_per_pixel);
-  if (!reconstruct_filter(
-          filtered_rows.get_view(), info.get_width(), info.get_height(),
-          bytes_per_pixel, raw_pixels)) [[unlikely]] {
-    Diagnostics::Log::error(
-        "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
-    return Option<Image>();
-  }
-
-  // Convert the arbitrary color format into Pixel's RGBA format.
-  Dynamic::Vector<Pixel> pixels;
-  if (!convert_to_pixels(
-          raw_pixels.get_view(), info.get_width(), info.get_height(),
-          info.get_color_type(), palette, pixels)) [[unlikely]] {
-    Diagnostics::Log::error("Png: Pixel conversion failed"_view);
-    return Option<Image>();
-  }
-
-  return Image::create(
-      Size2D(info.get_width(), info.get_height()), Data::take(pixels));
+  return Matrix<Rgba8>::project(domain, Data::take(pixels))
+      .visit(
+          [](Matrix<Rgba8>& matrix) -> Option<Matrix<Rgba8>> {
+            return Data::take(matrix);
+          },
+          [](Matrix<Rgba8>::Failure) -> Option<Matrix<Rgba8>> {
+            Diagnostics::Log::error(
+                "Png: Decoded pixel count does not match dimensions"_view);
+            return {};
+          });
 }
 
-auto Serialization::Png::decode(const View::Bytes source) -> Image {
+auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
   // If we can't load the image or if the image is empty then return empty.
   ImageInfo info = read_header(source);
   if (info.get_width() == 0 || info.get_height() == 0) [[unlikely]] {
-    return Image();
+    return Matrix<Rgba8>();
   }
 
   // For PNGs with a single IDAT chunk (the common case) we hold a view to avoid
@@ -793,7 +816,7 @@ auto Serialization::Png::decode(const View::Bytes source) -> Image {
   while (chunk_offset < source.get_size()) {
     Chunk chunk = read_chunk(source, chunk_offset);
     if (!chunk.get_valid()) [[unlikely]] {
-      return Image();
+      return Matrix<Rgba8>();
     }
 
     if (chunk.get_type() == "IEND"_view) {
@@ -824,20 +847,29 @@ auto Serialization::Png::decode(const View::Bytes source) -> Image {
 
   if (binary_data.is_empty()) [[unlikely]] {
     Diagnostics::Log::error("Png: No IDAT chunk found or chunk was empty"_view);
-    return Image();
+    return Matrix<Rgba8>();
   }
 
   return process_data(info, binary_data, palette)
       .visit(
-          [] { return Image(); },
-          [](Image& image) { return Data::take(image); });
+          [] { return Matrix<Rgba8>(); },
+          [](Matrix<Rgba8>& image) { return Data::take(image); });
 }
 
-auto Serialization::Png::encode(const Image& image) -> Dynamic::Bytes {
-  View::Vector<Pixel> pixels = image.get_pixels();
+auto Png::encode(const Matrix<Rgba8>& image) -> Dynamic::Bytes {
+  View::Vector<Rgba8> pixels = image.get_values();
 
-  // Ignore empty images
+  // An empty domain has no scanlines to encode.
   if (pixels.is_empty()) [[unlikely]] {
+    return Dynamic::Bytes();
+  }
+
+  // Filtering adds one byte per row. Matrix's pixel allocation bound does not
+  // cover that extra storage, so check it before creating the filtered rows.
+  const Count row_stride = Count(image.get_column_count()) * sizeof(Rgba8);
+  const Count max_bytes = ~CppSize{};
+  if (row_stride >= max_bytes ||
+      image.get_row_count() > max_bytes / (row_stride + 1)) {
     return Dynamic::Bytes();
   }
 
@@ -846,14 +878,21 @@ auto Serialization::Png::encode(const Image& image) -> Dynamic::Bytes {
 
   // Compress using the default compression level for balanced speed vs size.
   Dynamic::Bytes compressed =
-      Compression::Deflate::deflate(filtered_rows.get_view());
+      Deflate::deflate(filtered_rows.get_view());
   if (compressed.is_empty()) [[unlikely]] {
     return Dynamic::Bytes();
   }
 
-  // Output is just 3 chunks (header, end, data) and the PNG signiture.
-  const auto output_size = png_signature.get_size() + ImageInfo::size +
-                           (chunk_metadata_size * 3) + compressed.get_size();
+  // The compressed payload is one PNG chunk, whose length field is 32 bits.
+  // Leave room for the signature and three chunk frames in the output buffer.
+  const Count framing_size = png_signature.get_size() + ImageInfo::size +
+                             chunk_metadata_size * 3;
+  if (compressed.get_size() > ~U32{} ||
+      compressed.get_size() > max_bytes - framing_size) {
+    return Dynamic::Bytes();
+  }
+
+  const Count output_size = framing_size + compressed.get_size();
   Dynamic::Bytes output(output_size);
   output.forgetful_resize(output_size);
   auto data = output.get_access();

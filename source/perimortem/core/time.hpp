@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/math.hpp"
+#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/perimortem.hpp"
 
 namespace Perimortem::Core {
@@ -72,8 +72,8 @@ class Time {
   constexpr auto measure(const Time& end_point = Time::now()) const
       -> Duration {
     // Ensure duration is always the absolute value.
-    auto start_stamp = Math::min(get_stamp(), end_point.get_stamp());
-    auto end_stamp = Math::max(get_stamp(), end_point.get_stamp());
+    auto start_stamp = Core::Scalar::min(get_stamp(), end_point.get_stamp());
+    auto end_stamp = Core::Scalar::max(get_stamp(), end_point.get_stamp());
     return Duration(end_stamp - start_stamp);
   }
 

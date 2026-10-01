@@ -46,10 +46,14 @@ constexpr auto test_contents = "{\"value\":42}"_view;
 constexpr auto replacement_contents = "{\"other\":24}"_view;
 
 static constexpr const char* test_output_path = "system_file_test_out.json";
+
 #ifdef PERI_LINUX
+
 static constexpr const char* test_replacement_path =
     "system_file_test_replacement.json";
+
 #endif
+
 static constexpr CppSize temporary_path_capacity = 256;
 static constexpr Count captured_file_log_capacity = 1024;
 
@@ -83,7 +87,9 @@ static auto file_warning_contains(View::Bytes message) -> Bool {
 // Linux syscall tracing provides deterministic mutation between open, metadata,
 // and read. Keep that additional kernel oracle separate from the portable file
 // behavior exercised on both hosts.
+
 #ifdef PERI_LINUX
+
 enum class TraceMutation {
   ReplacePath,
   TruncateAfterMetadata,
@@ -563,13 +569,16 @@ VALIDATION_TEST(SystemFile, unreadable) {
   ASSERT(written);
 
 #ifdef PERI_WINDOWS
+
   HANDLE held = CreateFileA(
       test_output_path, GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, nullptr);
   ASSERT(held != INVALID_HANDLE_VALUE);
   auto source = File::read(test_output);
   CloseHandle(held);
   EXPECT_NOT(source);
+
 #else
+
   S32 restricted = chmod(test_output_path, 0);
   ASSERT_EQ(restricted, 0);
 
@@ -578,11 +587,15 @@ VALIDATION_TEST(SystemFile, unreadable) {
   S32 restored = chmod(test_output_path, S_IRUSR | S_IWUSR);
   EXPECT_EQ(restored, 0);
   EXPECT_NOT(source);
+
 #endif
+
 }
 
 VALIDATION_TEST(SystemFile, oversized) {
+
 #ifdef PERI_WINDOWS
+
   HANDLE file = CreateFileA(
       test_output_path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
   ASSERT(file != INVALID_HANDLE_VALUE);
@@ -603,7 +616,9 @@ VALIDATION_TEST(SystemFile, oversized) {
       SetFilePointerEx(file, size, nullptr, FILE_BEGIN) && SetEndOfFile(file);
   CloseHandle(file);
   ASSERT(sized);
+
 #else
+
   S32 descriptor =
       open(test_output_path, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
   ASSERT(descriptor >= 0);
@@ -615,6 +630,7 @@ VALIDATION_TEST(SystemFile, oversized) {
   ASSERT_EQ(closed, 0);
 
 #endif
+
   EXPECT_NOT(File::read(test_output));
 }
 
@@ -623,6 +639,7 @@ VALIDATION_TEST(SystemFile, non_regular) {
 }
 
 #ifdef PERI_LINUX
+
 VALIDATION_TEST(SystemFile, short_read) {
   Bool written = File::write(test_contents, test_output);
   ASSERT(written);
@@ -637,9 +654,11 @@ VALIDATION_TEST(SystemFile, short_read) {
       test_output_path, View::Bytes(), False,
       TraceMutation::TruncateAfterMetadata, nullptr, nullptr, nullptr, True));
 }
+
 #endif
 
 #ifdef PERI_LINUX
+
 VALIDATION_TEST(SystemFile, same_opened_object) {
   Bool original_written = File::write(test_contents, test_output);
   ASSERT(original_written);
@@ -660,6 +679,7 @@ VALIDATION_TEST(SystemFile, same_opened_object) {
       test_output_path, test_contents, True, TraceMutation::ReplacePath,
       test_replacement_path, nullptr, nullptr, True));
 }
+
 #endif
 
 VALIDATION_TEST(SystemFile, exists) {
@@ -926,12 +946,16 @@ VALIDATION_TEST(SystemFileRoot, symlink_read) {
   Bool outside_written = temporary.write_outside(test_contents);
   Bool linked = temporary.create_link("link", temporary.get_outside_path());
   ASSERT(outside_written);
+
 #ifdef PERI_WINDOWS
+
   if (!linked && temporary.get_link_error() == ERROR_PRIVILEGE_NOT_HELD) {
     SKIP(
         "Symbolic links require Windows Developer Mode or link privileges."_view);
   }
+
 #endif
+
   ASSERT(linked);
 
   auto root = File::Root::open(temporary.get_location());
@@ -949,12 +973,16 @@ VALIDATION_TEST(SystemFileRoot, symlink_write) {
   Bool outside_written = temporary.write_outside(test_contents);
   Bool linked = temporary.create_link("link", temporary.get_outside_path());
   ASSERT(outside_written);
+
 #ifdef PERI_WINDOWS
+
   if (!linked && temporary.get_link_error() == ERROR_PRIVILEGE_NOT_HELD) {
     SKIP(
         "Symbolic links require Windows Developer Mode or link privileges."_view);
   }
+
 #endif
+
   ASSERT(linked);
 
   auto root = File::Root::open(temporary.get_location());
@@ -979,12 +1007,16 @@ VALIDATION_TEST(SystemFileRoot, symlink_remove) {
       temporary.create_link("link", temporary.get_outside_directory_path());
   ASSERT(directory_created);
   ASSERT(outside_written);
+
 #ifdef PERI_WINDOWS
+
   if (!linked && temporary.get_link_error() == ERROR_PRIVILEGE_NOT_HELD) {
     SKIP(
         "Symbolic links require Windows Developer Mode or link privileges."_view);
   }
+
 #endif
+
   ASSERT(linked);
 
   auto root = File::Root::open(temporary.get_location());
@@ -1003,12 +1035,16 @@ VALIDATION_TEST(SystemFileRoot, symlink_exists) {
   Bool outside_written = temporary.write_outside(test_contents);
   Bool linked = temporary.create_link("link", temporary.get_outside_path());
   ASSERT(outside_written);
+
 #ifdef PERI_WINDOWS
+
   if (!linked && temporary.get_link_error() == ERROR_PRIVILEGE_NOT_HELD) {
     SKIP(
         "Symbolic links require Windows Developer Mode or link privileges."_view);
   }
+
 #endif
+
   ASSERT(linked);
 
   auto root = File::Root::open(temporary.get_location());
@@ -1017,6 +1053,7 @@ VALIDATION_TEST(SystemFileRoot, symlink_exists) {
 }
 
 #ifdef PERI_LINUX
+
 VALIDATION_TEST(SystemFileRoot, write_close_warning) {
   auto root = File::Root::open("/dev"_view);
   ASSERT(root);
@@ -1028,6 +1065,7 @@ VALIDATION_TEST(SystemFileRoot, write_close_warning) {
       "System::File write failed. path=/dev/full "
       "stage=close errno="_view));
 }
+
 #endif
 
 VALIDATION_TEST(SystemFileRoot, directory_replacement) {
@@ -1054,6 +1092,7 @@ VALIDATION_TEST(SystemFileRoot, directory_replacement) {
 }
 
 #ifdef PERI_LINUX
+
 VALIDATION_TEST(SystemFileRoot, same_opened_member) {
   TemporaryRoot temporary;
   ASSERT(temporary);
@@ -1085,6 +1124,7 @@ VALIDATION_TEST(SystemFileRoot, same_opened_member) {
       path, test_contents, True, TraceMutation::ReplacePath, replacement,
       temporary.get_path(), "file", True));
 }
+
 #endif
 
 VALIDATION_TEST(SystemFileRoot, move_ownership) {

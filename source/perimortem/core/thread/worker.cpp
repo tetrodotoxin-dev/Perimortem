@@ -20,9 +20,11 @@
 #include "perimortem/core/null_terminated.hpp"
 
 #ifndef PERI_WINDOWS
+
 static_assert(
     sizeof(pthread_t) <= sizeof(U64) && alignof(pthread_t) <= alignof(U64),
     "pthread_t does not fit the worker token storage");
+
 #endif
 
 using namespace Perimortem::Core;
@@ -36,6 +38,7 @@ static thread_local View::Bytes this_thread_name = ""_view;
 using WorkerJobFunction = Thread::Worker::JobFunction;
 
 #ifdef PERI_WINDOWS
+
 static SRWLOCK worker_mutex = SRWLOCK_INIT;
 static auto lock_workers() -> void {
   AcquireSRWLockExclusive(&worker_mutex);
@@ -46,7 +49,9 @@ static auto unlock_workers() -> void {
 static auto yield_worker() -> void {
   SwitchToThread();
 }
+
 #else
+
 static pthread_mutex_t worker_mutex = PTHREAD_MUTEX_INITIALIZER;
 static auto lock_workers() -> void {
   pthread_mutex_lock(&worker_mutex);
@@ -57,6 +62,7 @@ static auto unlock_workers() -> void {
 static auto yield_worker() -> void {
   sched_yield();
 }
+
 #endif
 
 // ThreadInitializer owns the full worker startup transaction.
@@ -85,7 +91,9 @@ class ThreadInitializer {
     // If for some reason the system fails to create the thread then emit fatal
     // log and exit since we are most likely in a broken state.
     thread_id = reserve_thread();
+
 #ifdef PERI_WINDOWS
+
     handle = _beginthreadex(
         nullptr, 0,
         [](void* initializer) -> unsigned {
@@ -94,7 +102,9 @@ class ThreadInitializer {
         },
         this, 0, nullptr);
     const bool failed = handle == 0;
+
 #else
+
     pthread_t thread;
     const auto pthread_result =
         pthread_create(&thread, nullptr, dispatch, this);
@@ -102,7 +112,9 @@ class ThreadInitializer {
     if (!failed) {
       Data::copy(reinterpret_cast<U8*>(&handle), &thread, 1);
     }
+
 #endif
+
     if (failed) {
       release_thread(thread_id);
       Diagnostics::Log::fatal(
@@ -182,6 +194,7 @@ class ThreadInitializer {
     }
 
 #ifdef PERI_WINDOWS
+
     // The full name remains in our thread storage. The debugger name uses a
     // bounded native buffer so naming never needs another allocation.
     wchar_t name[256];
@@ -194,7 +207,9 @@ class ThreadInitializer {
       name[written] = 0;
       SetThreadDescription(GetCurrentThread(), name);
     }
+
 #else
+
     // Max name length for pthreads is 16 (including the null terminator)
     // Static::Bytes zero extends for names shorter than 16.
     Static::Bytes<16> system_thread_name(thread_name);
@@ -204,7 +219,9 @@ class ThreadInitializer {
 
     pthread_setname_np(
         pthread_self(), Data::cast<char>(system_thread_name.get_data()));
+
 #endif
+
   }
 
   static auto dispatch(void* initializer_address) -> void* {
@@ -290,7 +307,9 @@ auto Thread::Worker::operator=(Worker&& other_worker) -> Worker& {
 
 auto Thread::Worker::join() -> void {
   if (handle) {
+
 #ifdef PERI_WINDOWS
+
     HANDLE thread = reinterpret_cast<HANDLE>(handle);
     const auto waited = WaitForSingleObject(thread, INFINITE);
     if (waited != WAIT_OBJECT_0) {
@@ -298,21 +317,25 @@ auto Thread::Worker::join() -> void {
     }
 
     CloseHandle(thread);
+
 #else
+
     pthread_t thread;
     Data::copy(
         reinterpret_cast<U8*>(&thread), reinterpret_cast<const U8*>(&handle),
         sizeof(thread));
     pthread_join(thread, nullptr);
+
 #endif
+
     handle = 0;
   }
 }
 
 auto Thread::Worker::start(
-    Core::View::Bytes name,
+    View::Bytes name,
     JobFunction job_function,
-    Core::View::Bytes job_data) -> Thread::Worker {
+    View::Bytes job_data) -> Thread::Worker {
   Thread::Worker worker;
   ThreadInitializer initializer(name, job_function, job_data, worker.handle);
   return worker;

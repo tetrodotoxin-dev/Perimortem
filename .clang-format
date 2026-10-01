@@ -2,6 +2,11 @@
 BasedOnStyle: Chromium
 Standard: Latest
 
+# Conditional branches around code and declarations have one empty line on
+# each side of a directive. This covers #if, #ifdef, #ifndef, #elif,
+# #elifdef, #else, and #endif. Conditional include groups and header guards
+# stay compact. Review maintains this spacing beyond clang-format's options.
+
 InsertBraces: true
 InsertNewlineAtEOF: true
 KeepEmptyLines:

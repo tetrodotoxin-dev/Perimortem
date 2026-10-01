@@ -8,7 +8,6 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 
-using namespace Perimortem;
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
@@ -28,7 +27,7 @@ static auto write(storage_type& storage, value_type value) -> void {
 
   // Use the Core::Writer to perform the actual serialization. Once that's done
   // we can shrink down to the actual serialized size.
-  Core::Writer::Textual writer(storage.get_access().slice(start, write_window));
+  Writer::Textual writer(storage.get_access().slice(start, write_window));
   writer << value;
   storage.resize(start + writer.get_location());
 }

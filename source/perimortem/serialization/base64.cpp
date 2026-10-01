@@ -47,18 +47,25 @@ static_assert(decode_lookup['/'] == 63);
 static_assert(decode_lookup['='] == _);
 
 // Extra bytes needed after the true output size for vectorized working space.
+
 #ifdef PERI_AVX2
+
 constexpr Count decode_underwrite_bytes = sizeof(__m128i) / 2;
 constexpr Count decode_extra_bytes =
     sizeof(__m256i) / 4 + decode_underwrite_bytes;
+
 #else
+
 // A scalar quartet can write the two bytes hidden by trailing '=' padding.
 constexpr Count decode_underwrite_bytes = 0;
 constexpr Count decode_extra_bytes = 2;
+
 #endif
 
 auto vectorized_decode(U8* text, View::Bytes source) -> Count {
+
 #ifdef PERI_AVX2
+
   // On AMD processors that don't support AVX512 they can still take advantage
   // of increased AVX2 ports. To make sure we support just about every modern
   // CPU we can use two or more parallel AVX2 buffers unrolled.
@@ -72,7 +79,9 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
   constexpr auto avx2_channel_width = sizeof(__m256i);
   constexpr auto full_channel_width = avx2_channel_width * fused_channels;
   constexpr auto upper_lane_underwrite_buffer = decode_underwrite_bytes;
+
 #endif
+
   constexpr Count output_stride = 3;
   constexpr Count source_stride = 4;
 
@@ -99,6 +108,7 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
   }
 
 #ifdef PERI_AVX2
+
   // Make sure we start at the end of the buffer space for vectorization.
   // Keep a padded final quartet in the scalar tail. Including it in a full
   // vector batch would consume more bytes than remain after removing '='.
@@ -238,9 +248,11 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
   }
 
 #else
+
   constexpr Count output_vectorized_bytes = 0;
   constexpr Count source_vectorized_bytes = 0;
   auto output_stream = text;
+
 #endif
 
   // The same quartet loop handles the vector tail and the complete scalar path.
@@ -261,7 +273,9 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
 }
 
 auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
+
 #ifdef PERI_AVX2
+
   // On AMD processors that don't support AVX512 they can still take advantage
   // of increased AVX2 ports. To make sure we support just about every modern
   // CPU we can use two or more parallel AVX2 buffers unrolled.
@@ -274,7 +288,9 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
   constexpr auto fused_channels = 2;
   constexpr auto avx2_channel_width = sizeof(__m256i);
   constexpr auto full_channel_width = avx2_channel_width * fused_channels;
+
 #endif
+
   constexpr Count output_stride = 4;
   constexpr Count source_stride = 3;
   constexpr auto encode_filter = 64 - 1;
@@ -285,6 +301,7 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
   auto output_stream = output.get_data();
 
 #ifdef PERI_AVX2
+
   // If the vector is long enough start by doing a scalar pass so we have room
   // to underread the buffer, regardless of its source.
   if (source_bytes > full_channel_width * 2) {

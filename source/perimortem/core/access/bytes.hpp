@@ -4,23 +4,26 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
-#include "perimortem/core/math.hpp"
 #include "perimortem/core/option.hpp"
+#include "perimortem/core/scalar.hpp"
 
 namespace Perimortem::Core::Access {
 
-// A raw read/write view of bytes with no endianness.
+// A borrowed read and write view of bytes with no endianness. Indexed access
+// selects the nearest endpoint when the index lies outside a nonempty view.
+// Empty storage has no endpoint, so indexed access returns None. get_data
+// exposes raw storage for callers that can prove their own bounds.
 class Bytes {
  public:
   using data_type = U8;
 
   // Default to empty string.
-  constexpr Bytes() : source_block(nullptr), size(0) {}
+  constexpr Bytes() = default;
 
   constexpr Bytes(const Bytes&) = default;
 
   constexpr Bytes(data_type* source, Count source_size)
-      : source_block(source), size(source_size) {}
+      : source_block(source), size(source ? source_size : 0) {}
 
   template <Count N>
   constexpr Bytes(data_type (&source)[N]) : source_block(source), size(N) {}
@@ -28,14 +31,39 @@ class Bytes {
   constexpr operator View::Bytes() const { return get_view(); }
 
   constexpr auto at(Count index) -> Core::Option<data_type&> {
-    if (index >= size) [[unlikely]] {
+    if (is_empty()) [[unlikely]] {
       return {};
     }
 
-    return source_block[index];
+    return source_block[index < size ? index : size - 1];
+  }
+
+  template <typename index_type>
+    requires(
+        __is_integral(index_type) && __is_signed(index_type) &&
+        sizeof(index_type) <= sizeof(S64))
+  constexpr auto at(index_type index) -> Core::Option<data_type&> {
+    if (is_empty()) [[unlikely]] {
+      return {};
+    }
+
+    if (index < 0) {
+      return source_block[0];
+    }
+
+    Count coordinate = index;
+    return at(coordinate);
   }
 
   constexpr auto operator[](Count index) -> Core::Option<data_type&> {
+    return at(index);
+  }
+
+  template <typename index_type>
+    requires(
+        __is_integral(index_type) && __is_signed(index_type) &&
+        sizeof(index_type) <= sizeof(S64))
+  constexpr auto operator[](index_type index) -> Core::Option<data_type&> {
     return at(index);
   }
 
@@ -46,7 +74,7 @@ class Bytes {
     }
 
     return Access::Bytes(
-        source_block + start, Math::min(size, get_size() - start));
+        source_block + start, Core::Scalar::min(size, get_size() - start));
   };
 
   constexpr auto is_empty() const -> Bool { return size == 0; };
@@ -58,8 +86,8 @@ class Bytes {
   }
 
  private:
-  data_type* source_block;
-  Count size;
+  data_type* source_block = nullptr;
+  Count size = 0;
 };
 
 }  // namespace Perimortem::Core::Access

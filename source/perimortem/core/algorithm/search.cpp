@@ -5,7 +5,6 @@
 
 #include "perimortem/core/static/bytes.hpp"
 
-using namespace Perimortem;
 using namespace Perimortem::Core;
 
 #ifdef PERI_AVX2
@@ -32,7 +31,9 @@ auto Algorithm::search(View::Bytes src, View::Bytes value) -> Count {
 
   Count i = 0;
   const Count tail_offset = value.get_size() - 1;
+
 #ifdef PERI_AVX2
+
   // Setup two additional registers with the exact value test as well as the
   // test mask. Since the source can be any length this is easier to setup by
   // loading from two Static::Bytes.
@@ -121,7 +122,9 @@ auto Algorithm::search(View::Bytes src, U8 value) -> Count {
   // sub ranges.
   Count i = 0;
   auto source_data = src.get_data();
+
 #ifdef PERI_AVX2
+
   constexpr auto vectorize_limit = sizeof(__m256i);
   if (src.get_size() >= vectorize_limit) [[likely]] {
     const auto test_mask = _mm256_set1_epi8(value);

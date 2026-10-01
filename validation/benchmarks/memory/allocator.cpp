@@ -12,7 +12,6 @@
 
 #include "perimortem/system/random.hpp"
 
-using namespace Perimortem;
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;

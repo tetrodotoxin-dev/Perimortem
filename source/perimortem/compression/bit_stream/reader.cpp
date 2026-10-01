@@ -6,12 +6,12 @@
 #include "perimortem/core/data.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem;
+using namespace Perimortem::Compression;
 
 // Loads bytes from the stream into buffer until it buffers at least 57 bits or
 // the stream is exhausted. 57 bits guarantees a 9 bit peek after consuming up
 // to a 48 bit code + extra bits pair without a second fill.
-auto Compression::BitStream::Reader::fill() -> void {
+auto BitStream::Reader::fill() -> void {
   const Count size = data.get_size();
   const U8* source_pointer = data.get_data();
 
@@ -35,7 +35,7 @@ auto Compression::BitStream::Reader::fill() -> void {
   }
 }
 
-auto Compression::BitStream::Reader::read_bit() -> Bool {
+auto BitStream::Reader::read_bit() -> Bool {
   if (buffered_bits == 0) {
     fill();
     if (buffered_bits == 0) [[unlikely]] {
@@ -50,7 +50,7 @@ auto Compression::BitStream::Reader::read_bit() -> Bool {
   return bit;
 }
 
-auto Compression::BitStream::Reader::read_code(Count count) -> U32 {
+auto BitStream::Reader::read_code(Count count) -> U32 {
   if (buffered_bits < count) {
     fill();
     if (buffered_bits < count) [[unlikely]] {
@@ -65,7 +65,7 @@ auto Compression::BitStream::Reader::read_code(Count count) -> U32 {
   return result;
 }
 
-auto Compression::BitStream::Reader::read_raw_bytes(Count count)
+auto BitStream::Reader::read_raw_bytes(Count count)
     -> View::Bytes {
   // Align to byte boundary: discard fractional bits in the current byte.
   const Count fractional_bits = buffered_bits & 7;
@@ -85,7 +85,7 @@ auto Compression::BitStream::Reader::read_raw_bytes(Count count)
   return result;
 }
 
-auto Compression::BitStream::Reader::peek_code(Count count) -> U32 {
+auto BitStream::Reader::peek_code(Count count) -> U32 {
   if (buffered_bits < count) {
     fill();
   }

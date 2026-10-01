@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/math.hpp"
+#include "perimortem/core/scalar.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
@@ -98,7 +98,7 @@ class Vector {
     // Attempt to grow by a factor of 2.
     // If that doesn't work than grow to exact size.
     const auto new_capacity =
-        Core::Math::max(get_capacity() * 2, required_size);
+        Core::Scalar::max(get_capacity() * 2, required_size);
 
     // Fetch and transfer to new block.
     auto new_block = arena.reserve<value_type>(new_capacity).get_data();

@@ -4,12 +4,12 @@
 #include "perimortem/compression/huffman.hpp"
 
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/math.hpp"
+#include "perimortem/core/scalar.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem;
+using namespace Perimortem::Compression;
 
-auto Compression::Huffman::compute_lengths(
+auto Huffman::compute_lengths(
     View::Vector<U32> frequencies,
     Access::Vector<U8> lengths) -> void {
   const Count symbol_count = frequencies.get_size();
@@ -20,7 +20,7 @@ auto Compression::Huffman::compute_lengths(
   };
 
   constexpr U16 null_node = 0xFFFF;
-  constexpr Count node_max = Compression::Huffman::max_symbol_count * 2;
+  constexpr Count node_max = Huffman::max_symbol_count * 2;
 
   Static::Vector<Node, node_max> nodes;
   const auto* frequency_data = frequencies.get_data();

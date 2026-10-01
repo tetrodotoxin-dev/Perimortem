@@ -10,7 +10,7 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/math.hpp"
+#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/managed/bytes.hpp"
@@ -31,6 +31,7 @@ static auto basename(View::Bytes path) -> View::Bytes {
 }
 
 static auto process_name() -> View::Bytes {
+
 #ifdef PERI_LINUX
 
   static U8 path_buffer[512];
@@ -41,6 +42,7 @@ static auto process_name() -> View::Bytes {
   }
 
 #endif
+
   return "process"_view;
 }
 
@@ -73,7 +75,7 @@ static auto format_help(
   Count label_width = "-help"_view.get_size();
   for (Count i = 0; i < variables.get_size(); i++) {
     const auto* variable = variables.get_entry(i);
-    label_width = Math::max(label_width, variable->key.get_size() + 1);
+    label_width = Scalar::max(label_width, variable->key.get_size() + 1);
   }
 
   label_width += 2;

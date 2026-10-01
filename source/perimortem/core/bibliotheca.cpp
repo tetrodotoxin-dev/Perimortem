@@ -19,8 +19,8 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/scalar.hpp"
 
-using namespace Perimortem;
 using namespace Perimortem::Core;
 
 // Gives the number of bits to shift to get the minimum containing size.
@@ -48,6 +48,7 @@ class alignas(64) Slab {
   static auto get(Count block_size) -> Slab* {
     Count size = allocator_size;
     void* mapped_memory = nullptr;
+
 #ifdef PERI_WASM
 
     // Browser linear memory has no page mapping contract. Retain the slab
@@ -71,7 +72,7 @@ class alignas(64) Slab {
 
 #elifdef PERI_WINDOWS
 
-    size = Data::align<megabytes_2>(Math::max(block_size, allocator_size));
+    size = Data::align<megabytes_2>(Scalar::max(block_size, allocator_size));
     mapped_memory = VirtualAlloc(
         nullptr, CppSize(size), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     if (!mapped_memory) [[unlikely]] {
@@ -108,9 +109,12 @@ class alignas(64) Slab {
     }
 
 #else
+
     Diagnostics::Log::fatal(
         "Bibliotheca is unable to allocate memory from this system."_view);
+
 #endif
+
     Slab* slab = Data::cast<Slab>(mapped_memory);
     slab->mapped_size = size;
     slab->ancestor = nullptr;
@@ -119,6 +123,7 @@ class alignas(64) Slab {
   }
 
   static auto release(Slab* slab) -> Bool {
+
 #ifdef PERI_WASM
 
     // Wasm32 doesn't need any special processing of it's blocks since they just
@@ -148,8 +153,11 @@ class alignas(64) Slab {
     return True;
 
 #else
+
     return False;
+
 #endif
+
   }
 
   constexpr auto get_free_space() const -> Count {
@@ -203,6 +211,7 @@ class Preface {
   Preface* next;
   // The archive index is an invariant of the block so store it in the header.
   U64 archive_index;
+
 #if PERI_DEBUG
 
   U64 block_stamp;

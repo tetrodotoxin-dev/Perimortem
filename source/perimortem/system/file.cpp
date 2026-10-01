@@ -39,6 +39,7 @@ enum class FileKind {
 };
 
 #ifdef PERI_WINDOWS
+
 static auto wide_path(const char* path, wchar_t* output) -> Bool {
   if (MultiByteToWideChar(
           CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, output, max_path_size)) {
@@ -48,27 +49,40 @@ static auto wide_path(const char* path, wchar_t* output) -> Bool {
   errno = EILSEQ;
   return False;
 }
+
 #endif
 
 // Only acquisition and native observation differ by host. Content transfer,
 // allocation, and failure reporting below share the same transaction path.
 static auto open_stream(const char* path, const char* mode) -> FILE* {
+
 #ifdef PERI_LINUX
+
   return fopen(path, mode);
+
 #elifdef PERI_WINDOWS
+
   wchar_t wide[max_path_size];
   return wide_path(path, wide) ? _wfopen(wide, mode[0] == 'r' ? L"rb" : L"wb")
                                : nullptr;
+
 #else
+
   errno = ENOSYS;
   return nullptr;
+
 #endif
+
 }
 
 static auto replace_path(const char* source, const char* destination) -> S32 {
+
 #ifdef PERI_LINUX
+
   return rename(source, destination);
+
 #elifdef PERI_WINDOWS
+
   wchar_t from[max_path_size];
   wchar_t to[max_path_size];
   if (!wide_path(source, from) || !wide_path(destination, to)) {
@@ -81,26 +95,40 @@ static auto replace_path(const char* source, const char* destination) -> S32 {
 
   errno = EIO;
   return -1;
+
 #else
+
   errno = ENOSYS;
   return -1;
+
 #endif
+
 }
 
 static auto remove_path(const char* path) -> S32 {
+
 #ifdef PERI_LINUX
+
   return ::remove(path);
+
 #elifdef PERI_WINDOWS
+
   wchar_t wide[max_path_size];
   return wide_path(path, wide) ? _wremove(wide) : -1;
+
 #else
+
   errno = ENOSYS;
   return -1;
+
 #endif
+
 }
 
 static auto inspect_path(const char* path) -> FileKind {
+
 #ifdef PERI_LINUX
+
   struct stat64 status;
   if (stat64(path, &status) != 0) {
     return FileKind::Missing;
@@ -111,7 +139,9 @@ static auto inspect_path(const char* path) -> FileKind {
   }
 
   return S_ISDIR(status.st_mode) ? FileKind::Directory : FileKind::Other;
+
 #elifdef PERI_WINDOWS
+
   wchar_t wide[max_path_size];
   if (!wide_path(path, wide)) {
     return FileKind::Missing;
@@ -128,17 +158,23 @@ static auto inspect_path(const char* path) -> FileKind {
 
   return attributes & FILE_ATTRIBUTE_DEVICE ? FileKind::Other
                                             : FileKind::Regular;
+
 #else
+
   errno = ENOSYS;
   return FileKind::Missing;
+
 #endif
+
 }
 
 // Metadata comes from the open stream, not a second lookup of its pathname.
 // Windows supplies a volume and file index instead of device and inode, and
 // its timestamp units are converted to the same seconds and nanoseconds form.
 static auto inspect_stream(FILE* file) -> Option<File::Fingerprint> {
+
 #ifdef PERI_LINUX
+
   struct stat64 status;
   if (fstat64(fileno(file), &status) != 0) {
     return {};
@@ -153,7 +189,9 @@ static auto inspect_stream(FILE* file) -> Option<File::Fingerprint> {
       U64(status.st_dev), U64(status.st_ino), U64(status.st_size),
       S64(status.st_mtim.tv_sec), S64(status.st_mtim.tv_nsec),
       S64(status.st_ctim.tv_sec), S64(status.st_ctim.tv_nsec));
+
 #elifdef PERI_WINDOWS
+
   const auto handle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(file)));
   BY_HANDLE_FILE_INFORMATION identity;
   FILE_BASIC_INFO times;
@@ -182,10 +220,14 @@ static auto inspect_stream(FILE* file) -> Option<File::Fingerprint> {
       modified % ticks_per_second * 100,
       changed / ticks_per_second - epoch_seconds,
       changed % ticks_per_second * 100);
+
 #else
+
   errno = ENOSYS;
   return {};
+
 #endif
+
 }
 
 // Operation identities are part of the diagnostic contract. Every stage of
@@ -384,9 +426,13 @@ static auto member_path(
   }
 
   Bool absolute = (*path)[0] == '/';
+
 #ifdef PERI_WINDOWS
+
   absolute |= path->get_size() >= 2 && (*path)[1] == ':';
+
 #endif
+
   if (absolute) {
     return create_path(output, *path);
   }

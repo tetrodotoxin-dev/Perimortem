@@ -6,7 +6,7 @@
 #include "perimortem/core/data.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem;
+using namespace Perimortem::Compression;
 
 // Append complete bytes from the accumulator to the output buffer.
 // Leaves at most 7 bits (the partial final byte) in the accumulator.
@@ -15,7 +15,7 @@ using namespace Perimortem;
 // the bit ordering required by RFC 1951.
 //
 // TODO: If we ever support ARM we'll need to fix the LSB ordering.
-auto Compression::BitStream::Writer::drain() -> void {
+auto BitStream::Writer::drain() -> void {
   while (bits >= 8) {
     output.append(U8(accumulator & 0xFF));
     accumulator >>= 8;
@@ -23,7 +23,7 @@ auto Compression::BitStream::Writer::drain() -> void {
   }
 }
 
-auto Compression::BitStream::Writer::write_bits(U32 value, Count length)
+auto BitStream::Writer::write_bits(U32 value, Count length)
     -> void {
   if (length == 0) {
     return;
@@ -39,12 +39,12 @@ auto Compression::BitStream::Writer::write_bits(U32 value, Count length)
 // Huffman codes stored in the Huffman table are already bit reversed into
 // stream order so they slot directly into the accumulator without further
 // reversal.
-auto Compression::BitStream::Writer::write_code(U32 code, Count length)
+auto BitStream::Writer::write_code(U32 code, Count length)
     -> void {
   write_bits(code, length);
 }
 
-auto Compression::BitStream::Writer::flush() -> void {
+auto BitStream::Writer::flush() -> void {
   if (bits > 0) {
     output.append(U8(accumulator & 0xFF));
     accumulator = 0;

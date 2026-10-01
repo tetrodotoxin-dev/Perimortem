@@ -15,7 +15,7 @@ Dynamic::Bytes::Bytes(Count reserved_capacity) {
   ensure_capacity(reserved_capacity);
 }
 
-Dynamic::Bytes::Bytes(const Core::View::Bytes view) : Bytes(view.get_size()) {
+Dynamic::Bytes::Bytes(const View::Bytes view) : Bytes(view.get_size()) {
   size = view.get_size();
   if (!view.is_empty()) {
     Data::copy(source_block, view.get_data(), view.get_size());
@@ -35,7 +35,7 @@ Dynamic::Bytes::~Bytes() {
   reset();
 }
 
-auto Dynamic::Bytes::operator=(Core::View::Bytes view) -> Bytes& {
+auto Dynamic::Bytes::operator=(View::Bytes view) -> Bytes& {
   proxy(view);
   return *this;
 }
@@ -84,7 +84,7 @@ auto Dynamic::Bytes::append(U8 byte, Count amount) -> void {
   size += amount;
 }
 
-auto Dynamic::Bytes::concat(Core::View::Bytes view) -> void {
+auto Dynamic::Bytes::concat(View::Bytes view) -> void {
   if (view.is_empty()) {
     return;
   }
@@ -117,7 +117,7 @@ auto Dynamic::Bytes::concat(Core::View::Bytes view) -> void {
   size = required_size;
 }
 
-auto Dynamic::Bytes::proxy(Core::View::Bytes view) -> void {
+auto Dynamic::Bytes::proxy(View::Bytes view) -> void {
   if (view.is_empty()) {
     reset();
     return;
@@ -153,7 +153,7 @@ auto Dynamic::Bytes::convert(U8 source, U8 target) -> void {
   }
 }
 
-auto Dynamic::Bytes::slice(Count start, Count size) const -> Core::View::Bytes {
+auto Dynamic::Bytes::slice(Count start, Count size) const -> View::Bytes {
   return get_view().slice(start, size);
 }
 

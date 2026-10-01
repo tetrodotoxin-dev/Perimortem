@@ -12,6 +12,7 @@ using namespace Perimortem::System;
 using namespace Perimortem::Core;
 
 #ifdef PERI_AVX2
+
 #include <immintrin.h>
 
 static constexpr S8 null = 0x80;
@@ -115,7 +116,9 @@ static constexpr auto deserialize_ascii(
 #endif
 
 auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
+
 #ifdef PERI_AVX2
+
   // RFC 4122 groups hexadecimal digits in widths of eight, four, four, four,
   // and twelve.
   const auto buffer =
@@ -139,7 +142,9 @@ auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
   auto ascii_buffer = _mm256_or_si256(packed_bytes, dash_fill);
 
   deserialize_ascii(ascii_buffer, this->value);
+
 #else
+
   // Keep the four separators outside the hexadecimal digit count so the two
   // words use the same ordering as constant evaluation and the C carrier.
   value.high = 0;
@@ -153,24 +158,32 @@ auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
     U64& word = digits++ < 16 ? value.high : value.low;
     word = (word << 4) | ascii_to_nibble(uuid_string[index]);
   }
+
 #endif
+
   return *this;
 }
 
 auto Uuid::deserialize(const Static::Bytes<32>& uuid_string) -> Uuid& {
+
 #ifdef PERI_AVX2
+
   const auto ascii_buffer =
       _mm256_loadu_si256(Data::cast<const __m256i_u>(uuid_string.get_data()));
 
   deserialize_ascii(ascii_buffer, this->value);
+
 #else
+
   value.high = 0;
   value.low = 0;
   for (Count index = 0; index < uuid_string.get_size(); ++index) {
     U64& word = index < 16 ? value.high : value.low;
     word = (word << 4) | ascii_to_nibble(uuid_string[index]);
   }
+
 #endif
+
   return *this;
 }
 
@@ -179,6 +192,7 @@ auto Uuid::serialize() const -> const Static::Bytes<36> {
   auto byte_buffer = uuid_string.get_access().get_data();
 
 #ifdef PERI_AVX2
+
   const __m128i packed = _mm_loadu_si128(Data::cast<const __m128i>(&value));
 
   const auto nibbles = nibbler(packed);
@@ -210,7 +224,9 @@ auto Uuid::serialize() const -> const Static::Bytes<36> {
   U32 last_4 = _mm256_extract_epi32(ascii, 7);
   Data::copy(byte_buffer + 16, dropped_2);
   Data::copy(byte_buffer + 32, last_4);
+
 #else
+
   constexpr char hexadecimal[] = "0123456789abcdef";
   Count digits = 0;
   for (Count index = 0; index < uuid_string.get_size(); ++index) {
@@ -223,35 +239,49 @@ auto Uuid::serialize() const -> const Static::Bytes<36> {
     byte_buffer[index] = hexadecimal[(word >> (60 - (digits % 16) * 4)) & 15];
     ++digits;
   }
+
 #endif
+
   return uuid_string;
 }
 
 auto Uuid::generate_v4() -> Uuid {
+
 #ifdef PERI_AVX2
+
   U64 values[2];
   _mm_storeu_si128(Data::cast<__m128i>(values), generate_uuid_v4());
   return Uuid(values[1], values[0]);
+
 #else
+
   const U64 high = Random::generate();
   const U64 low = Random::generate();
   return Uuid(
       (high & 0xFFFFFFFFFFFF0FFFULL) | 0x4000,
       (low & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL);
+
 #endif
+
 }
 
 auto Uuid::generate_v7() -> Uuid {
+
 #ifdef PERI_AVX2
+
   U64 values[2];
   _mm_storeu_si128(Data::cast<__m128i>(values), generate_uuid_v7());
   return Uuid(values[1], values[0]);
+
 #else
+
   const U64 timestamp = Time::clock().get_stamp() / 1'000'000;
   const U64 high = ((timestamp & 0xFFFFFFFFFFFF) << 16) |
                    (Random::generate() & 0xFFF) | 0x7000;
   const U64 low =
       (Random::generate() & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL;
   return Uuid(high, low);
+
 #endif
+
 }
