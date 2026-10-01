@@ -15,9 +15,15 @@ namespace Perimortem::Math {
 
 // Domain maps signed coordinates into discrete index limits starting at zero.
 // Size owns each upper limit while Boundary selects the behavior outside it.
-// A single Boundary applies to every axis or each axis may name its own. The
-// selection is part of the type so coordinate resolution need not dispatch on
-// stored policy values. An empty axis has no valid index under any policy.
+//
+// Domain supports three modes based on its Boundary template arguments:
+//
+// - If none are passed, Clip is used for all dimensions.
+// - If one is passed, it is used for all dimensions.
+// - Otherwise, one Boundary is required for each dimension.
+//
+// The selected rules are part of the type, so resolution needs no runtime
+// policy dispatch. An empty axis has no valid index under any policy.
 // Domain owns no elements and chooses no storage order.
 template <Count dimensions, Boundary... boundaries>
 class Domain {
