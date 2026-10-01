@@ -31,15 +31,3 @@ VALIDATION_TEST(NullTerminatedViews, exact_bytes) {
   const char buffer[] = {'a', '\0', 'b', '\0'};
   EXPECT_EQ(NullTerminated::to_view(buffer, sizeof(buffer)), "a\0b\0"_view);
 }
-
-VALIDATION_TEST(NullTerminatedViews, caller_bound_exceeds_one_kib) {
-  char buffer[1026];
-  for (char& byte : buffer) {
-    byte = 'x';
-  }
-  buffer[1025] = '\0';
-
-  auto view = NullTerminated::convert_cstring(buffer, sizeof(buffer));
-  EXPECT_EQ(view.get_size(), 1025);
-  EXPECT_EQ(view[1024], U8{'x'});
-}

@@ -1,8 +1,10 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/memory/matrix.hpp"
+
+#include "perimortem/core/static/vector.hpp"
+
 #include "perimortem/serialization/rgba8.hpp"
 
 #include "toolchain/validation/unit_test.hpp"
@@ -65,8 +67,7 @@ VALIDATION_TEST(MemoryMatrix, mixed_boundary_access) {
   values.emplace(Rgba8::from_rgb(1, 0, 0));
   values.emplace(Rgba8::from_rgb(2, 0, 0));
   values.emplace(Rgba8::from_rgb(3, 0, 0));
-  Domain<2, Boundary::Wrap, Boundary::Clip> domain(
-      Size<U32, 2>({{3, 1}}));
+  Domain<2, Boundary::Wrap, Boundary::Clip> domain(Size<U32, 2>({{3, 1}}));
   auto matrix = Matrix<Rgba8, Boundary::Wrap, Boundary::Clip>::create(
       domain, values.get_view());
   auto wrapped = matrix.get(Point<S64, 2>({{-1, 0}}));
@@ -145,7 +146,7 @@ VALIDATION_TEST(MemoryMatrix, truncates_source_view) {
   EXPECT_EQ(matrix.get_values().get_data()[0].red, 1);
 }
 
-VALIDATION_TEST(MemoryMatrix, rejects_bad_projection_dimensions) {
+VALIDATION_TEST(MemoryMatrix, bad_projection_dimensions) {
   Dynamic::Vector<Rgba8> values;
   values.emplace(Rgba8::from_rgb(1, 2, 3));
   const auto* data = values.get_data();

@@ -2,7 +2,6 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "toolchain/validation/benchmark.hpp"
-#include "validation/data.hpp"
 
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
@@ -20,14 +19,13 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Serialization;
 using namespace Toolchain::Validation;
-using namespace Perimortem::Tests;
 
 static Static::Bytes<1 << 15> json_data;
 static Writer::Textual json_text(json_data);
 static constexpr Count json_batch = 1024;
 
 static auto load_json(View::Bytes source_path) -> void {
-  auto source = File::read(data_path(source_path));
+  auto source = File::read(source_path);
   if (!source) {
     Diagnostics::Log::fatal("Unable to load JSON benchmark source."_view);
   }

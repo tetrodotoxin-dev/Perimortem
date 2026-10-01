@@ -3,9 +3,8 @@
 
 #include "perimortem/serialization/png.hpp"
 
-#include "validation/data.hpp"
 #include "toolchain/validation/unit_test.hpp"
-#include "validation/log.hpp"
+#include "validation/unit_tests/log.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/algorithm/search.hpp"
@@ -19,7 +18,6 @@ using namespace Perimortem::Serialization;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Toolchain::Validation;
-using namespace Perimortem::Tests;
 
 static Harness SerializationPng = {
   .name = "Serialization::Png",
@@ -28,7 +26,7 @@ static Harness SerializationPng = {
 };
 
 VALIDATION_TEST(SerializationPng, red_1x1_dimensions) {
-  auto source = File::read(data_path("validation/data/pngs/red_1x1.png"_view));
+  auto source = File::read("validation/data/pngs/red_1x1.png"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
@@ -47,8 +45,7 @@ VALIDATION_TEST(SerializationPng, red_1x1_dimensions) {
 }
 
 VALIDATION_TEST(SerializationPng, checkerboard_2x2) {
-  auto source =
-      File::read(data_path("validation/data/pngs/checkerboard_2x2.png"_view));
+  auto source = File::read("validation/data/pngs/checkerboard_2x2.png"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
@@ -75,7 +72,7 @@ VALIDATION_TEST(SerializationPng, checkerboard_2x2) {
 }
 
 VALIDATION_TEST(SerializationPng, unaligned_input) {
-  auto source = File::read(data_path("validation/data/pngs/red_1x1.png"_view));
+  auto source = File::read("validation/data/pngs/red_1x1.png"_view);
   ASSERT(source);
 
   // A PNG can arrive as a slice of another byte buffer. Move this fixture by
@@ -99,7 +96,7 @@ VALIDATION_TEST(SerializationPng, unaligned_input) {
 }
 
 VALIDATION_TEST(SerializationPng, decode_rgb_to_rgba) {
-  auto source = File::read(data_path("validation/data/pngs/rgb_3x1.png"_view));
+  auto source = File::read("validation/data/pngs/rgb_3x1.png"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
@@ -117,7 +114,7 @@ VALIDATION_TEST(SerializationPng, decode_rgb_to_rgba) {
 }
 
 VALIDATION_TEST(SerializationPng, gray_to_rgba) {
-  auto source = File::read(data_path("validation/data/pngs/gray_2x2.png"_view));
+  auto source = File::read("validation/data/pngs/gray_2x2.png"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
@@ -148,8 +145,7 @@ VALIDATION_TEST(SerializationPng, gray_to_rgba) {
 }
 
 VALIDATION_TEST(SerializationPng, decode_gradient_4x4) {
-  auto source =
-      File::read(data_path("validation/data/pngs/gradient_4x4.png"_view));
+  auto source = File::read("validation/data/pngs/gradient_4x4.png"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
@@ -166,8 +162,7 @@ VALIDATION_TEST(SerializationPng, decode_gradient_4x4) {
 }
 
 VALIDATION_TEST(SerializationPng, decode_pattern_8x1) {
-  auto source =
-      File::read(data_path("validation/data/pngs/pattern_8x1.png"_view));
+  auto source = File::read("validation/data/pngs/pattern_8x1.png"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
@@ -194,7 +189,7 @@ VALIDATION_TEST(SerializationPng, decode_invalid) {
 // The altered IHDR has a matching CRC so decoding reaches the extent check.
 // It must reject the claimed storage before inflating the tiny source payload.
 VALIDATION_TEST(SerializationPng, decoded_extent_overflow) {
-  auto source = File::read(data_path("validation/data/pngs/red_1x1.png"_view));
+  auto source = File::read("validation/data/pngs/red_1x1.png"_view);
   ASSERT(source);
   auto bytes = source->get_access();
   ASSERT(bytes.get_size() >= 33);
@@ -300,8 +295,7 @@ VALIDATION_TEST(SerializationPng, empty_image) {
 
 VALIDATION_TEST(SerializationPng, chunk_header_trunc) {
   // PNG with a valid IHDR that's shorter than the valid size.
-  auto source = File::read(
-      data_path("validation/data/pngs/error_truncated_header.png"_view));
+  auto source = File::read("validation/data/pngs/error_truncated_header.png"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
@@ -315,8 +309,7 @@ VALIDATION_TEST(SerializationPng, chunk_header_trunc) {
 
 VALIDATION_TEST(SerializationPng, chunk_length_overrun) {
   // PNG with a chunk that claims a length of 4294967295 bytes.
-  auto source =
-      File::read(data_path("validation/data/pngs/error_overrun.png"_view));
+  auto source = File::read("validation/data/pngs/error_overrun.png"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
@@ -329,8 +322,7 @@ VALIDATION_TEST(SerializationPng, chunk_length_overrun) {
 }
 
 VALIDATION_TEST(SerializationPng, roundtrip_icon) {
-  auto source =
-      File::read(data_path("validation/data/pngs/perimortem_icon.png"_view));
+  auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
@@ -365,8 +357,7 @@ VALIDATION_TEST(SerializationPng, roundtrip_icon) {
 VALIDATION_TEST(SerializationPng, crc_mismatch) {
   // PNG with corrupted chunk CRC should log the chunk type and offset so the
   // caller can identify which chunk was damaged.
-  auto source =
-      File::read(data_path("validation/data/pngs/error_crc_mismatch.png"_view));
+  auto source = File::read("validation/data/pngs/error_crc_mismatch.png"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 

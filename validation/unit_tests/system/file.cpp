@@ -1,16 +1,16 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/diagnostics/log.hpp"
-
 #include "perimortem/system/file.hpp"
-
-#include "toolchain/validation/unit_test.hpp"
 
 #include <filesystem>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "perimortem/core/diagnostics/log.hpp"
+
+#include "toolchain/validation/unit_test.hpp"
 
 #ifdef PERI_LINUX
 #include <fcntl.h>
@@ -361,7 +361,8 @@ class TemporaryRoot {
 
   auto write_outside(View::Bytes data) const -> Bool {
     return File::write(
-        data, NullTerminated::convert_cstring(outside_path, sizeof(outside_path)));
+        data,
+        NullTerminated::convert_cstring(outside_path, sizeof(outside_path)));
   }
 
   auto create_outside_directory() const -> Bool {
@@ -589,11 +590,9 @@ VALIDATION_TEST(SystemFile, unreadable) {
   EXPECT_NOT(source);
 
 #endif
-
 }
 
 VALIDATION_TEST(SystemFile, oversized) {
-
 #ifdef PERI_WINDOWS
 
   HANDLE file = CreateFileA(
@@ -659,7 +658,7 @@ VALIDATION_TEST(SystemFile, short_read) {
 
 #ifdef PERI_LINUX
 
-VALIDATION_TEST(SystemFile, same_opened_object) {
+VALIDATION_TEST(SystemFile, alias_file) {
   Bool original_written = File::write(test_contents, test_output);
   ASSERT(original_written);
 
@@ -724,7 +723,7 @@ VALIDATION_TEST(SystemFileRoot, missing_root) {
   EXPECT_NOT(root);
 }
 
-VALIDATION_TEST(SystemFileRoot, regular_file_root) {
+VALIDATION_TEST(SystemFileRoot, file_root) {
   TemporaryRoot temporary;
   ASSERT(temporary);
 
@@ -735,8 +734,8 @@ VALIDATION_TEST(SystemFileRoot, regular_file_root) {
   Bool built = temporary.get_member_path("file", path, sizeof(path));
   ASSERT(built);
 
-  auto root = File::Root::open(
-      NullTerminated::convert_cstring(path, sizeof(path)));
+  auto root =
+      File::Root::open(NullTerminated::convert_cstring(path, sizeof(path)));
   EXPECT_NOT(root);
 }
 
@@ -916,8 +915,8 @@ VALIDATION_TEST(SystemFileRoot, absolute_member) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  auto source = (*root).read(
-      NullTerminated::convert_cstring(path, sizeof(path)));
+  auto source =
+      (*root).read(NullTerminated::convert_cstring(path, sizeof(path)));
   ASSERT(source);
   EXPECT_TEXT(*source, test_contents);
 }
@@ -991,8 +990,9 @@ VALIDATION_TEST(SystemFileRoot, symlink_write) {
   Bool written = (*root).write(replacement_contents, "link"_view);
   EXPECT(written);
 
-  auto outside_source = File::read(NullTerminated::convert_cstring(
-      temporary.get_outside_path(), temporary_path_capacity));
+  auto outside_source = File::read(
+      NullTerminated::convert_cstring(
+          temporary.get_outside_path(), temporary_path_capacity));
   ASSERT(outside_source);
   EXPECT_TEXT(*outside_source, replacement_contents);
 }
@@ -1093,7 +1093,7 @@ VALIDATION_TEST(SystemFileRoot, directory_replacement) {
 
 #ifdef PERI_LINUX
 
-VALIDATION_TEST(SystemFileRoot, same_opened_member) {
+VALIDATION_TEST(SystemFileRoot, alias_member) {
   TemporaryRoot temporary;
   ASSERT(temporary);
 

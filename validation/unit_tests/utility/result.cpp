@@ -3,11 +3,11 @@
 
 #include "perimortem/utility/result.hpp"
 
-#include "toolchain/validation/unit_test.hpp"
-
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
+
+#include "toolchain/validation/unit_test.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -23,25 +23,25 @@ enum class ResultError : U8 {
   Rejected = 0,
 };
 
-class OwnedResultValue {
+class ResultValue {
  public:
-  OwnedResultValue(S32 value, Count& live_values)
+  ResultValue(S32 value, Count& live_values)
       : value(value), live_values(live_values) {
     live_values++;
   }
 
-  OwnedResultValue(const OwnedResultValue& source)
+  ResultValue(const ResultValue& source)
       : value(source.value), live_values(source.live_values) {
     live_values++;
   }
 
-  OwnedResultValue(OwnedResultValue&& source)
+  ResultValue(ResultValue&& source)
       : value(source.value), live_values(source.live_values) {
     live_values++;
     source.value = 0;
   }
 
-  ~OwnedResultValue() { live_values--; }
+  ~ResultValue() { live_values--; }
 
   auto increment() -> void { value++; }
   auto get() const -> S32 { return value; }
@@ -67,9 +67,9 @@ class MoveOnlyResultValue {
 template <typename error_type>
 concept SupportedResultError = requires { typename Result<S32, error_type>; };
 
-static auto create_owned_value(Count& live_values)
-    -> Result<OwnedResultValue, ResultError> {
-  OwnedResultValue value(41, live_values);
+static auto create_value(Count& live_values)
+    -> Result<ResultValue, ResultError> {
+  ResultValue value(41, live_values);
   return Data::take(value);
 }
 
@@ -97,7 +97,7 @@ VALIDATION_TEST(UtilityResult, visits_error) {
   EXPECT(error == ResultError::Rejected);
 }
 
-VALIDATION_TEST(UtilityResult, preserves_reference) {
+VALIDATION_TEST(UtilityResult, reference) {
   S32 value = 41;
   Result<S32&, ResultError> selected(value);
 
@@ -106,7 +106,7 @@ VALIDATION_TEST(UtilityResult, preserves_reference) {
   EXPECT_EQ(value, S32(42));
 }
 
-VALIDATION_TEST(UtilityResult, owns_dynamic_value) {
+VALIDATION_TEST(UtilityResult, dynamic_value) {
   Result<Dynamic::Bytes, ResultError> selected(Dynamic::Bytes("owned"_view));
 
   selected.visit(
@@ -120,20 +120,20 @@ VALIDATION_TEST(UtilityResult, owns_dynamic_value) {
   EXPECT_TEXT(value, "owned value"_view);
 }
 
-VALIDATION_TEST(UtilityResult, owns_lifetime) {
+VALIDATION_TEST(UtilityResult, lifetime) {
   Count live_values = 0;
 
   {
-    auto selected = create_owned_value(live_values);
+    auto selected = create_value(live_values);
     EXPECT_EQ(live_values, Count(1));
 
     selected.visit(
-        [](OwnedResultValue& value) -> void { value.increment(); },
+        [](ResultValue& value) -> void { value.increment(); },
         [](ResultError) {});
 
     const auto& observed = selected;
     S32 value = observed.visit(
-        [](const OwnedResultValue& selected) { return selected.get(); },
+        [](const ResultValue& selected) { return selected.get(); },
         [](ResultError) { return S32(0); });
     EXPECT_EQ(value, S32(42));
   }
@@ -145,20 +145,20 @@ VALIDATION_TEST(UtilityResult, copies_and_moves) {
   Count live_values = 0;
 
   {
-    auto first = create_owned_value(live_values);
-    Result<OwnedResultValue, ResultError> copied(first);
-    Result<OwnedResultValue, ResultError> moved(Data::take(copied));
+    auto first = create_value(live_values);
+    Result<ResultValue, ResultError> copied(first);
+    Result<ResultValue, ResultError> moved(Data::take(copied));
     EXPECT_EQ(live_values, Count(3));
 
     moved.visit(
-        [](OwnedResultValue& value) -> void { value.increment(); },
+        [](ResultValue& value) -> void { value.increment(); },
         [](ResultError) {});
 
     S32 first_value = first.visit(
-        [](const OwnedResultValue& selected) { return selected.get(); },
+        [](const ResultValue& selected) { return selected.get(); },
         [](ResultError) { return S32(0); });
     S32 moved_value = moved.visit(
-        [](const OwnedResultValue& selected) { return selected.get(); },
+        [](const ResultValue& selected) { return selected.get(); },
         [](ResultError) { return S32(0); });
     EXPECT_EQ(first_value, S32(41));
     EXPECT_EQ(moved_value, S32(42));
@@ -171,30 +171,30 @@ VALIDATION_TEST(UtilityResult, switches_state) {
   Count live_values = 0;
 
   {
-    auto selected = create_owned_value(live_values);
+    auto selected = create_value(live_values);
     EXPECT_EQ(live_values, Count(1));
 
     selected = ResultError::Rejected;
     EXPECT_EQ(live_values, Count(0));
     EXPECT(selected.visit(
-        [](const OwnedResultValue&) { return False; },
+        [](const ResultValue&) { return False; },
         [](ResultError error) {
           return error == ResultError::Rejected ? True : False;
         }));
 
-    selected = create_owned_value(live_values);
+    selected = create_value(live_values);
     EXPECT_EQ(live_values, Count(1));
     EXPECT(selected.visit(
-        [](const OwnedResultValue& value) {
+        [](const ResultValue& value) {
           return value.get() == S32(41) ? True : False;
         },
         [](ResultError) { return False; }));
 
-    auto copied = create_owned_value(live_values);
+    auto copied = create_value(live_values);
     selected = copied;
     EXPECT_EQ(live_values, Count(2));
     EXPECT(selected.visit(
-        [](const OwnedResultValue& value) {
+        [](const ResultValue& value) {
           return value.get() == S32(41) ? True : False;
         },
         [](ResultError) { return False; }));
@@ -207,11 +207,10 @@ static_assert(!__is_constructible(Result<S32, ResultError>));
 static_assert(__is_constructible(Result<S32, ResultError>, S32));
 static_assert(__is_constructible(Result<S32, ResultError>, ResultError));
 static_assert(!__is_constructible(Result<S32&, ResultError>, S32&&));
-static_assert(!__is_trivially_destructible(OwnedResultValue));
+static_assert(!__is_trivially_destructible(ResultValue));
 static_assert(__is_trivially_destructible(Result<S32, ResultError>));
-static_assert(__is_constructible(
-    Result<OwnedResultValue, ResultError>,
-    OwnedResultValue&&));
+static_assert(
+    __is_constructible(Result<ResultValue, ResultError>, ResultValue&&));
 static_assert(__is_constructible(
     Result<MoveOnlyResultValue, ResultError>,
     MoveOnlyResultValue&&));

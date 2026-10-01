@@ -2,7 +2,7 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "toolchain/validation/unit_test.hpp"
-#include "validation/log.hpp"
+#include "validation/unit_tests/log.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/null_terminated.hpp"

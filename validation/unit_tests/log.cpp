@@ -3,7 +3,7 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
-#include "validation/log.hpp"
+#include "validation/unit_tests/log.hpp"
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/static/bytes.hpp"
 

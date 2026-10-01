@@ -3,7 +3,6 @@
 
 #include "perimortem/serialization/base64.hpp"
 
-#include "validation/data.hpp"
 #include "toolchain/validation/unit_test.hpp"
 
 #include "perimortem/core/view/vector.hpp"
@@ -18,7 +17,6 @@ using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
 
 using namespace Toolchain::Validation;
-using namespace Perimortem::Tests;
 
 static Harness SerializationBase64 = {
   .name = "Serialization::Base64",
@@ -68,10 +66,8 @@ VALIDATION_TEST(SerializationBase64, padded_vector_tail) {
 }
 
 VALIDATION_TEST(SerializationBase64, decode_image) {
-  auto source =
-      File::read(data_path("validation/data/pngs/perimortem_icon.png"_view));
-  auto base64 = File::read(
-      data_path("validation/data/base64/perimortem_icon.base64"_view));
+  auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
+  auto base64 = File::read("validation/data/base64/perimortem_icon.base64"_view);
   ASSERT(source);
   ASSERT(base64);
   ASSERT_NOT((*source).is_empty());
@@ -102,10 +98,8 @@ VALIDATION_TEST(SerializationBase64, encode_simple) {
 }
 
 VALIDATION_TEST(SerializationBase64, encode_image) {
-  auto source =
-      File::read(data_path("validation/data/pngs/perimortem_icon.png"_view));
-  auto base64 = File::read(
-      data_path("validation/data/base64/perimortem_icon.base64"_view));
+  auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
+  auto base64 = File::read("validation/data/base64/perimortem_icon.base64"_view);
   ASSERT(source);
   ASSERT(base64);
   ASSERT_NOT((*source).is_empty());

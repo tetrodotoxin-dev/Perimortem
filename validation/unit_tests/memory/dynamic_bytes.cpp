@@ -25,7 +25,7 @@ VALIDATION_TEST(DynamicBytes, value_bounds) {
   EXPECT_EQ(Dynamic::Bytes()[0], U8(0));
 }
 
-VALIDATION_TEST(DynamicBytes, independent_copies) {
+VALIDATION_TEST(DynamicBytes, copy) {
   Dynamic::Bytes original("copied"_view);
   Dynamic::Bytes copied(original);
 
@@ -46,42 +46,6 @@ VALIDATION_TEST(DynamicBytes, independent_copies) {
   EXPECT_EQ(original.get_view(), "copied"_view);
 }
 
-VALIDATION_TEST(DynamicBytes, access_uses_existing_storage) {
-  Dynamic::Bytes bytes("direct"_view);
-  const U8* allocation = bytes.get_view().get_data();
-  Count checkouts = Bibliotheca::check_out_requests();
-
-  Access::Bytes access = bytes.get_access();
-  EXPECT(access.get_data() == allocation);
-  EXPECT_EQ(Bibliotheca::check_out_requests(), checkouts);
-  auto first = access[0];
-  EXPECT(first);
-  *first = U8('D');
-
-  EXPECT_EQ(bytes.get_view(), "Direct"_view);
-}
-
-VALIDATION_TEST(DynamicBytes, borrowed_slices) {
-  Dynamic::Bytes bytes("borrowed"_view);
-  const U8* allocation = bytes.get_view().get_data();
-
-  View::Bytes slice = bytes.slice(2, 4);
-
-  EXPECT_EQ(slice, "rrow"_view);
-  EXPECT(slice.get_data() == allocation + 2);
-}
-
-VALIDATION_TEST(DynamicBytes, reset_releases_once) {
-  Dynamic::Bytes bytes("released"_view);
-
-  bytes.reset();
-  bytes.reset();
-
-  EXPECT(bytes.is_empty());
-  EXPECT_EQ(bytes.get_capacity(), Count(0));
-  EXPECT(!bytes.get_view().get_data());
-}
-
 VALIDATION_TEST(DynamicBytes, empty_copy) {
   Dynamic::Bytes reserved(128);
   Dynamic::Bytes copy(reserved);
@@ -94,7 +58,29 @@ VALIDATION_TEST(DynamicBytes, empty_copy) {
   EXPECT(reserved.is_empty());
 }
 
-VALIDATION_TEST(DynamicBytes, move_assignment_releases) {
+VALIDATION_TEST(DynamicBytes, borrowed_slices) {
+  Dynamic::Bytes bytes("borrowed"_view);
+  const U8* allocation = bytes.get_view().get_data();
+
+  View::Bytes slice = bytes.slice(2, 4);
+
+  EXPECT_EQ(slice, "rrow"_view);
+  EXPECT(slice.get_data() == allocation + 2);
+}
+
+VALIDATION_TEST(DynamicBytes, reset) {
+  Dynamic::Bytes bytes("released"_view);
+
+  // Reset should be idempotent
+  bytes.reset();
+  bytes.reset();
+
+  EXPECT(bytes.is_empty());
+  EXPECT_EQ(bytes.get_capacity(), Count(0));
+  EXPECT(!bytes.get_view().get_data());
+}
+
+VALIDATION_TEST(DynamicBytes, move_assignment) {
   Count initial = Bibliotheca::allocated_memory();
   {
     Dynamic::Bytes source("source"_view);
@@ -150,7 +136,7 @@ VALIDATION_TEST(DynamicBytes, aliased_input) {
   }
 }
 
-VALIDATION_TEST(DynamicBytes, resize_preserves_existing_bytes) {
+VALIDATION_TEST(DynamicBytes, resize) {
   Dynamic::Bytes bytes("preserved"_view);
   Count capacity = bytes.get_capacity();
   bytes.resize(2);

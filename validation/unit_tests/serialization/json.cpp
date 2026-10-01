@@ -1,7 +1,6 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "validation/data.hpp"
 #include "toolchain/validation/unit_test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
@@ -17,7 +16,6 @@ using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
 
 using namespace Toolchain::Validation;
-using namespace Perimortem::Tests;
 
 static Harness SerializationJson = {
   .name = "Serialization::Json",
@@ -321,8 +319,7 @@ VALIDATION_TEST(SerializationJson, construct_nested) {
 }
 
 VALIDATION_TEST(SerializationJson, round_trip_init_rpc) {
-  auto source =
-      File::read(data_path("validation/data/json/init_rpc.json"_view));
+  auto source = File::read("validation/data/json/init_rpc.json"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
@@ -399,8 +396,7 @@ VALIDATION_TEST(SerializationJson, format_null) {
 }
 
 VALIDATION_TEST(SerializationJson, rpc_from_parsed) {
-  auto source =
-      File::read(data_path("validation/data/json/init_rpc.json"_view));
+  auto source = File::read("validation/data/json/init_rpc.json"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 

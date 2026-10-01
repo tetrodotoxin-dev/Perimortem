@@ -6,7 +6,7 @@
 #include "perimortem/core/reader/serial.hpp"
 
 #include "toolchain/validation/unit_test.hpp"
-#include "validation/log.hpp"
+#include "validation/unit_tests/log.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"

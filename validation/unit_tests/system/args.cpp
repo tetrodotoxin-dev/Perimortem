@@ -7,7 +7,7 @@
 #include "perimortem/system/args.hpp"
 
 #include "toolchain/validation/unit_test.hpp"
-#include "validation/log.hpp"
+#include "validation/unit_tests/log.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
