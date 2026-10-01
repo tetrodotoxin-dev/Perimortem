@@ -168,7 +168,13 @@ auto Stream::Binary<stream_endian, storage_type>::operator<<(
   return *this;
 }
 
-template class Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>;
-template class Stream::Binary<Data::ByteOrder::Big, Dynamic::Bytes>;
-template class Stream::Binary<Data::ByteOrder::Little, Managed::Bytes>;
-template class Stream::Binary<Data::ByteOrder::Big, Managed::Bytes>;
+// The operator definitions live here. Each supported storage variant needs an
+// exported instantiation for consumers that link the shared library.
+template class EXPORTED(PERIMORTEM)
+Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>;
+template class EXPORTED(PERIMORTEM)
+Stream::Binary<Data::ByteOrder::Big, Dynamic::Bytes>;
+template class EXPORTED(PERIMORTEM)
+Stream::Binary<Data::ByteOrder::Little, Managed::Bytes>;
+template class EXPORTED(PERIMORTEM)
+Stream::Binary<Data::ByteOrder::Big, Managed::Bytes>;

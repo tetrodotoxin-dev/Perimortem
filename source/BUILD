@@ -1,7 +1,6 @@
 # Copyright (c) 2023-present Matt Kaes and contributors
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@tetro_toolchain//source/bazel:library.bzl", "LINUX", "WEB", "static_library")
+load("@tetro_toolchain//:defs.bzl", "LINUX", "WEB", "WINDOWS", "library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -33,24 +32,6 @@ _COMPONENTS = {
     ],
 }
 
-# These declarations follow public header dependencies. Implementation uses,
-# such as Serialization calling Compression, belong to the common runtime.
-[
-    cc_library(
-        name = component,
-        hdrs = glob(
-            [
-                "perimortem/" + component + "/**/*.h",
-                "perimortem/" + component + "/**/*.hpp",
-            ],
-            allow_empty = True,
-        ),
-        includes = ["."],
-        deps = [":" + dependency for dependency in dependencies],
-    )
-    for component, dependencies in _COMPONENTS.items()
-]
-
 filegroup(
     name = "sources",
     srcs = glob(["**"]),
@@ -63,9 +44,8 @@ config_setting(
     define_values = {"perimortem_avx2": "false"},
 )
 
-static_library(
-    name = "perimortem",
-    srcs = glob(["**/*.cpp"]),
+_LIBRARY = dict(
+    srcs = glob(["perimortem/**/*.cpp"]),
     hdrs = glob([
         "**/*.hpp",
         "**/*.h",
@@ -79,5 +59,28 @@ static_library(
         ":scalar": [],
         WEB: [],
         "//conditions:default": ["PERI_AVX2"],
+    }),
+)
+
+library(
+    srcs = _LIBRARY["srcs"],
+    hdrs = _LIBRARY["hdrs"],
+    components = _COMPONENTS,
+    includes = _LIBRARY["includes"],
+    linkopts = _LIBRARY["linkopts"],
+    local_defines = _LIBRARY["local_defines"],
+)
+
+library(
+    name = "perimortem_shared",
+    srcs = _LIBRARY["srcs"],
+    hdrs = _LIBRARY["hdrs"],
+    includes = _LIBRARY["includes"],
+    linkage = "shared",
+    linkopts = _LIBRARY["linkopts"],
+    local_defines = _LIBRARY["local_defines"],
+    shared_lib_name = select({
+        WINDOWS: "perimortem.dll",
+        "//conditions:default": "libperimortem.so",
     }),
 )

@@ -79,16 +79,16 @@ class Serial {
   constexpr auto get_location() const -> Count { return cursor; }
 
   // Reads the next value in the stream if available.
-  auto read() -> Value;
+  EXPORTED(PERIMORTEM) auto read() -> Value;
 
   // Reads the next value in the stream and explicitly parses it as a signed
   // value. If the value is actually a blob then 0 is returned.
-  auto read_value() -> S64;
+  EXPORTED(PERIMORTEM) auto read_value() -> S64;
 
   // Reads the next value in the stream and explicitly parses it as a signed
   // value. If the value is actually a regular value than an empty view is
   // returned.
-  auto read_blob() -> View::Bytes;
+  EXPORTED(PERIMORTEM) auto read_blob() -> View::Bytes;
 
   constexpr auto get_size() const -> Count { return source.get_size(); }
   constexpr auto has_content() const -> Bool {

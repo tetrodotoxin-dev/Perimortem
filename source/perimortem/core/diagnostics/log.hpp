@@ -31,8 +31,8 @@ class Log {
     friend Log;
 
    public:
-    Attribution(Attribution&&);
-    ~Attribution();
+    EXPORTED(PERIMORTEM) Attribution(Attribution&&);
+    EXPORTED(PERIMORTEM) ~Attribution();
 
    private:
     Attribution() = default;
@@ -96,7 +96,7 @@ class Log {
   // The default sink function the logger uses for each thread.
   // Creates a canonical file for the thread the first time sink is called
   // for the thread.
-  static auto file_sink(
+  static EXPORTED(PERIMORTEM) auto file_sink(
       Level level,
       Core::View::Bytes message,
       const Source& location) -> void;
@@ -106,14 +106,14 @@ class Log {
   // creating garbage output.
   // Debug, Info and Warning are written to stdout.
   // Error and Fatal log to stderr.
-  static auto console_sink(
+  static EXPORTED(PERIMORTEM) auto console_sink(
       Level level,
       Core::View::Bytes message,
       const Source& location) -> void;
 
   // Writes only the supplied message to the selected console stream. This is
   // for diagnostics that already own their complete source presentation.
-  static auto plain_sink(
+  static EXPORTED(PERIMORTEM) auto plain_sink(
       Level level,
       Core::View::Bytes message,
       const Source& location) -> void;
@@ -121,21 +121,21 @@ class Log {
   // Uses the console sink but writes colored text.
   // Grey for debug, white for info, yellow for warning, red for error and
   // fatal.
-  static auto color_sink(
+  static EXPORTED(PERIMORTEM) auto color_sink(
       Level level,
       Core::View::Bytes message,
       const Source& location) -> void;
 
   // Writes all log levels to stderr. Flushes after every message.
   // Use when stdout is a protocol pipe (e.g. LSP server).
-  static auto stderr_sink(
+  static EXPORTED(PERIMORTEM) auto stderr_sink(
       Level level,
       Core::View::Bytes message,
       const Source& location) -> void;
 
   // Logs to both the console_sink and the file_sink for real time and
   // persistent logs.
-  static auto debug_sink(
+  static EXPORTED(PERIMORTEM) auto debug_sink(
       Level level,
       Core::View::Bytes message,
       const Source& location) -> void;
@@ -143,23 +143,24 @@ class Log {
   // Sets the function to forward log messages to on this thread.
   // By default the sink is set to a file on disk named after the thread.
   // If the sink is set to null then messages for the thread are dropped.
-  static auto set_sink(Sink sink) -> void;
-  static auto get_sink() -> Sink;
+  static EXPORTED(PERIMORTEM) auto set_sink(Sink sink) -> void;
+  static EXPORTED(PERIMORTEM) auto get_sink() -> Sink;
 
   // Disables the standard log header on the current thread. Diagnostics that
   // already own their display format should use this instead of a parallel raw
   // sink.
-  static auto set_disable_header(Bool disable_header) -> void;
-  static auto get_disable_header() -> Bool;
+  static EXPORTED(PERIMORTEM) auto set_disable_header(Bool disable_header)
+      -> void;
+  static EXPORTED(PERIMORTEM) auto get_disable_header() -> Bool;
 
   // Sets the minimum level that will be forwarded to the sink on this thread.
   // Messages below this level are dropped before formatting.
-  static auto set_level(Level level) -> void;
-  static auto get_level() -> Diagnostics::Log::Level;
+  static EXPORTED(PERIMORTEM) auto set_level(Level level) -> void;
+  static EXPORTED(PERIMORTEM) auto get_level() -> Diagnostics::Log::Level;
 
   // Sets logs in the current scope
-  static auto set_attribution(const Source& location = Source::current())
-      -> Attribution;
+  static EXPORTED(PERIMORTEM) auto set_attribution(
+      const Source& location = Source::current()) -> Attribution;
 
   // Default sink to use.
   static constexpr Sink default_sink = file_sink;
@@ -169,28 +170,28 @@ class Log {
   // The Source default argument is consteval, so it captures the caller's
   // location at compile time with zero runtime cost.
   // Source is passed by reference to preserve a simple cross language ABI.
-  static auto log(
+  static EXPORTED(PERIMORTEM) auto log(
       Level level,
       Core::View::Bytes message,
       const Source& location) -> void;
 
-  static auto debug(
+  static EXPORTED(PERIMORTEM) auto debug(
       Core::View::Bytes message,
       const Source& location = Source::current()) -> void;
-  static auto info(
+  static EXPORTED(PERIMORTEM) auto info(
       Core::View::Bytes message,
       const Source& location = Source::current()) -> void;
-  static auto warning(
+  static EXPORTED(PERIMORTEM) auto warning(
       Core::View::Bytes message,
       const Source& location = Source::current()) -> void;
-  static auto error(
+  static EXPORTED(PERIMORTEM) auto error(
       Core::View::Bytes message,
       const Source& location = Source::current()) -> void;
 
   // Fatal logs the message and platform backtrace through the selected sink,
   // flushes it, then aborts. Marking it [[noreturn]] preserves fatal call
   // paths.
-  [[noreturn]] static auto fatal(
+  [[noreturn]] static EXPORTED(PERIMORTEM) auto fatal(
       Core::View::Bytes message,
       const Source& location = Source::current()) -> void;
 
@@ -198,11 +199,11 @@ class Log {
   // Stdout writes are guaranteed to be thread safe to avoid output mangling.
   // Flush is called automatically whenever the message buffer is close to being
   // filled or when the thread exits.
-  static auto flush() -> void;
+  static EXPORTED(PERIMORTEM) auto flush() -> void;
 
   // Used by custom loggers to format output with the optional standardized
   // Perimortem header information.
-  static auto format_entry(
+  static EXPORTED(PERIMORTEM) auto format_entry(
       Level level,
       Core::View::Bytes message,
       const Source& location,

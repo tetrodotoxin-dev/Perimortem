@@ -13,18 +13,19 @@ class Textual {
  public:
   constexpr Textual(storage_type& storage) : storage(storage) {}
 
-  auto operator<<(Bool flag) -> Textual&;
-  auto operator<<(U8 byte) -> Textual&;
-  auto operator<<(U16 value) -> Textual&;
-  auto operator<<(U32 value) -> Textual&;
-  auto operator<<(U64 value) -> Textual&;
-  auto operator<<(S8 value) -> Textual&;
-  auto operator<<(S16 value) -> Textual&;
-  auto operator<<(S32 value) -> Textual&;
-  auto operator<<(S64 value) -> Textual&;
-  auto operator<<(R32 value) -> Textual&;
-  auto operator<<(R64 value) -> Textual&;
-  auto operator<<(Perimortem::Core::View::Bytes raw) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(Bool flag) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(U8 byte) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(U16 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(U32 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(U64 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(S8 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(S16 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(S32 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(S64 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(R32 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(R64 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(Perimortem::Core::View::Bytes raw)
+      -> Textual&;
   auto operator<<(const char* raw) -> Textual& = delete;
 
  private:

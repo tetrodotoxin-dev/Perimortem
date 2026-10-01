@@ -113,7 +113,7 @@ class Huffman {
     return Huffman(code_lengths.get_view());
   }
 
-  static auto compute_lengths(
+  static EXPORTED(PERIMORTEM) auto compute_lengths(
       Core::View::Vector<U32> frequencies,
       Core::Access::Vector<U8> lengths) -> void;
 

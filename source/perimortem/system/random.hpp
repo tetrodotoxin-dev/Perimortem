@@ -15,9 +15,9 @@ namespace Perimortem::System {
 // throughput.
 class Random {
  public:
-  static auto generate() -> U64;
+  static EXPORTED(PERIMORTEM) auto generate() -> U64;
 
-  static auto read_entropy() -> U64;
+  static EXPORTED(PERIMORTEM) auto read_entropy() -> U64;
 };
 
 }  // namespace Perimortem::System

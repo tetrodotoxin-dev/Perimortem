@@ -1,6 +1,7 @@
 # http://clang.llvm.org/docs/ClangFormatStyleOptions.html
 BasedOnStyle: Chromium
 Standard: Latest
+AttributeMacros: [EXPORTED]
 
 # Conditional branches around code and declarations have one empty line on
 # each side of a directive. This covers #if, #ifdef, #ifndef, #elif,

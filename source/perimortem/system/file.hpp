@@ -100,23 +100,29 @@ class File {
     auto operator=(Root&& source) -> Root& = default;
     ~Root() = default;
 
-    static auto open(Core::View::Bytes location) -> Core::Option<Root>;
+    static EXPORTED(PERIMORTEM) auto open(Core::View::Bytes location)
+        -> Core::Option<Root>;
     // Member reads and fingerprints are probes. Absence and I/O failure use
     // the optional result without publishing an ambient diagnostic. The owner
     // that requested the path supplies its authored context.
-    auto read(Core::View::Bytes relative_path) const
+    EXPORTED(PERIMORTEM) auto read(Core::View::Bytes relative_path) const
         -> Core::Option<Memory::Dynamic::Bytes>;
-    auto read_snapshot(Core::View::Bytes relative_path) const
-        -> Core::Option<Snapshot>;
-    auto fingerprint(Core::View::Bytes relative_path) const
+    EXPORTED(PERIMORTEM) auto read_snapshot(
+        Core::View::Bytes relative_path) const -> Core::Option<Snapshot>;
+    EXPORTED(PERIMORTEM) auto fingerprint(Core::View::Bytes relative_path) const
         -> Core::Option<Fingerprint>;
     // Retains successful bytes in the caller Arena.
-    auto read(Memory::Allocator::Arena& arena, Core::View::Bytes relative_path)
-        const -> Core::Option<Core::View::Bytes>;
-    auto write(Core::View::Bytes data, Core::View::Bytes relative_path) const
+    EXPORTED(PERIMORTEM) auto read(
+        Memory::Allocator::Arena& arena,
+        Core::View::Bytes relative_path) const
+        -> Core::Option<Core::View::Bytes>;
+    EXPORTED(PERIMORTEM) auto write(
+        Core::View::Bytes data,
+        Core::View::Bytes relative_path) const -> Bool;
+    EXPORTED(PERIMORTEM) auto remove(Core::View::Bytes relative_path) const
         -> Bool;
-    auto remove(Core::View::Bytes relative_path) const -> Bool;
-    auto exists(Core::View::Bytes relative_path) const -> Bool;
+    EXPORTED(PERIMORTEM) auto exists(Core::View::Bytes relative_path) const
+        -> Bool;
 
    private:
     Root(Core::View::Bytes location) : location(location) {}
@@ -124,18 +130,22 @@ class File {
     Memory::Dynamic::Bytes location;
   };
 
-  static auto read(Core::View::Bytes location)
+  static EXPORTED(PERIMORTEM) auto read(Core::View::Bytes location)
       -> Core::Option<Memory::Dynamic::Bytes>;
   // Retains successful bytes in the caller Arena.
-  static auto read(Memory::Allocator::Arena& arena, Core::View::Bytes location)
-      -> Core::Option<Core::View::Bytes>;
-  static auto write(Core::View::Bytes data, Core::View::Bytes location) -> Bool;
+  static EXPORTED(PERIMORTEM) auto read(
+      Memory::Allocator::Arena& arena,
+      Core::View::Bytes location) -> Core::Option<Core::View::Bytes>;
+  static EXPORTED(PERIMORTEM) auto write(
+      Core::View::Bytes data,
+      Core::View::Bytes location) -> Bool;
   // Atomically replaces the destination name when the host filesystem permits
   // one native rename transaction.
-  static auto replace(Core::View::Bytes source, Core::View::Bytes destination)
-      -> Bool;
-  static auto remove(Core::View::Bytes location) -> Bool;
-  static auto exists(Core::View::Bytes location) -> Bool;
+  static EXPORTED(PERIMORTEM) auto replace(
+      Core::View::Bytes source,
+      Core::View::Bytes destination) -> Bool;
+  static EXPORTED(PERIMORTEM) auto remove(Core::View::Bytes location) -> Bool;
+  static EXPORTED(PERIMORTEM) auto exists(Core::View::Bytes location) -> Bool;
 };
 
 }  // namespace Perimortem::System

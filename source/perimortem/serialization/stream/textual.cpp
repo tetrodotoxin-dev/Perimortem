@@ -104,5 +104,7 @@ auto Stream::Textual<storage_type>::operator<<(View::Bytes raw) -> Textual& {
   return *this;
 }
 
-template class Stream::Textual<Dynamic::Bytes>;
-template class Stream::Textual<Managed::Bytes>;
+// The operator definitions live here. Each supported storage variant needs an
+// exported instantiation for consumers that link the shared library.
+template class EXPORTED(PERIMORTEM) Stream::Textual<Dynamic::Bytes>;
+template class EXPORTED(PERIMORTEM) Stream::Textual<Managed::Bytes>;

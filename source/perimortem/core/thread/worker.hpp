@@ -15,9 +15,9 @@ class Worker {
   using JobFunction = void (*)(Core::View::Bytes);
 
   Worker() = default;
-  ~Worker();
-  Worker(Worker&&);
-  auto operator=(Worker&&) -> Worker&;
+  EXPORTED(PERIMORTEM) ~Worker();
+  EXPORTED(PERIMORTEM) Worker(Worker&&);
+  EXPORTED(PERIMORTEM) auto operator=(Worker&&) -> Worker&;
 
   // Delete copy constructors
   Worker(const Worker&) = delete;
@@ -25,11 +25,11 @@ class Worker {
 
   // Explicitly blocks execution until the worker exits.
   // Automatically called on destruction.
-  auto join() -> void;
+  EXPORTED(PERIMORTEM) auto join() -> void;
 
   // Starts a worker on a separate thread with a copy of the provided job data.
   // Each worker / thread has it's own working memory space.
-  static auto start(
+  static EXPORTED(PERIMORTEM) auto start(
       Core::View::Bytes name,
       JobFunction job_function,
       Core::View::Bytes job_data = Core::View::Bytes()) -> Worker;
@@ -39,13 +39,13 @@ class Worker {
   // thread.
   //
   // The negative one id distinguishes the main thread from owned workers.
-  static auto on_main_thread() -> Bool;
+  static EXPORTED(PERIMORTEM) auto on_main_thread() -> Bool;
 
-  static auto get_thread_id() -> Count;
-  static auto get_thread_name() -> View::Bytes;
+  static EXPORTED(PERIMORTEM) auto get_thread_id() -> Count;
+  static EXPORTED(PERIMORTEM) auto get_thread_name() -> View::Bytes;
 
   // Returns the number of currently occupied worker slots.
-  static auto get_worker_count() -> Count;
+  static EXPORTED(PERIMORTEM) auto get_worker_count() -> Count;
 
   static constexpr auto max_workers() -> Count { return 64; };
 

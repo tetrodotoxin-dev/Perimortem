@@ -18,27 +18,30 @@ class Bytes {
   static constexpr Count start_capacity = 32;
   static constexpr Count growth_factor = 2;
 
-  Bytes(const Bytes& rhs, Count reserved_capacity = start_capacity);
-  Bytes(Bytes&& rhs);
-  Bytes(Allocator::Arena& arena);
-  Bytes(Allocator::Arena& arena, Core::View::Bytes view);
+  EXPORTED(PERIMORTEM) Bytes(
+      const Bytes& rhs,
+      Count reserved_capacity = start_capacity);
+  EXPORTED(PERIMORTEM) Bytes(Bytes&& rhs);
+  EXPORTED(PERIMORTEM) Bytes(Allocator::Arena& arena);
+  EXPORTED(PERIMORTEM) Bytes(Allocator::Arena& arena, Core::View::Bytes view);
 
   constexpr operator Core::View::Bytes() const { return get_view(); }
   constexpr operator Core::Access::Bytes() { return get_access(); }
 
-  auto reset(Count reserved_capacity = start_capacity) -> void;
+  EXPORTED(PERIMORTEM) auto reset(Count reserved_capacity = start_capacity)
+      -> void;
 
-  auto resize(Count new_size) -> void;
-  auto ensure_capacity(Count required_bytes) -> void;
+  EXPORTED(PERIMORTEM) auto resize(Count new_size) -> void;
+  EXPORTED(PERIMORTEM) auto ensure_capacity(Count required_bytes) -> void;
 
-  auto append(U8 byte) -> void;
-  auto append(U8 byte, Count amount) -> void;
-  auto concat(Core::View::Bytes view) -> void;
+  EXPORTED(PERIMORTEM) auto append(U8 byte) -> void;
+  EXPORTED(PERIMORTEM) auto append(U8 byte, Count amount) -> void;
+  EXPORTED(PERIMORTEM) auto concat(Core::View::Bytes view) -> void;
   // Copies a Core::View::Bytes which may be in a different allocator
   // (dynamic or another arena) into the Arena used by this object.
-  auto proxy(Core::View::Bytes view) -> void;
+  EXPORTED(PERIMORTEM) auto proxy(Core::View::Bytes view) -> void;
 
-  auto convert(U8 source, U8 target) -> void;
+  EXPORTED(PERIMORTEM) auto convert(U8 source, U8 target) -> void;
 
   constexpr auto operator[](Count index) const -> U8 {
     if (index >= size) {

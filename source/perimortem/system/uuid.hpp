@@ -105,18 +105,20 @@ class Uuid {
     return value.high != 0 || value.low != 0;
   }
 
-  auto deserialize(const Core::Static::Bytes<36>& uuid_string) -> Uuid&;
-  auto deserialize(const Core::Static::Bytes<32>& nibble_string) -> Uuid&;
-  auto serialize() const -> const Core::Static::Bytes<36>;
+  EXPORTED(PERIMORTEM) auto deserialize(
+      const Core::Static::Bytes<36>& uuid_string) -> Uuid&;
+  EXPORTED(PERIMORTEM) auto deserialize(
+      const Core::Static::Bytes<32>& nibble_string) -> Uuid&;
+  EXPORTED(PERIMORTEM) auto serialize() const -> const Core::Static::Bytes<36>;
 
-  static auto generate_v4() -> Uuid;
+  static EXPORTED(PERIMORTEM) auto generate_v4() -> Uuid;
 
   // The timestamp orders identifiers from different Unix milliseconds while
   // the suffix distinguishes independent generators. Random suffixes do not
   // order calls within one millisecond, and a clock adjustment may move the
   // next timestamp backward. Callers needing a strict sequence must establish
   // that order separately from UUID generation.
-  static auto generate_v7() -> Uuid;
+  static EXPORTED(PERIMORTEM) auto generate_v7() -> Uuid;
 
  private:
   perimortem_uuid value = {};

@@ -31,12 +31,12 @@ class Args {
 
   // Takes a map of named variable keys and help text as values.
   // A key of "" (empty view) is used if the tool wants to support positionals.
-  static auto parse(
+  static EXPORTED(PERIMORTEM) auto parse(
       Memory::Allocator::Arena& arena,
       const Memory::Managed::Map<Core::View::Bytes, Core::View::Bytes>& config,
       Core::View::Vector<Core::View::Bytes> arguments) -> Values;
 
-  static auto log_help(
+  static EXPORTED(PERIMORTEM) auto log_help(
       Memory::Allocator::Arena& arena,
       Core::View::Bytes tool_summary,
       const Memory::Managed::Map<Core::View::Bytes, Core::View::Bytes>& config,

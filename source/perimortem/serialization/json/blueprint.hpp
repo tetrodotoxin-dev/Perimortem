@@ -71,7 +71,8 @@ class Blueprint {
   // Recursively materializes the temporary tree into the caller's arena.
   // Named children become object members and unnamed children become array
   // elements.
-  auto construct(Memory::Allocator::Arena& arena) const -> Node;
+  EXPORTED(PERIMORTEM) auto construct(Memory::Allocator::Arena& arena) const
+      -> Node;
 
   template <typename... Cases>
   auto visit(Cases... cases) const -> decltype(auto) {

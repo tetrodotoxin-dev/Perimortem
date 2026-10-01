@@ -47,13 +47,13 @@ class Time {
       : timestamp(seconds * 1'000'000'000 + nanoseconds) {};
 
   // Returns a time object capturing the delta time from UNIX epoch.
-  static auto now() -> Time;
+  static EXPORTED(PERIMORTEM) auto now() -> Time;
 
   // Returns the best guess at wall clock time.
-  static auto clock() -> Time;
+  static EXPORTED(PERIMORTEM) auto clock() -> Time;
 
   // Returns the time the application booted.
-  static auto boot() -> Time;
+  static EXPORTED(PERIMORTEM) auto boot() -> Time;
 
   // Returns an arbitrary time point that should never exist.
   static auto never() -> Time { return -1; };
@@ -78,7 +78,7 @@ class Time {
   }
 
   // Returns the wall clock time as a formatted buffer.
-  auto calculate_clock() const -> Static::Bytes<12>;
+  EXPORTED(PERIMORTEM) auto calculate_clock() const -> Static::Bytes<12>;
 
  private:
   U64 timestamp;

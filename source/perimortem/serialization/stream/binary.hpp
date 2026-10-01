@@ -19,25 +19,34 @@ class Binary {
  public:
   constexpr Binary(storage_type& storage) : storage(storage) {}
 
-  auto operator<<(U8 value) -> Binary&;
-  auto operator<<(U16 value) -> Binary&;
-  auto operator<<(U32 value) -> Binary&;
-  auto operator<<(U64 value) -> Binary&;
-  auto operator<<(S8 value) -> Binary&;
-  auto operator<<(S16 value) -> Binary&;
-  auto operator<<(S32 value) -> Binary&;
-  auto operator<<(S64 value) -> Binary&;
-  auto operator<<(R32 value) -> Binary&;
-  auto operator<<(R64 value) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Bytes blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<U8> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<U16> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<U32> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<U64> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<S8> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<S16> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<S32> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<S64> blob) -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(U8 value) -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(U16 value) -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(U32 value) -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(U64 value) -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(S8 value) -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(S16 value) -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(S32 value) -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(S64 value) -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(R32 value) -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(R64 value) -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(Perimortem::Core::View::Bytes blob)
+      -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(Perimortem::Core::View::Vector<U8> blob)
+      -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(Perimortem::Core::View::Vector<U16> blob)
+      -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(Perimortem::Core::View::Vector<U32> blob)
+      -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(Perimortem::Core::View::Vector<U64> blob)
+      -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(Perimortem::Core::View::Vector<S8> blob)
+      -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(Perimortem::Core::View::Vector<S16> blob)
+      -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(Perimortem::Core::View::Vector<S32> blob)
+      -> Binary&;
+  EXPORTED(PERIMORTEM) auto operator<<(Perimortem::Core::View::Vector<S64> blob)
+      -> Binary&;
 
  private:
   storage_type& storage;

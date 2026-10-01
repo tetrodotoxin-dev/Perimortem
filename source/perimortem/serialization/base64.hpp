@@ -12,13 +12,17 @@ namespace Perimortem::Serialization {
 
 class Base64 {
  public:
-  static auto decode(Core::View::Bytes source) -> Memory::Dynamic::Bytes;
-  static auto decode(Memory::Allocator::Arena& arena, Core::View::Bytes source)
-      -> Core::View::Bytes;
+  static EXPORTED(PERIMORTEM) auto decode(Core::View::Bytes source)
+      -> Memory::Dynamic::Bytes;
+  static EXPORTED(PERIMORTEM) auto decode(
+      Memory::Allocator::Arena& arena,
+      Core::View::Bytes source) -> Core::View::Bytes;
 
-  static auto encode(Core::View::Bytes source) -> Memory::Dynamic::Bytes;
-  static auto encode(Memory::Allocator::Arena& arena, Core::View::Bytes source)
-      -> Core::View::Bytes;
+  static EXPORTED(PERIMORTEM) auto encode(Core::View::Bytes source)
+      -> Memory::Dynamic::Bytes;
+  static EXPORTED(PERIMORTEM) auto encode(
+      Memory::Allocator::Arena& arena,
+      Core::View::Bytes source) -> Core::View::Bytes;
 };
 
 }  // namespace Perimortem::Serialization

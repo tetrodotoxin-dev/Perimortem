@@ -25,21 +25,21 @@ class Textual {
   // Sets the location of the read/write cursor.
   // If the index is out of range then the cursor is put to the end of the
   // buffer.
-  auto set_pointer(Count location) -> void;
+  EXPORTED(PERIMORTEM) auto set_pointer(Count location) -> void;
 
-  auto operator<<(char character) -> Textual&;
-  auto operator<<(const Bool flag) -> Textual&;
-  auto operator<<(const U8 byte) -> Textual&;
-  auto operator<<(const U16 value) -> Textual&;
-  auto operator<<(const U32 value) -> Textual&;
-  auto operator<<(const U64 value) -> Textual&;
-  auto operator<<(const S8 value) -> Textual&;
-  auto operator<<(const S16 value) -> Textual&;
-  auto operator<<(const S32 value) -> Textual&;
-  auto operator<<(const S64 value) -> Textual&;
-  auto operator<<(const R32 value) -> Textual&;
-  auto operator<<(const R64 value) -> Textual&;
-  auto operator<<(const View::Bytes raw) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(char character) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(const Bool flag) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(const U8 byte) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(const U16 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(const U32 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(const U64 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(const S8 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(const S16 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(const S32 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(const S64 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(const R32 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(const R64 value) -> Textual&;
+  EXPORTED(PERIMORTEM) auto operator<<(const View::Bytes raw) -> Textual&;
 
   // Don't let C++ promote or do anything funky with C Strings.
   // They aren't part of the ABI so we explicitly delete them.

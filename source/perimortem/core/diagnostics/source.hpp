@@ -55,11 +55,11 @@ struct Source {
       Core::View::Bytes function = Core::View::Bytes())
       : file(file), function(function), line(line), column(column) {}
 
-  auto is_set() const -> Bool;
-  auto get_line() const -> Count;
-  auto get_column() const -> Count;
-  auto get_file() const -> Core::View::Bytes;
-  auto get_function() const -> Core::View::Bytes;
+  EXPORTED(PERIMORTEM) auto is_set() const -> Bool;
+  EXPORTED(PERIMORTEM) auto get_line() const -> Count;
+  EXPORTED(PERIMORTEM) auto get_column() const -> Count;
+  EXPORTED(PERIMORTEM) auto get_file() const -> Core::View::Bytes;
+  EXPORTED(PERIMORTEM) auto get_function() const -> Core::View::Bytes;
 
  private:
   const std::source_location::__impl* impl = nullptr;

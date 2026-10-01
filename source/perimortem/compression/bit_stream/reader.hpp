@@ -20,10 +20,10 @@ class Reader {
  public:
   constexpr Reader(Core::View::Bytes source) : data(source) {}
 
-  auto read_bit() -> Bool;
-  auto read_code(Count count) -> U32;
-  auto read_raw_bytes(Count count) -> Core::View::Bytes;
-  auto peek_code(Count count) -> U32;
+  EXPORTED(PERIMORTEM) auto read_bit() -> Bool;
+  EXPORTED(PERIMORTEM) auto read_code(Count count) -> U32;
+  EXPORTED(PERIMORTEM) auto read_raw_bytes(Count count) -> Core::View::Bytes;
+  EXPORTED(PERIMORTEM) auto peek_code(Count count) -> U32;
 
   constexpr auto advance_bits(Count count) -> void {
     buffer >>= count;

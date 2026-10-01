@@ -247,29 +247,29 @@ class Input {
 
   constexpr Input() = default;
 
-  static auto create(
+  static EXPORTED(PERIMORTEM) auto create(
       Core::View::Vector<Key> current,
       Core::View::Vector<Key> previous) -> Input;
 
-  static auto create(
+  static EXPORTED(PERIMORTEM) auto create(
       Core::View::Vector<Key> current,
       Core::View::Vector<Key> previous,
       Pointer pointer) -> Input;
 
-  static auto create(
+  static EXPORTED(PERIMORTEM) auto create(
       Core::View::Vector<Key> current,
       Core::View::Vector<Key> previous,
       const Mapping& mapping) -> Input;
 
-  static auto create(
+  static EXPORTED(PERIMORTEM) auto create(
       Core::View::Vector<Key> current,
       Core::View::Vector<Key> previous,
       const Mapping& mapping,
       Pointer pointer) -> Input;
 
-  auto is_current(Key key) const -> Bool;
-  auto is_pressed(Key key) const -> Bool;
-  auto is_released(Key key) const -> Bool;
+  EXPORTED(PERIMORTEM) auto is_current(Key key) const -> Bool;
+  EXPORTED(PERIMORTEM) auto is_pressed(Key key) const -> Bool;
+  EXPORTED(PERIMORTEM) auto is_released(Key key) const -> Bool;
 
   constexpr auto get_current_word(Count index) const -> U64 {
     return index < word_count ? current[index] : U64(0);

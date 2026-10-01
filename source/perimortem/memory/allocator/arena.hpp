@@ -28,14 +28,14 @@ class Arena {
   static constexpr U64 page_size = (1 << 15);
   static constexpr U64 arena_alignment = sizeof(Count);
 
-  Arena();
+  EXPORTED(PERIMORTEM) Arena();
 
   constexpr Arena(Arena&& arena) : rented_block(nullptr), usage(0) {
     Perimortem::Core::Data::swap(rented_block, arena.rented_block);
     Perimortem::Core::Data::swap(usage, arena.usage);
   }
 
-  ~Arena();
+  EXPORTED(PERIMORTEM) ~Arena();
   Arena(const Arena&) = delete;
   auto operator=(const Arena&) -> Arena& = delete;
   auto operator=(Arena&&) -> Arena& = delete;
@@ -115,10 +115,12 @@ class Arena {
     return access;
   }
 
-  auto reset() -> void;
+  EXPORTED(PERIMORTEM) auto reset() -> void;
 
  private:
-  auto fetch_page(Count bytes_requested) -> void;
+  // allocate() is inline, so consumers call this growth path across the library
+  // boundary.
+  EXPORTED(PERIMORTEM) auto fetch_page(Count bytes_requested) -> void;
 
   U8* rented_block;
   Count usage;

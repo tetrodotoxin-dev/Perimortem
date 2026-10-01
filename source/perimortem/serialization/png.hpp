@@ -34,7 +34,8 @@ class Png {
   //   mandelbrot       43 MB/s        	30 MB/s
   //   zoneplate       143 MB/s        105 MB/s
   //
-  static auto decode(Core::View::Bytes source) -> Memory::Matrix<Rgba8>;
+  static EXPORTED(PERIMORTEM) auto decode(Core::View::Bytes source)
+      -> Memory::Matrix<Rgba8>;
 
   // Encodes an Rgba8 matrix to a PNG byte stream. Adaptive filtering scores each
   // row under all five filter types and writes the lowest scoring choice.
@@ -55,7 +56,7 @@ class Png {
   //   mandelbrot       16 MB/s          3 MB/s       1.04 (much bigger)
   //   zoneplate        33 MB/s          7 MB/s       1.40 (much bigger)
   //
-  static auto encode(const Memory::Matrix<Rgba8>& image)
+  static EXPORTED(PERIMORTEM) auto encode(const Memory::Matrix<Rgba8>& image)
       -> Memory::Dynamic::Bytes;
 };
 

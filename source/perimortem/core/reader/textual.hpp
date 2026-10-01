@@ -31,13 +31,13 @@ class Textual {
   }
   constexpr auto get_location() const -> Count { return cursor; }
 
-  auto read_byte() -> U8;
-  auto read_flag() -> Bool;
+  EXPORTED(PERIMORTEM) auto read_byte() -> U8;
+  EXPORTED(PERIMORTEM) auto read_flag() -> Bool;
   // Reads one unsigned value using a radix from 2 through 16.
-  auto read_unsigned(U8 radix = 10) -> U64;
-  auto read_signed() -> S64;
-  auto read_r32() -> R32;
-  auto read_r64() -> R64;
+  EXPORTED(PERIMORTEM) auto read_unsigned(U8 radix = 10) -> U64;
+  EXPORTED(PERIMORTEM) auto read_signed() -> S64;
+  EXPORTED(PERIMORTEM) auto read_r32() -> R32;
+  EXPORTED(PERIMORTEM) auto read_r64() -> R64;
 
   constexpr auto get_size() const -> Count { return source.get_size(); }
   constexpr auto is_valid() const -> Bool { return cursor != Count(-1); }

@@ -4,6 +4,8 @@
 #ifndef PERIMORTEM_CORE_PERIMORTEM_H
 #define PERIMORTEM_CORE_PERIMORTEM_H
 
+#include "toolchain/export.h"
+
 // These shorthands follow the compiler target, including cross compilation.
 // Consumers need no library specific build definitions to include our headers.
 #ifdef __wasm__
@@ -40,24 +42,20 @@ typedef double R64;
 typedef U64 Count;
 
 #ifdef __cplusplus
-#define PERIMORTEM_C extern "C"
-#define PERIMORTEM_SCALAR_ASSERT static_assert
+#define PERIMORTEM_ASSERT static_assert
 #else
-#define PERIMORTEM_C
-#define PERIMORTEM_SCALAR_ASSERT _Static_assert
+#define PERIMORTEM_ASSERT _Static_assert
 #endif
 
-PERIMORTEM_SCALAR_ASSERT(sizeof(U8) == 1, "U8 requires one byte");
-PERIMORTEM_SCALAR_ASSERT(sizeof(U16) == 2, "U16 requires two bytes");
-PERIMORTEM_SCALAR_ASSERT(sizeof(U32) == 4, "U32 requires four bytes");
-PERIMORTEM_SCALAR_ASSERT(sizeof(U64) == 8, "U64 requires eight bytes");
-PERIMORTEM_SCALAR_ASSERT(sizeof(S8) == 1, "S8 requires one byte");
-PERIMORTEM_SCALAR_ASSERT(sizeof(S16) == 2, "S16 requires two bytes");
-PERIMORTEM_SCALAR_ASSERT(sizeof(S32) == 4, "S32 requires four bytes");
-PERIMORTEM_SCALAR_ASSERT(sizeof(S64) == 8, "S64 requires eight bytes");
-PERIMORTEM_SCALAR_ASSERT(sizeof(R32) == 4, "R32 requires four bytes");
-PERIMORTEM_SCALAR_ASSERT(sizeof(R64) == 8, "R64 requires eight bytes");
-
-#undef PERIMORTEM_SCALAR_ASSERT
+PERIMORTEM_ASSERT(sizeof(U8) == 1, "U8 requires one byte");
+PERIMORTEM_ASSERT(sizeof(U16) == 2, "U16 requires two bytes");
+PERIMORTEM_ASSERT(sizeof(U32) == 4, "U32 requires four bytes");
+PERIMORTEM_ASSERT(sizeof(U64) == 8, "U64 requires eight bytes");
+PERIMORTEM_ASSERT(sizeof(S8) == 1, "S8 requires one byte");
+PERIMORTEM_ASSERT(sizeof(S16) == 2, "S16 requires two bytes");
+PERIMORTEM_ASSERT(sizeof(S32) == 4, "S32 requires four bytes");
+PERIMORTEM_ASSERT(sizeof(S64) == 8, "S64 requires eight bytes");
+PERIMORTEM_ASSERT(sizeof(R32) == 4, "R32 requires four bytes");
+PERIMORTEM_ASSERT(sizeof(R64) == 8, "R64 requires eight bytes");
 
 #endif

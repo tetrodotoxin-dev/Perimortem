@@ -44,30 +44,31 @@ class Bibliotheca {
   };
 
   // Creates a free entry which can be used.
-  static auto check_out(Count requested_bytes) -> Allocation;
+  static EXPORTED(PERIMORTEM) auto check_out(Count requested_bytes)
+      -> Allocation;
 
   // Adds a reservation to the block.
-  static auto reserve(U8* entry) -> Count;
+  static EXPORTED(PERIMORTEM) auto reserve(U8* entry) -> Count;
 
   // Returns the number of active reservations on the block.
-  static auto reservation_count(U8* entry) -> Count;
+  static EXPORTED(PERIMORTEM) auto reservation_count(U8* entry) -> Count;
 
   // Returns the usable byte capacity selected when this block was checked out.
   // An empty entry has zero capacity.
-  static auto capacity(U8* entry) -> Count;
+  static EXPORTED(PERIMORTEM) auto capacity(U8* entry) -> Count;
 
   // Removes a reservation from the block.
   // If the number of reservations is zero then the block is checked in to the
   // Bibliotheca for future use.
-  static auto remit(U8* entry) -> Count;
+  static EXPORTED(PERIMORTEM) auto remit(U8* entry) -> Count;
 
   // Methods for analyzing the state of the Bibliotheca.
-  static auto reserved_memory() -> Count;
-  static auto free_memory() -> Count;
-  static auto allocated_memory() -> Count;
-  static auto check_out_requests() -> Count;
-  static auto allocation_requests() -> Count;
-  static auto slab_requests() -> Count;
+  static EXPORTED(PERIMORTEM) auto reserved_memory() -> Count;
+  static EXPORTED(PERIMORTEM) auto free_memory() -> Count;
+  static EXPORTED(PERIMORTEM) auto allocated_memory() -> Count;
+  static EXPORTED(PERIMORTEM) auto check_out_requests() -> Count;
+  static EXPORTED(PERIMORTEM) auto allocation_requests() -> Count;
+  static EXPORTED(PERIMORTEM) auto slab_requests() -> Count;
 };
 
 }  // namespace Perimortem::Core

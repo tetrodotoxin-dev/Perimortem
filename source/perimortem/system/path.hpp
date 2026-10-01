@@ -21,15 +21,18 @@ class Path {
   static constexpr Count max_size = 510;
 
   Path() = default;
-  Path(Core::View::Bytes path);
-  Path(Core::View::Bytes base_file_path, Core::View::Bytes relative_path);
+  EXPORTED(PERIMORTEM) Path(Core::View::Bytes path);
+  EXPORTED(PERIMORTEM) Path(
+      Core::View::Bytes base_file_path,
+      Core::View::Bytes relative_path);
 
   // The Arena overload writes the accepted spelling directly into its final
   // lifetime domain so retaining owners do not proxy a temporary Path. It uses
   // `/` for one platform independent cache identity and rejects input whose
   // lexical meaning cannot be preserved exactly.
-  static auto normalize(Memory::Allocator::Arena& arena, Core::View::Bytes path)
-      -> Core::Option<Core::View::Bytes>;
+  static EXPORTED(PERIMORTEM) auto normalize(
+      Memory::Allocator::Arena& arena,
+      Core::View::Bytes path) -> Core::Option<Core::View::Bytes>;
 
   constexpr auto get_view() const -> Core::View::Bytes {
     return text.slice(0, size);

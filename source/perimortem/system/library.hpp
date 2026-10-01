@@ -19,17 +19,17 @@ namespace Perimortem::System {
 // duplicate entries get their own handle.
 class Library {
  public:
-  static auto open(
+  static EXPORTED(PERIMORTEM) auto open(
       Perimortem::Core::View::Bytes path,
       Perimortem::Memory::Allocator::Arena& errors)
       -> Perimortem::Utility::Result<Library, Perimortem::Core::View::Bytes>;
 
-  Library(Library&& source);
+  EXPORTED(PERIMORTEM) Library(Library&& source);
   Library(const Library&) = delete;
   auto operator=(const Library&) -> Library& = delete;
-  ~Library();
+  EXPORTED(PERIMORTEM) ~Library();
 
-  auto symbol(
+  EXPORTED(PERIMORTEM) auto symbol(
       Perimortem::Core::View::Bytes name,
       Perimortem::Memory::Allocator::Arena& errors) const
       -> Perimortem::Utility::Result<void*, Perimortem::Core::View::Bytes>;

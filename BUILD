@@ -1,11 +1,6 @@
 # Copyright (c) 2023-present Matt Kaes and contributors
 
-load("@tetro_toolchain//source/bazel:library.bzl", "static_library")
-load("@tetro_toolchain//source/bazel:package.bzl", "package_release")
-load("@tetro_toolchain//source/bazel:validation.bzl", "benchmarks", "tests")
-load("@tetro_toolchain//source/bazel:vscode.bzl", "vscode")
-
-package(default_visibility = ["//visibility:public"])
+load("@tetro_toolchain//:defs.bzl", "benchmarks", "package", "tests", "vscode")
 
 # ============                Useful commands                 ============
 # Build source using the local machines configuration:
@@ -29,34 +24,25 @@ package(default_visibility = ["//visibility:public"])
 #   bazel build :sdk --config=release
 #
 
-# Run `bazel build :vscode` to create a VSCode setup for the repository.
-vscode(name = "vscode")
-
 # The component interfaces share Perimortem's runtime. Keeping that dependency
 # private makes each component expose only its declared header dependencies.
-_COMPONENTS = [
-    "core",
-    "utility",
-    "math",
-    "memory",
-    "compression",
-    "serialization",
-    "system",
-]
-
-[
-    static_library(
-        name = component,
-        implementation_deps = ["//source:perimortem"],
-        deps = ["//source:" + component],
-    )
-    for component in _COMPONENTS
-]
-
-alias(
-    name = "perimortem",
-    actual = "//source:perimortem",
+package(
+    components = [
+        "core",
+        "utility",
+        "math",
+        "memory",
+        "compression",
+        "serialization",
+        "system",
+    ],
+    module = "perimortem",
+    shared = "//source:perimortem_shared",
+    static = "//source:perimortem",
 )
+
+# Run `bazel run :vscode` to create a VSCode setup for the repository.
+vscode()
 
 # SDK unit tests are built as an independent binary so they don't depend on Bazel's
 # machinery. Test can be build on one machine and run on another as long as the test
@@ -74,10 +60,4 @@ tests(
 benchmarks(
     srcs = glob(["validation/benchmarks/**/*.cpp"]),
     deps = [":perimortem"],
-)
-
-package_release(
-    name = "sdk",
-    components = {"//source:" + component: component for component in _COMPONENTS},
-    static = "//source:perimortem",
 )

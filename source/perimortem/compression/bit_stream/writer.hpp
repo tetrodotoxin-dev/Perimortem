@@ -25,10 +25,10 @@ class Writer {
 
   // Write `length` bits of `value` least significant bit first (extra bits,
   // block headers).
-  auto write_bits(U32 value, Count length) -> void;
+  EXPORTED(PERIMORTEM) auto write_bits(U32 value, Count length) -> void;
   // Write a pre reversed Huffman code returned by `Huffman::encode_symbol`.
-  auto write_code(U32 code, Count length) -> void;
-  auto flush() -> void;
+  EXPORTED(PERIMORTEM) auto write_code(U32 code, Count length) -> void;
+  EXPORTED(PERIMORTEM) auto flush() -> void;
 
  private:
   auto drain() -> void;

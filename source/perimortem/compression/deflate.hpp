@@ -20,13 +20,15 @@ class Deflate {
   // capacity_hint reserves in advance the output buffer when the decompressed
   // size is known ahead of time, eliminating reallocation cascades on large
   // inputs.
-  static auto inflate(Core::View::Bytes source, Count capacity_hint = 0)
-      -> Memory::Dynamic::Bytes;
+  static EXPORTED(PERIMORTEM) auto inflate(
+      Core::View::Bytes source,
+      Count capacity_hint = 0) -> Memory::Dynamic::Bytes;
 
   // Compresses data to a deflate stream (RFC 1950 + RFC 1951).
   // Level::None stores raw blocks. Higher levels apply LZ77 + Huffman coding.
-  static auto deflate(Core::View::Bytes source, Level level = Level::Default)
-      -> Memory::Dynamic::Bytes;
+  static EXPORTED(PERIMORTEM) auto deflate(
+      Core::View::Bytes source,
+      Level level = Level::Default) -> Memory::Dynamic::Bytes;
 };
 
 }  // namespace Perimortem::Compression

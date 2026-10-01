@@ -29,10 +29,10 @@ class Serial {
   constexpr Serial(Access::Bytes source) : source(source) {};
   constexpr Serial(const Serial& rhs) : source(rhs.source) {};
 
-  auto set_pointer(Count location) -> void;
+  EXPORTED(PERIMORTEM) auto set_pointer(Count location) -> void;
 
-  auto operator<<(const U64 value) -> Serial&;
-  auto operator<<(const View::Bytes blob) -> Serial&;
+  EXPORTED(PERIMORTEM) auto operator<<(const U64 value) -> Serial&;
+  EXPORTED(PERIMORTEM) auto operator<<(const View::Bytes blob) -> Serial&;
 
   constexpr auto get_size() const -> Count { return source.get_size(); }
   constexpr auto get_location() const -> Count { return cursor; }
