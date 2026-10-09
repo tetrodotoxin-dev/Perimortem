@@ -96,7 +96,6 @@ auto Random::read_entropy() -> U64 {
   return value;
 
 #endif
-
 }
 
 // Advances four counter depths for each of the two vectorized Philox channels.

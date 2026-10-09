@@ -3,14 +3,11 @@
 
 #pragma once
 
-#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/option.hpp"
-
-#include "perimortem/memory/dynamic/vector.hpp"
-
-#include "perimortem/utility/result.hpp"
-
+#include "perimortem/core/view/vector.hpp"
 #include "perimortem/math/domain.hpp"
+#include "perimortem/memory/dynamic/vector.hpp"
+#include "perimortem/utility/result.hpp"
 
 namespace Perimortem::Memory {
 
@@ -64,6 +61,7 @@ class Matrix {
   {
     Count count = source_domain.get_extent(0);
     count *= source_domain.get_extent(1);
+
     Dynamic::Vector<type> copied(count);
     for (Count index = 0; index < count && index < source.get_size(); index++) {
       copied.insert(source.get_data()[index]);

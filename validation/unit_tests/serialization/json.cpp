@@ -4,11 +4,10 @@
 #include "toolchain/validation/unit_test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-
-#include "perimortem/system/file.hpp"
 #include "perimortem/serialization/json/blueprint.hpp"
 #include "perimortem/serialization/json/node.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
+#include "perimortem/system/file.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -243,13 +242,13 @@ VALIDATION_TEST(SerializationJson, parse_null) {
   value.parse(arena, "null"_view);
   EXPECT(value.is_null());
 
-  // null inside an object — the member is visible and is_null().
+  // An object retains a null member as a visible null node.
   value.parse(arena, "{\"key\":null}"_view);
   ASSERT(value.is_object());
   EXPECT_EQ(value.get_size(), 1);
   EXPECT(value["key"_view].is_null());
 
-  // null alongside other members — both sides survive.
+  // Members surrounding a null retain their authored values.
   value.parse(arena, "{\"a\":1,\"b\":null,\"c\":3}"_view);
   ASSERT(value.is_object());
   EXPECT_EQ(value.get_size(), 3);
@@ -257,7 +256,7 @@ VALIDATION_TEST(SerializationJson, parse_null) {
   EXPECT(value["b"_view].is_null());
   EXPECT_EQ(value["c"_view].get_number(), 3);
 
-  // null inside an array — element is reachable and is_null().
+  // An array retains a null element as a reachable null node.
   value.parse(arena, "[1,null,3]"_view);
   ASSERT(value.is_array());
   EXPECT_EQ(value.get_size(), 3);
@@ -326,6 +325,7 @@ VALIDATION_TEST(SerializationJson, round_trip_init_rpc) {
   Allocator::Arena arena;
   Json::Node value;
   value.parse(arena, *source);
+
   auto formated = value.format(arena);
 
   ASSERT_EQ(formated.get_size(), (*source).get_size());

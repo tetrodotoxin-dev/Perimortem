@@ -56,6 +56,7 @@ VALIDATION_TEST(Arena, reserve) {
   auto* value_data = values.get_data();
 
   scalar = 7;
+
   value_data[0] = RequiredValue(1);
   value_data[1] = RequiredValue(2);
 

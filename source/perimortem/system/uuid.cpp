@@ -5,7 +5,6 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/time.hpp"
-
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::System;
@@ -149,6 +148,7 @@ auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
   // words use the same ordering as constant evaluation and the C carrier.
   value.high = 0;
   value.low = 0;
+
   Count digits = 0;
   for (Count index = 0; index < uuid_string.get_size(); ++index) {
     if (index == 8 || index == 13 || index == 18 || index == 23) {
@@ -262,7 +262,6 @@ auto Uuid::generate_v4() -> Uuid {
       (low & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL);
 
 #endif
-
 }
 
 auto Uuid::generate_v7() -> Uuid {
@@ -283,5 +282,4 @@ auto Uuid::generate_v7() -> Uuid {
   return Uuid(high, low);
 
 #endif
-
 }

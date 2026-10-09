@@ -21,10 +21,7 @@ class Point {
     return coordinates[axis];
   }
 
-  constexpr auto operator[](Count axis) -> type& {
-    return coordinates[axis];
-  }
-
+  constexpr auto operator[](Count axis) -> type& { return coordinates[axis]; }
 };
 
 static_assert(sizeof(Point<S32, 2>) == sizeof(S32) * 2);

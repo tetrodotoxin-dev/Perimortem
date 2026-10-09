@@ -5,9 +5,8 @@
 
 #include "toolchain/validation/unit_test.hpp"
 
-#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/null_terminated.hpp"
-
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "validation/unit_tests/memory/hashable.hpp"
 
@@ -179,6 +178,7 @@ VALIDATION_TEST(DynamicMap, dynamic_keys) {
   text.append('a');
   for (U8 ch = 'A'; ch < 'z'; ch++) {
     text.get_access().get_data()[0] = ch;
+
     text_map[text] = 2 + ch;
   }
 
@@ -220,6 +220,7 @@ VALIDATION_TEST(DynamicMap, assignment) {
   Dynamic::Map<S32, S32> destination = {{{5, 6}}};
 
   destination = source;
+
   source[1] = 8;
 
   EXPECT_EQ(destination.get_size(), Count(2));
@@ -261,6 +262,7 @@ VALIDATION_TEST(DynamicMap, leak_test) {
     Dynamic::Bytes source;
     for (Count i = 0; i < 100; i++) {
       source.append('A');
+
       memory_intensive[source] = "Test text to copy"_view;
     }
 

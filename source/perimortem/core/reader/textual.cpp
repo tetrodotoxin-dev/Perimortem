@@ -15,12 +15,15 @@ static constexpr auto get_digit(U8 character) -> U8 {
   if (character >= '0' && character <= '9') {
     return character - '0';
   }
+
   if (character >= 'A' && character <= 'F') {
     return character - 'A' + 10;
   }
+
   if (character >= 'a' && character <= 'f') {
     return character - 'a' + 10;
   }
+
   return U8(-1);
 }
 
@@ -140,6 +143,7 @@ auto Reader::Textual::read_signed() -> S64 {
   if (magnitude == signed_minimum_magnitude) {
     return signed_minimum;
   }
+
   return negative ? -S64(magnitude) : S64(magnitude);
 }
 
@@ -154,6 +158,7 @@ auto Reader::Textual::read_r32() -> R32 {
     cursor = Count(-1);
     return 0;
   }
+
   return value;
 }
 
@@ -189,6 +194,7 @@ auto Reader::Textual::read_r64() -> R64 {
       cursor = Count(-1);
       return 0;
     }
+
     cursor++;
   }
 
@@ -221,5 +227,6 @@ auto Reader::Textual::read_r64() -> R64 {
     cursor = Count(-1);
     return 0;
   }
+
   return negative ? -result : result;
 }

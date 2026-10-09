@@ -11,13 +11,13 @@
 #include <sched.h>
 #endif
 
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
 
 #ifndef PERI_WINDOWS
 
@@ -43,9 +43,11 @@ static SRWLOCK worker_mutex = SRWLOCK_INIT;
 static auto lock_workers() -> void {
   AcquireSRWLockExclusive(&worker_mutex);
 }
+
 static auto unlock_workers() -> void {
   ReleaseSRWLockExclusive(&worker_mutex);
 }
+
 static auto yield_worker() -> void {
   SwitchToThread();
 }
@@ -56,9 +58,11 @@ static pthread_mutex_t worker_mutex = PTHREAD_MUTEX_INITIALIZER;
 static auto lock_workers() -> void {
   pthread_mutex_lock(&worker_mutex);
 }
+
 static auto unlock_workers() -> void {
   pthread_mutex_unlock(&worker_mutex);
 }
+
 static auto yield_worker() -> void {
   sched_yield();
 }
@@ -101,6 +105,7 @@ class ThreadInitializer {
           return 0;
         },
         this, 0, nullptr);
+
     const bool failed = handle == 0;
 
 #else
@@ -156,7 +161,8 @@ class ThreadInitializer {
   static auto reserve_thread() -> Count {
     lock_workers();
 
-    auto worker_index = Algorithm::min_element<U8>(thread_occupancy);
+    auto worker_index =
+        Algorithm::Search::find_min(View::Vector<U8>(thread_occupancy));
     if (thread_occupancy[worker_index] != 0) {
       unlock_workers();
       Diagnostics::Log::fatal(
@@ -171,6 +177,7 @@ class ThreadInitializer {
 
   static auto release_thread(Count worker_index) -> void {
     lock_workers();
+
     thread_occupancy[worker_index] = 0;
     unlock_workers();
   }
@@ -221,7 +228,6 @@ class ThreadInitializer {
         pthread_self(), Data::cast<char>(system_thread_name.get_data()));
 
 #endif
-
   }
 
   static auto dispatch(void* initializer_address) -> void* {

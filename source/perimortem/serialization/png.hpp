@@ -11,9 +11,9 @@ namespace Perimortem::Serialization {
 
 // Png maps encoded chunks to and from a Matrix of four byte Rgba8 samples.
 // Matrix owns row storage and Domain extents. The codec expands source channels
-// and reverses filters on decode, then selects filters and compresses on encode.
-// Sample bytes retain their decoded values, and absent alpha becomes opaque.
-// No transfer conversion occurs here.
+// and reverses filters on decode, then selects filters and compresses on
+// encode. Sample bytes retain their decoded values, and absent alpha becomes
+// opaque. No transfer conversion occurs here.
 class Png {
  public:
   // Decodes a PNG byte stream into a row major matrix of Rgba8 samples. Other
@@ -37,8 +37,8 @@ class Png {
   static EXPORTED(PERIMORTEM) auto decode(Core::View::Bytes source)
       -> Memory::Matrix<Rgba8>;
 
-  // Encodes an Rgba8 matrix to a PNG byte stream. Adaptive filtering scores each
-  // row under all five filter types and writes the lowest scoring choice.
+  // Encodes an Rgba8 matrix to a PNG byte stream. Adaptive filtering scores
+  // each row under all five filter types and writes the lowest scoring choice.
   //
   // Returns empty bytes for bad inputs and empty matrices.
   //

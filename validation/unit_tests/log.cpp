@@ -1,10 +1,10 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/diagnostics/log.hpp"
-
 #include "validation/unit_tests/log.hpp"
+
 #include "perimortem/core/algorithm/search.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/static/bytes.hpp"
 
 using namespace Perimortem::Core;
@@ -14,10 +14,14 @@ static Diagnostics::Log::Level captured_level;
 static Static::Bytes<2048> captured;
 static Count captured_size;
 
-static auto capture(Diagnostics::Log::Level level, View::Bytes message,
-                    const Diagnostics::Source&) -> void {
+static auto capture(
+    Diagnostics::Log::Level level,
+    View::Bytes message,
+    const Diagnostics::Source&) -> void {
   captured_level = level;
-  captured_size = message.get_size() < captured.get_size() ? message.get_size() : captured.get_size();
+  captured_size = message.get_size() < captured.get_size()
+                      ? message.get_size()
+                      : captured.get_size();
   captured = message;
 }
 
@@ -35,5 +39,6 @@ auto Log::captured_message() -> View::Bytes {
 }
 
 auto Log::error_contains(View::Bytes message) -> bool {
-  return captured_level == Diagnostics::Log::Level::Error && Algorithm::search(captured_message(), message) != Count(-1);
+  return captured_level == Diagnostics::Log::Level::Error &&
+         Algorithm::Search::find(captured_message(), message) != Count(-1);
 }

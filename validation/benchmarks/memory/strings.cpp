@@ -3,10 +3,9 @@
 
 #include "toolchain/validation/benchmark.hpp"
 
-#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
-
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 using namespace Perimortem::Core;

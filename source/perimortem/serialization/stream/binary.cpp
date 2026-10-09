@@ -4,7 +4,6 @@
 #include "perimortem/serialization/stream/binary.hpp"
 
 #include "perimortem/core/writer/binary.hpp"
-
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 
@@ -16,6 +15,7 @@ template <Data::ByteOrder endian, typename storage_type, typename value_type>
 static auto write(storage_type& storage, value_type value) -> void {
   const Count start = storage.get_size();
   storage.resize(start + sizeof(value));
+
   Writer::Binary<endian> writer(
       storage.get_access().slice(start, sizeof(value)));
   writer << value;
@@ -31,6 +31,7 @@ static auto write_blob(storage_type& storage, View::Vector<value_type> value)
   const Count bytes = value.get_size() * sizeof(value_type);
   const Count start = storage.get_size();
   storage.resize(start + bytes);
+
   Writer::Binary<endian> writer(storage.get_access().slice(start, bytes));
   writer << value;
 }

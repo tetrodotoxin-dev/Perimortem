@@ -5,7 +5,6 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
-
 #include "perimortem/memory/allocator/arena.hpp"
 
 namespace Perimortem::Serialization::Json {

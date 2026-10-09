@@ -7,9 +7,9 @@
 #include <immintrin.h>
 #endif
 
-#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/scalar.hpp"
+#include "perimortem/core/static/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Compression;

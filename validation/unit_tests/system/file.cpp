@@ -3,24 +3,28 @@
 
 #include "perimortem/system/file.hpp"
 
-#include <filesystem>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "perimortem/core/diagnostics/log.hpp"
-
 #include "toolchain/validation/unit_test.hpp"
 
-#ifdef PERI_LINUX
+#include "perimortem/core/diagnostics/log.hpp"
+
+#if defined(PERI_LINUX) || defined(PERI_WASM)
+#include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
+#ifdef PERI_LINUX
 #include <signal.h>
 #include <sys/ptrace.h>
-#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/user.h>
 #include <sys/wait.h>
-#include <unistd.h>
 #elifdef PERI_WINDOWS
 #include <windows.h>
 #include <winioctl.h>
@@ -28,9 +32,7 @@
 
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/null_terminated.hpp"
-
 #include "perimortem/memory/allocator/arena.hpp"
-
 #include "perimortem/system/path.hpp"
 #include "perimortem/system/random.hpp"
 
@@ -81,7 +83,7 @@ static auto file_warning_contains(View::Bytes message) -> Bool {
   }
 
   View::Bytes captured = captured_file_log.slice(0, captured_file_log_size);
-  return Algorithm::search(captured, message) != Count(-1);
+  return Algorithm::Search::find(captured, message) != Count(-1);
 }
 
 // Linux syscall tracing provides deterministic mutation between open, metadata,
@@ -113,7 +115,7 @@ static auto traced_child(
   Option<File::Root> root;
   if (root_path) {
     root = File::Root::open(
-        NullTerminated::convert_cstring(root_path, temporary_path_capacity));
+        NullTerminated(root_path, temporary_path_capacity).get_view());
     if (!root) {
       _exit(21);
     }
@@ -127,7 +129,7 @@ static auto traced_child(
 
   const char* selected_path = read_path ? read_path : path;
   View::Bytes requested_path =
-      NullTerminated::convert_cstring(selected_path, temporary_path_capacity);
+      NullTerminated(selected_path, temporary_path_capacity).get_view();
   if (arena_read) {
     Allocator::Arena arena;
     auto source = root ? (*root).read(arena, requested_path)
@@ -266,40 +268,201 @@ static auto build_member_path(
   return written > 0 && CppSize(written) < output_size;
 }
 
-static auto native_path(const char* path) -> std::filesystem::path {
-  std::u8string text;
-  while (*path) {
-    text.push_back(char8_t(*path++));
-  }
-  return std::filesystem::path(text);
+#ifdef PERI_WINDOWS
+
+static auto native_create_directory(const char* path) -> Bool {
+  return CreateDirectoryA(path, nullptr) != 0;
 }
 
+static auto native_current_directory(char* output, U32 capacity) -> Bool {
+  const U32 size = GetCurrentDirectoryA(capacity, output);
+  return size > 0 && size < capacity;
+}
+
+static auto native_change_directory(const char* path) -> Bool {
+  return SetCurrentDirectoryA(path) != 0;
+}
+
+static auto native_is_directory(const char* path) -> Bool {
+  const U32 attributes = GetFileAttributesA(path);
+  return attributes != INVALID_FILE_ATTRIBUTES &&
+         (attributes & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+static auto native_create_link(const char* path, const char* target, int* error)
+    -> Bool {
+  U32 flags = native_is_directory(target) ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
+
+#ifdef SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
+
+  flags |= SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
+
+#endif
+
+  if (CreateSymbolicLinkA(path, target, flags)) {
+    *error = 0;
+    return True;
+  }
+
+  *error = GetLastError();
+  return False;
+}
+
+static auto native_remove_tree(const char* path) -> Bool {
+  U32 attributes = GetFileAttributesA(path);
+  if (attributes == INVALID_FILE_ATTRIBUTES) {
+    const U32 error = GetLastError();
+    return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND;
+  }
+
+  const Bool directory = attributes & FILE_ATTRIBUTE_DIRECTORY;
+  const Bool link = attributes & FILE_ATTRIBUTE_REPARSE_POINT;
+  if (directory && !link) {
+    char pattern[temporary_path_capacity * 2];
+    S32 written = snprintf(pattern, sizeof(pattern), "%s/*", path);
+    if (written <= 0 || CppSize(written) >= sizeof(pattern)) {
+      return False;
+    }
+
+    WIN32_FIND_DATAA entry;
+    HANDLE search = FindFirstFileA(pattern, &entry);
+    if (search != INVALID_HANDLE_VALUE) {
+      Bool removed = True;
+      do {
+        if (strcmp(entry.cFileName, ".") == 0 ||
+            strcmp(entry.cFileName, "..") == 0) {
+          continue;
+        }
+
+        char child[temporary_path_capacity * 2];
+        if (!build_member_path(child, sizeof(child), path, entry.cFileName) ||
+            !native_remove_tree(child)) {
+          removed = False;
+        }
+      } while (FindNextFileA(search, &entry));
+
+      FindClose(search);
+      if (!removed) {
+        return False;
+      }
+    }
+  }
+
+  if (attributes & FILE_ATTRIBUTE_READONLY) {
+    SetFileAttributesA(path, attributes & ~FILE_ATTRIBUTE_READONLY);
+  }
+
+  return directory ? RemoveDirectoryA(path) != 0 : DeleteFileA(path) != 0;
+}
+
+static auto native_rename(const char* source, const char* destination) -> Bool {
+  return MoveFileExA(source, destination, MOVEFILE_REPLACE_EXISTING) != 0;
+}
+
+#else
+
+static auto native_create_directory(const char* path) -> Bool {
+  return mkdir(path, 0700) == 0;
+}
+
+static auto native_current_directory(char* output, Count capacity) -> Bool {
+  return getcwd(output, capacity) != nullptr;
+}
+
+static auto native_change_directory(const char* path) -> Bool {
+  return chdir(path) == 0;
+}
+
+static auto native_create_link(const char* path, const char* target, int* error)
+    -> Bool {
+  if (symlink(target, path) == 0) {
+    *error = 0;
+    return True;
+  }
+
+  *error = errno;
+  return False;
+}
+
+static auto native_remove_tree(const char* path) -> Bool {
+  struct stat info;
+  if (lstat(path, &info) != 0) {
+    return errno == ENOENT;
+  }
+
+  if (!S_ISDIR(info.st_mode) || S_ISLNK(info.st_mode)) {
+    return unlink(path) == 0;
+  }
+
+  DIR* directory = opendir(path);
+  if (!directory) {
+    return False;
+  }
+
+  Bool removed = True;
+  while (dirent* entry = readdir(directory)) {
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+      continue;
+    }
+
+    char child[temporary_path_capacity * 2];
+    if (!build_member_path(child, sizeof(child), path, entry->d_name) ||
+        !native_remove_tree(child)) {
+      removed = False;
+    }
+  }
+
+  closedir(directory);
+  return removed && rmdir(path) == 0;
+}
+
+static auto native_rename(const char* source, const char* destination) -> Bool {
+  return rename(source, destination) == 0;
+}
+
+#endif
+
 static auto create_temporary_directory(char* output, CppSize capacity) -> Bool {
-  std::error_code error;
-  auto path = std::filesystem::temp_directory_path(error);
-  if (error) {
+
+#ifdef PERI_WINDOWS
+
+  char temporary[temporary_path_capacity];
+  const U32 size = GetTempPathA(sizeof(temporary), temporary);
+  if (!size || size >= sizeof(temporary)) {
     return False;
   }
-  char name[64];
-  snprintf(name, sizeof(name), "perimortem_file_%llx", Random::generate());
-  path /= name;
-  const auto text = path.generic_u8string();
-  if (text.size() >= capacity) {
+
+  S32 written = snprintf(
+      output, capacity, "%sperimortem_file_%llx", temporary,
+      Random::generate());
+
+#else
+
+  const char* temporary = getenv("TMPDIR");
+  if (!temporary || !temporary[0]) {
+    temporary = "/tmp";
+  }
+
+  const char* separator = temporary[strlen(temporary) - 1] == '/' ? "" : "/";
+  S32 written = snprintf(
+      output, capacity, "%s%sperimortem_file_%llx", temporary, separator,
+      Random::generate());
+
+#endif
+
+  if (written <= 0 || CppSize(written) >= capacity) {
     return False;
   }
-  if (!std::filesystem::create_directory(path, error)) {
-    return False;
-  }
-  memcpy(output, text.c_str(), text.size() + 1);
-  return True;
+
+  return native_create_directory(output);
 }
 
 static auto cleanup_temporary_root(const char* root) -> void {
   if (!root[0]) {
     return;
   }
-  std::error_code error;
-  std::filesystem::remove_all(native_path(root), error);
+
+  native_remove_tree(root);
 }
 
 class TemporaryRoot {
@@ -334,7 +497,7 @@ class TemporaryRoot {
   operator bool() const { return bool(valid); }
 
   auto get_location() const -> View::Bytes {
-    return NullTerminated::convert_cstring(root_path, sizeof(root_path));
+    return NullTerminated(root_path, sizeof(root_path)).get_view();
   }
 
   auto get_path() const -> const char* { return root_path; }
@@ -355,20 +518,16 @@ class TemporaryRoot {
       return False;
     }
 
-    return File::write(
-        data, NullTerminated::convert_cstring(path, sizeof(path)));
+    return File::write(data, NullTerminated(path, sizeof(path)).get_view());
   }
 
   auto write_outside(View::Bytes data) const -> Bool {
     return File::write(
-        data,
-        NullTerminated::convert_cstring(outside_path, sizeof(outside_path)));
+        data, NullTerminated(outside_path, sizeof(outside_path)).get_view());
   }
 
   auto create_outside_directory() const -> Bool {
-    std::error_code error;
-    return std::filesystem::create_directory(
-        native_path(outside_directory_path), error);
+    return native_create_directory(outside_directory_path);
   }
 
   auto write_outside_member(const char* member, View::Bytes data) const
@@ -380,12 +539,10 @@ class TemporaryRoot {
       return False;
     }
 
-    return File::write(
-        data, NullTerminated::convert_cstring(path, sizeof(path)));
+    return File::write(data, NullTerminated(path, sizeof(path)).get_view());
   }
 
-  auto read_outside_member(const char* member) const
-      -> Option<Perimortem::Memory::Dynamic::Bytes> {
+  auto read_outside_member(const char* member) const -> Option<Dynamic::Bytes> {
     char path[temporary_path_capacity];
     Bool built =
         build_member_path(path, sizeof(path), outside_directory_path, member);
@@ -393,7 +550,7 @@ class TemporaryRoot {
       return {};
     }
 
-    return File::read(NullTerminated::convert_cstring(path, sizeof(path)));
+    return File::read(NullTerminated(path, sizeof(path)).get_view());
   }
 
   auto create_directory(const char* member) const -> Bool {
@@ -403,8 +560,7 @@ class TemporaryRoot {
       return False;
     }
 
-    std::error_code error;
-    return std::filesystem::create_directory(native_path(path), error);
+    return native_create_directory(path);
   }
 
   auto create_link(const char* member, const char* target) -> Bool {
@@ -414,22 +570,10 @@ class TemporaryRoot {
       return False;
     }
 
-    std::error_code error;
-    const auto destination = native_path(target);
-    if (std::filesystem::is_directory(destination, error)) {
-      std::filesystem::create_directory_symlink(
-          destination, native_path(path), error);
-    } else {
-      std::filesystem::create_symlink(destination, native_path(path), error);
-    }
-    link_error = error.value();
-    return !error;
+    return native_create_link(path, target, &link_error);
   }
 
-  auto remove_root() -> Bool {
-    std::error_code error;
-    return std::filesystem::remove(native_path(root_path), error);
-  }
+  auto remove_root() -> Bool { return native_remove_tree(root_path); }
 
   auto rename_root() -> Bool {
     S32 written =
@@ -438,15 +582,11 @@ class TemporaryRoot {
       return False;
     }
 
-    std::error_code error;
-    std::filesystem::rename(
-        native_path(root_path), native_path(moved_path), error);
-    return !error;
+    return native_rename(root_path, moved_path);
   }
 
   auto create_replacement_root() const -> Bool {
-    std::error_code error;
-    return std::filesystem::create_directory(native_path(root_path), error);
+    return native_create_directory(root_path);
   }
 
   auto get_link_error() const -> int { return link_error; }
@@ -464,32 +604,32 @@ class TemporaryRoot {
 // measure Perimortem's behavior. This also works in a native Windows checkout
 // without requiring a Unix temporary directory or directory descriptors.
 static char file_directory[temporary_path_capacity];
-static std::filesystem::path original_directory;
+static char original_directory[temporary_path_capacity];
 static Harness SystemFile = {
   .name = "System::File",
   .setup =
       [] {
-        std::error_code error;
-        original_directory = std::filesystem::current_path(error);
-        if (error || !create_temporary_directory(
-                         file_directory, sizeof(file_directory))) {
+        if (!native_current_directory(
+                original_directory, sizeof(original_directory)) ||
+            !create_temporary_directory(
+                file_directory, sizeof(file_directory))) {
           Diagnostics::Log::fatal(
               "Unable to create the file test directory."_view);
         }
-        std::filesystem::current_path(native_path(file_directory), error);
-        if (error) {
+
+        if (!native_change_directory(file_directory)) {
           Diagnostics::Log::fatal(
               "Unable to enter the file test directory."_view);
         }
+
         File::write(test_contents, test_file);
       },
   .teardown =
       [] {
-        std::error_code error;
-        std::filesystem::current_path(original_directory, error);
-        if (error) {
+        if (!native_change_directory(original_directory)) {
           Diagnostics::Log::fatal("Unable to restore the test directory."_view);
         }
+
         cleanup_temporary_root(file_directory);
       },
 };
@@ -510,11 +650,13 @@ VALIDATION_TEST(SystemFile, arena_read) {
 
   Bool replaced = File::write(replacement_contents, test_output);
   ASSERT(replaced);
+
   auto replacement = File::read(arena, test_output);
   ASSERT(replacement);
 
   Bool emptied = File::write(View::Bytes(), test_output);
   ASSERT(emptied);
+
   auto empty = File::read(arena, test_output);
   ASSERT(empty);
 
@@ -545,6 +687,7 @@ VALIDATION_TEST(SystemFile, missing) {
   File::remove(test_output);
 
   capture_next_file_log();
+
   auto source = File::read(test_output);
   EXPECT_NOT(source);
   EXPECT(file_warning_contains(
@@ -558,6 +701,7 @@ VALIDATION_TEST(SystemFile, missing) {
 
 VALIDATION_TEST(SystemFile, write_warning) {
   capture_next_file_log();
+
   Bool written = File::write(test_contents, "."_view);
   EXPECT_NOT(written);
   EXPECT(file_warning_contains(
@@ -574,6 +718,7 @@ VALIDATION_TEST(SystemFile, unreadable) {
   HANDLE held = CreateFileA(
       test_output_path, GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, nullptr);
   ASSERT(held != INVALID_HANDLE_VALUE);
+
   auto source = File::read(test_output);
   CloseHandle(held);
   EXPECT_NOT(source);
@@ -593,11 +738,13 @@ VALIDATION_TEST(SystemFile, unreadable) {
 }
 
 VALIDATION_TEST(SystemFile, oversized) {
+
 #ifdef PERI_WINDOWS
 
   HANDLE file = CreateFileA(
       test_output_path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
   ASSERT(file != INVALID_HANDLE_VALUE);
+
   DWORD returned;
   const bool sparse = DeviceIoControl(
       file, FSCTL_SET_SPARSE, nullptr, 0, nullptr, 0, &returned, nullptr);
@@ -607,10 +754,13 @@ VALIDATION_TEST(SystemFile, oversized) {
     if (error == ERROR_INVALID_FUNCTION || error == ERROR_NOT_SUPPORTED) {
       SKIP("Temporary filesystem does not support sparse files."_view);
     }
+
     ASSERT(sparse);
   }
+
   LARGE_INTEGER size;
   size.QuadPart = (S64(1) << 35) + 1;
+
   const bool sized =
       SetFilePointerEx(file, size, nullptr, FILE_BEGIN) && SetEndOfFile(file);
   CloseHandle(file);
@@ -706,8 +856,9 @@ VALIDATION_TEST(SystemFileRoot, open_directory) {
 
   auto location = temporary.get_location();
   ASSERT(location.get_size() < temporary_path_capacity);
-  View::Bytes terminated_location =
-      NullTerminated::to_view(temporary.get_path(), location.get_size() + 1);
+
+  View::Bytes terminated_location(
+      temporary.get_path(), location.get_size() + 1);
   auto root = File::Root::open(terminated_location);
   EXPECT(root);
 }
@@ -734,8 +885,7 @@ VALIDATION_TEST(SystemFileRoot, file_root) {
   Bool built = temporary.get_member_path("file", path, sizeof(path));
   ASSERT(built);
 
-  auto root =
-      File::Root::open(NullTerminated::convert_cstring(path, sizeof(path)));
+  auto root = File::Root::open(NullTerminated(path, sizeof(path)).get_view());
   EXPECT_NOT(root);
 }
 
@@ -770,11 +920,13 @@ VALIDATION_TEST(SystemFileRoot, arena_read) {
 
   Bool replaced = (*root).write(replacement_contents, "file"_view);
   ASSERT(replaced);
+
   auto replacement = (*root).read(arena, "file"_view);
   ASSERT(replacement);
 
   Bool empty_written = (*root).write(View::Bytes(), "empty"_view);
   ASSERT(empty_written);
+
   auto empty = (*root).read(arena, "empty"_view);
   ASSERT(empty);
 
@@ -811,6 +963,7 @@ VALIDATION_TEST(SystemFileRoot, relative_write) {
   ASSERT(empty_written);
 
   source = (*root).read("written"_view);
+
   auto empty_source = (*root).read("empty"_view);
   ASSERT(source);
   ASSERT(empty_source);
@@ -882,6 +1035,7 @@ VALIDATION_TEST(SystemFileRoot, missing_member) {
   ASSERT(root);
 
   capture_next_file_log();
+
   auto source = (*root).read("missing"_view);
   EXPECT_NOT(source);
   EXPECT_EQ(captured_file_log_size, Count(0));
@@ -915,8 +1069,7 @@ VALIDATION_TEST(SystemFileRoot, absolute_member) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  auto source =
-      (*root).read(NullTerminated::convert_cstring(path, sizeof(path)));
+  auto source = (*root).read(NullTerminated(path, sizeof(path)).get_view());
   ASSERT(source);
   EXPECT_TEXT(*source, test_contents);
 }
@@ -991,8 +1144,8 @@ VALIDATION_TEST(SystemFileRoot, symlink_write) {
   EXPECT(written);
 
   auto outside_source = File::read(
-      NullTerminated::convert_cstring(
-          temporary.get_outside_path(), temporary_path_capacity));
+      NullTerminated(temporary.get_outside_path(), temporary_path_capacity)
+          .get_view());
   ASSERT(outside_source);
   EXPECT_TEXT(*outside_source, replacement_contents);
 }
@@ -1059,6 +1212,7 @@ VALIDATION_TEST(SystemFileRoot, write_close_warning) {
   ASSERT(root);
 
   capture_next_file_log();
+
   Bool written = (*root).write(test_contents, "full"_view);
   EXPECT_NOT(written);
   EXPECT(file_warning_contains(
@@ -1189,15 +1343,18 @@ VALIDATION_TEST(SystemFileRoot, parent_member) {
 
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
+
   char relative[temporary_path_capacity];
   const char* name = strrchr(temporary.get_outside_path(), '/');
   ASSERT(name);
+
   S32 written = snprintf(relative, sizeof(relative), "../%s", name + 1);
   ASSERT(written >= 0);
+
   Count size = written;
   ASSERT(size < sizeof(relative));
 
-  auto source = root->read(NullTerminated::to_view(relative, size));
+  auto source = root->read(View::Bytes(relative, size));
   ASSERT(source);
   EXPECT_TEXT(*source, test_contents);
 }
@@ -1209,10 +1366,13 @@ VALIDATION_TEST(SystemFileRoot, snapshot_identity) {
   ASSERT(temporary);
   ASSERT(temporary.write_member("file", test_contents));
   ASSERT(temporary.write_member("replacement", replacement_contents));
+
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
+
   auto before = root->read_snapshot("file"_view);
   ASSERT(before);
+
   auto fingerprint = root->fingerprint("file"_view);
   ASSERT(fingerprint);
   EXPECT(before->get_fingerprint() == *fingerprint);
@@ -1223,8 +1383,8 @@ VALIDATION_TEST(SystemFileRoot, snapshot_identity) {
   ASSERT(temporary.get_member_path("file", destination, sizeof(destination)));
   ASSERT(
       File::replace(
-          NullTerminated::convert_cstring(source, sizeof(source)),
-          NullTerminated::convert_cstring(destination, sizeof(destination))));
+          NullTerminated(source, sizeof(source)).get_view(),
+          NullTerminated(destination, sizeof(destination)).get_view()));
 
   auto after = root->read_snapshot("file"_view);
   ASSERT(after);

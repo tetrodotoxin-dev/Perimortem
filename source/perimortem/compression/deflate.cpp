@@ -3,17 +3,16 @@
 
 #include "perimortem/compression/deflate.hpp"
 
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/data.hpp"
-#include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/scalar.hpp"
-
 #include "perimortem/compression/bit_stream/reader.hpp"
 #include "perimortem/compression/bit_stream/writer.hpp"
 #include "perimortem/compression/huffman.hpp"
 #include "perimortem/compression/lz77.hpp"
+#include "perimortem/core/data.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Compression;
@@ -307,6 +306,7 @@ constexpr auto inflate_symbols(
     Count write_start = output.get_size();
     Count copy_start = write_start - match_offset;
     output.resize(output.get_size() + match_length);
+
     auto bytes = output.get_access().get_data();
 
     // Ranges that do not overlap permit one bulk copy.
@@ -589,6 +589,7 @@ constexpr auto rle_encode_code_lengths(
     } else {
       output[count++] = RleEntry(length, U8(0), U32(0));
       position++;
+
       Count run = 0;
       while (position + run < total && lengths_at(position + run) == length &&
              run < 6) {
@@ -627,10 +628,10 @@ constexpr auto write_dynamic_block_header(
 
   Static::Vector<U8, code_length_order.get_size()> meta_lengths;
   Huffman::compute_lengths(meta_freq.get_view(), meta_lengths.get_access());
-  const Huffman meta_table(meta_lengths.get_view());
 
   // Trim trailing zero length entries from the meta table.
   // The minimum allowed is 4, so we stop at index 3.
+  const Huffman meta_table(meta_lengths.get_view());
   Count code_length = code_length_order.get_size() - 1;
   while (code_length > 3 && meta_lengths[code_length_order[code_length]] == 0) {
     code_length--;

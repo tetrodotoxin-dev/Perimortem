@@ -4,25 +4,25 @@
 #include "perimortem/serialization/png.hpp"
 
 #include "toolchain/validation/unit_test.hpp"
-#include "validation/unit_tests/log.hpp"
 
-#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/null_terminated.hpp"
-
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/system/file.hpp"
+#include "validation/unit_tests/log.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Math;
 using namespace Perimortem::Serialization;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
+using namespace Perimortem::Tests;
 using namespace Toolchain::Validation;
 
 static Harness SerializationPng = {
   .name = "Serialization::Png",
-  .setup = Perimortem::Tests::Log::begin,
-  .teardown = Perimortem::Tests::Log::end,
+  .setup = Log::begin,
+  .teardown = Log::end,
 };
 
 VALIDATION_TEST(SerializationPng, red_1x1_dimensions) {
@@ -30,7 +30,7 @@ VALIDATION_TEST(SerializationPng, red_1x1_dimensions) {
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
-  auto image = Perimortem::Serialization::Png::decode(*source);
+  auto image = Png::decode(*source);
 
   EXPECT_EQ(image.get_column_count(), U32(1));
   EXPECT_EQ(image.get_row_count(), U32(1));
@@ -49,7 +49,7 @@ VALIDATION_TEST(SerializationPng, checkerboard_2x2) {
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
-  auto image = Perimortem::Serialization::Png::decode(*source);
+  auto image = Png::decode(*source);
   auto pixels = image.get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(4));
@@ -85,7 +85,7 @@ VALIDATION_TEST(SerializationPng, unaligned_input) {
       source->get_size());
 
   const View::Bytes shifted(storage.get_data() + 1, source->get_size());
-  auto image = Perimortem::Serialization::Png::decode(shifted);
+  auto image = Png::decode(shifted);
   const auto pixels = image.get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(1));
@@ -100,7 +100,7 @@ VALIDATION_TEST(SerializationPng, decode_rgb_to_rgba) {
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
-  auto image = Perimortem::Serialization::Png::decode(*source);
+  auto image = Png::decode(*source);
   auto pixels = image.get_values();
 
   // RGB source: alpha must be synthesized as fully opaque.
@@ -118,7 +118,7 @@ VALIDATION_TEST(SerializationPng, gray_to_rgba) {
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
-  auto image = Perimortem::Serialization::Png::decode(*source);
+  auto image = Png::decode(*source);
   auto pixels = image.get_values();
 
   // Greyscale source: gray value replicates to all three color channels.
@@ -149,7 +149,7 @@ VALIDATION_TEST(SerializationPng, decode_gradient_4x4) {
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
-  auto image = Perimortem::Serialization::Png::decode(*source);
+  auto image = Png::decode(*source);
   auto pixels = image.get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(16));
@@ -166,7 +166,7 @@ VALIDATION_TEST(SerializationPng, decode_pattern_8x1) {
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
-  auto image = Perimortem::Serialization::Png::decode(*source);
+  auto image = Png::decode(*source);
   auto pixels = image.get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(8));
@@ -181,7 +181,7 @@ VALIDATION_TEST(SerializationPng, decode_pattern_8x1) {
 VALIDATION_TEST(SerializationPng, decode_invalid) {
   constexpr Static::Bytes<8> garbage = {
     {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}};
-  auto image = Perimortem::Serialization::Png::decode(garbage);
+  auto image = Png::decode(garbage);
   EXPECT_EQ(image.get_column_count(), U32(0));
   EXPECT_EQ(image.get_row_count(), U32(0));
 }
@@ -191,6 +191,7 @@ VALIDATION_TEST(SerializationPng, decode_invalid) {
 VALIDATION_TEST(SerializationPng, decoded_extent_overflow) {
   auto source = File::read("validation/data/pngs/red_1x1.png"_view);
   ASSERT(source);
+
   auto bytes = source->get_access();
   ASSERT(bytes.get_size() >= 33);
   for (Count index = 16; index < 24; index++) {
@@ -201,23 +202,24 @@ VALIDATION_TEST(SerializationPng, decoded_extent_overflow) {
   bytes.get_data()[30] = 0xF6;
   bytes.get_data()[31] = 0x2E;
   bytes.get_data()[32] = 0x3E;
-  auto decoded = Perimortem::Serialization::Png::decode(source->get_view());
+
+  auto decoded = Png::decode(source->get_view());
   EXPECT(decoded.is_empty());
-  EXPECT(Perimortem::Tests::Log::error_contains(
-      "Png: Decoded extent exceeds address space"_view));
+  EXPECT(Log::error_contains("Png: Decoded extent exceeds address space"_view));
 }
 
 VALIDATION_TEST(SerializationPng, roundtrip_1x1) {
   Dynamic::Vector<Rgba8> source_pixels;
   source_pixels.insert(Rgba8::from_rgba(0x12, 0x34, 0x56, 0x78));
+
   auto source_image = Matrix<Rgba8>::create(
       Domain<2, Boundary::Clip, Boundary::Clip>(Size<U32, 2>({{1, 1}})),
       source_pixels.get_view());
 
-  auto encoded = Perimortem::Serialization::Png::encode(source_image);
+  auto encoded = Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
 
-  auto decoded = Perimortem::Serialization::Png::decode(encoded.get_view());
+  auto decoded = Png::decode(encoded.get_view());
   EXPECT_EQ(decoded.get_column_count(), U32(1));
   EXPECT_EQ(decoded.get_row_count(), U32(1));
 
@@ -235,14 +237,15 @@ VALIDATION_TEST(SerializationPng, roundtrip_checker) {
   source_pixels.insert(Rgba8::from_rgba(0x00, 0xFF, 0x00, 0xFF));
   source_pixels.insert(Rgba8::from_rgba(0x00, 0x00, 0xFF, 0xFF));
   source_pixels.insert(Rgba8::from_rgba(0xFF, 0xFF, 0xFF, 0xFF));
+
   auto source_image = Matrix<Rgba8>::create(
       Domain<2, Boundary::Clip, Boundary::Clip>(Size<U32, 2>({{2, 2}})),
       source_pixels.get_view());
 
-  auto encoded = Perimortem::Serialization::Png::encode(source_image);
+  auto encoded = Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
 
-  auto decoded = Perimortem::Serialization::Png::decode(encoded.get_view());
+  auto decoded = Png::decode(encoded.get_view());
   EXPECT_EQ(decoded.get_column_count(), U32(2));
   EXPECT_EQ(decoded.get_row_count(), U32(2));
 
@@ -266,15 +269,15 @@ VALIDATION_TEST(SerializationPng, roundtrip_64x64) {
     }
   }
 
-  auto source_image =
-      Matrix<Rgba8>::create(
-          Domain<2, Boundary::Clip, Boundary::Clip>(Size<U32, 2>({{width, height}})),
-          source_pixels.get_view());
+  auto source_image = Matrix<Rgba8>::create(
+      Domain<2, Boundary::Clip, Boundary::Clip>(
+          Size<U32, 2>({{width, height}})),
+      source_pixels.get_view());
 
-  auto encoded = Perimortem::Serialization::Png::encode(source_image);
+  auto encoded = Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
 
-  auto decoded = Perimortem::Serialization::Png::decode(encoded.get_view());
+  auto decoded = Png::decode(encoded.get_view());
   auto source_view = source_image.get_values();
   auto decoded_pixels = decoded.get_values();
   const auto* source_data = source_view.get_data();
@@ -289,21 +292,22 @@ VALIDATION_TEST(SerializationPng, roundtrip_64x64) {
 }
 
 VALIDATION_TEST(SerializationPng, empty_image) {
-  auto encoded = Perimortem::Serialization::Png::encode(Matrix<Rgba8>());
+  auto encoded = Png::encode(Matrix<Rgba8>());
   EXPECT(encoded.is_empty());
 }
 
 VALIDATION_TEST(SerializationPng, chunk_header_trunc) {
   // PNG with a valid IHDR that's shorter than the valid size.
-  auto source = File::read("validation/data/pngs/error_truncated_header.png"_view);
+  auto source =
+      File::read("validation/data/pngs/error_truncated_header.png"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
-  auto image = Perimortem::Serialization::Png::decode(*source);
+  auto image = Png::decode(*source);
 
   EXPECT_EQ(image.get_column_count(), 0);
   EXPECT(
-      Perimortem::Tests::Log::error_contains(
+      Log::error_contains(
           "Png: Chunk at offset 33 truncated before header end"_view));
 }
 
@@ -313,11 +317,11 @@ VALIDATION_TEST(SerializationPng, chunk_length_overrun) {
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
-  auto image = Perimortem::Serialization::Png::decode(*source);
+  auto image = Png::decode(*source);
 
   EXPECT_EQ(image.get_column_count(), 0);
   EXPECT(
-      Perimortem::Tests::Log::error_contains(
+      Log::error_contains(
           "Png: Chunk at offset 33 with length 100 extends past end of stream"_view));
 }
 
@@ -326,17 +330,17 @@ VALIDATION_TEST(SerializationPng, roundtrip_icon) {
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
-  auto original = Perimortem::Serialization::Png::decode(*source);
+  auto original = Png::decode(*source);
   ASSERT_EQ(original.get_column_count(), 128);
   ASSERT_EQ(original.get_row_count(), 128);
 
   auto original_pixels = original.get_values();
   ASSERT_EQ(original_pixels.get_size(), Count(128 * 128));
 
-  auto encoded = Perimortem::Serialization::Png::encode(original);
+  auto encoded = Png::encode(original);
   ASSERT(encoded.get_size() > 0);
 
-  auto decoded = Perimortem::Serialization::Png::decode(encoded.get_view());
+  auto decoded = Png::decode(encoded.get_view());
   ASSERT_EQ(decoded.get_column_count(), 128);
   ASSERT_EQ(decoded.get_row_count(), 128);
 
@@ -361,11 +365,11 @@ VALIDATION_TEST(SerializationPng, crc_mismatch) {
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
 
-  auto image = Perimortem::Serialization::Png::decode(*source);
+  auto image = Png::decode(*source);
 
   EXPECT_EQ(image.get_column_count(), 0);
   EXPECT(
-      Perimortem::Tests::Log::error_contains(
+      Log::error_contains(
           "Png: CRC-32 mismatch for chunk 'IHDR' at offset 8"_view));
 }
 

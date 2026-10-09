@@ -10,8 +10,8 @@
 using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 
-// Large batch to amortise the clock_gettime overhead — Philox is extremely fast
-// so a single call produces results in under a nanosecond.
+// A large batch amortises clock_gettime overhead. Philox is fast enough for one
+// call to complete in under a nanosecond.
 static constexpr Count random_batch = 1024;
 
 static Harness SystemRandom = {

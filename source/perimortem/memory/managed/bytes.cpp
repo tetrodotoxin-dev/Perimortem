@@ -44,6 +44,7 @@ auto Managed::Bytes::resize(Count new_size) -> void {
 
 auto Managed::Bytes::append(U8 byte) -> void {
   ensure_capacity(size + 1);
+
   source_block[size++] = byte;
 }
 

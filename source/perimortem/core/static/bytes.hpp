@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/scalar.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Core::Static {
 
@@ -102,7 +102,8 @@ class Bytes {
     }
 
     return View::Bytes(
-        storage.source_block + start, Core::Scalar::min(size, get_size() - start));
+        storage.source_block + start,
+        Core::Scalar::min(size, get_size() - start));
   }
 
   constexpr auto get_size() const -> Count { return literal_size; }

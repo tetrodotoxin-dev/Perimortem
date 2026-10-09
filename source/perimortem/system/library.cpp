@@ -9,11 +9,10 @@
 #include <dlfcn.h>
 #endif
 
-#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/writer/textual.hpp"
-
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 
@@ -24,8 +23,7 @@ using namespace Perimortem::Utility;
 
 #ifdef PERI_WINDOWS
 
-static auto library_error(Allocator::Arena& errors)
-    -> View::Bytes {
+static auto library_error(Allocator::Arena& errors) -> View::Bytes {
   const auto code = GetLastError();
   Static::Bytes<96> buffer;
   Writer::Textual message(buffer);
@@ -57,17 +55,13 @@ Library::~Library() {
 
   if (handle && dlclose(handle) != 0) {
     Diagnostics::Log::fatal(
-        NullTerminated::convert_cstring(
-            dlerror(), max_loader_message_size));
+        NullTerminated(dlerror(), max_loader_message_size).get_view());
   }
 
 #endif
-
 }
 
-auto Library::open(
-    View::Bytes path,
-    Allocator::Arena& errors)
+auto Library::open(View::Bytes path, Allocator::Arena& errors)
     -> Result<Library, View::Bytes> {
   Dynamic::Bytes name(path);
   name.append(0);
@@ -83,6 +77,7 @@ auto Library::open(
 
   Dynamic::Vector<wchar_t> wide;
   wide.resize(size);
+
   const int written = MultiByteToWideChar(
       CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, wide.get_data(), size);
   if (!written) {
@@ -101,8 +96,7 @@ auto Library::open(
       RTLD_NOW | RTLD_LOCAL);
   if (!handle) {
     return errors.proxy(
-        NullTerminated::convert_cstring(
-            dlerror(), max_loader_message_size));
+        NullTerminated(dlerror(), max_loader_message_size).get_view());
   }
 
 #endif
@@ -110,9 +104,7 @@ auto Library::open(
   return Library(handle);
 }
 
-auto Library::symbol(
-    View::Bytes name,
-    Allocator::Arena& errors) const
+auto Library::symbol(View::Bytes name, Allocator::Arena& errors) const
     -> Result<void*, View::Bytes> {
   Dynamic::Bytes terminated(name);
   terminated.append(0);
@@ -129,11 +121,12 @@ auto Library::symbol(
 #else
 
   dlerror();
+
   auto* address = dlsym(
       handle, reinterpret_cast<const char*>(terminated.get_view().get_data()));
   if (const auto* error = dlerror()) {
     return errors.proxy(
-        NullTerminated::convert_cstring(error, max_loader_message_size));
+        NullTerminated(error, max_loader_message_size).get_view());
   }
 
 #endif

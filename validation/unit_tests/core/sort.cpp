@@ -6,7 +6,6 @@
 #include "toolchain/validation/unit_test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 using namespace Perimortem::Core;

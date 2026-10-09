@@ -20,8 +20,7 @@ class Volume {
 
  public:
   constexpr Volume() = default;
-  constexpr Volume(
-      Point<type, dimensions> origin, Size<type, dimensions> size)
+  constexpr Volume(Point<type, dimensions> origin, Size<type, dimensions> size)
       : origin(origin), size(size) {}
 
   constexpr auto get_origin() const -> Point<type, dimensions> {

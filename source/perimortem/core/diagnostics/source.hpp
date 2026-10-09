@@ -1,8 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-// Should only be included in cpp files
-// #pragma once
+#pragma once
 
 #include "perimortem/core/view/bytes.hpp"
 

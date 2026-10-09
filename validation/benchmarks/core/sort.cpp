@@ -5,14 +5,12 @@
 
 #include "toolchain/validation/benchmark.hpp"
 
-#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/vector.hpp"
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
-
+#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
-
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;
@@ -182,6 +180,7 @@ static Harness SortStrings256 = {
 
 VALIDATION_BENCHMARK(SortStrings256, views_256) {
   Algorithm::sort(words_256.get_access());
+
   Count sorted_str_size = words_256[0].get_size();
   Benchmark::prevent_optimization(sorted_str_size);
 }
@@ -194,6 +193,7 @@ static Harness SortStrings4k = {
 
 VALIDATION_BENCHMARK(SortStrings4k, views_4k) {
   Algorithm::sort(words_4k.get_access());
+
   Count sorted_str_size = words_4k[0].get_size();
   Benchmark::prevent_optimization(sorted_str_size);
 }
@@ -206,6 +206,7 @@ static Harness SortStrings16k = {
 
 VALIDATION_BENCHMARK(SortStrings16k, views_16k) {
   Algorithm::sort(words_16k.get_access());
+
   Count sorted_str_size = words_16k[0].get_size();
   Benchmark::prevent_optimization(sorted_str_size);
 }

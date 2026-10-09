@@ -7,7 +7,6 @@
 
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/null_terminated.hpp"
-
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "validation/unit_tests/memory/hashable.hpp"
 
@@ -70,6 +69,7 @@ VALIDATION_TEST(DynamicSet, visit) {
   EXPECT_EQ(total, 7);
 
   total = 0;
+
   const Dynamic::Set<S32>& const_values = values;
   const_values.visit([&total](const S32& value) { total += value; });
   EXPECT_EQ(total, 7);

@@ -5,9 +5,9 @@
 
 #include "toolchain/validation/unit_test.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/static/vector.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

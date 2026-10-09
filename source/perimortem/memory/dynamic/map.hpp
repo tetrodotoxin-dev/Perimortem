@@ -7,7 +7,6 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/option.hpp"
-
 #include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Memory::Dynamic {
@@ -126,6 +125,7 @@ class Map {
     }
 
     ensure_capacity(size + 1);
+
     Entry* empty = get_empty(hash);
     new (empty, Core::Placement::Construct) Entry(key, value);
     size++;
@@ -147,6 +147,7 @@ class Map {
     }
 
     ensure_capacity(size + 1);
+
     Entry* empty = get_empty(hash);
     new (empty, Core::Placement::Construct)
         Entry(static_cast<key_type&&>(key), static_cast<value_type&&>(value));
@@ -268,6 +269,7 @@ class Map {
     }
 
     ensure_capacity(size + 1);
+
     Entry* entry = get_empty(hash);
     new (entry, Core::Placement::Construct) Entry(key, value_type());
     size++;
@@ -366,6 +368,7 @@ class Map {
       }
 
       destruct_entry(entries + i);
+
       buckets[i] = 0;
     }
   }

@@ -2,23 +2,23 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "toolchain/validation/unit_test.hpp"
-#include "validation/unit_tests/log.hpp"
-
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/compression/deflate.hpp"
+#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/static/bytes.hpp"
+#include "validation/unit_tests/log.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Compression;
 using namespace Perimortem::Memory;
+using namespace Perimortem::Tests;
 
 using namespace Toolchain::Validation;
 
 static Harness CompressionTests = {
   .name = "Compression",
-  .setup = Perimortem::Tests::Log::begin,
-  .teardown = Perimortem::Tests::Log::end,
+  .setup = Log::begin,
+  .teardown = Log::end,
 };
 
 // Known test blobs produced by zlib
@@ -49,7 +49,7 @@ static constexpr Static::Bytes<18> hello_raw = {{
   0x21,
 }};
 
-// "Stored block test data ABCDEFGHIJ" — level 0
+// Level zero encodes "Stored block test data ABCDEFGHIJ" as a stored block.
 static constexpr Static::Bytes<44> stored_compressed = {{
   0x78, 0x01, 0x01, 0x21, 0x00, 0xDE, 0xFF, 0x53, 0x74, 0x6F, 0x72,
   0x65, 0x64, 0x20, 0x62, 0x6C, 0x6F, 0x63, 0x6B, 0x20, 0x74, 0x65,
@@ -157,7 +157,7 @@ VALIDATION_TEST(CompressionTests, truncated_input) {
   auto out = Deflate::inflate(hello_compressed.slice(0, 6));
   EXPECT_EQ(out.get_size(), 0);
   EXPECT(
-      Perimortem::Tests::Log::error_contains(
+      Log::error_contains(
           "Compression: Input too short to be a valid deflate stream"_view));
 }
 
@@ -170,7 +170,7 @@ VALIDATION_TEST(CompressionTests, bad_method) {
   auto out = Deflate::inflate(bad_cm);
   EXPECT_EQ(out.get_size(), 0);
   EXPECT(
-      Perimortem::Tests::Log::error_contains(
+      Log::error_contains(
           "Compression: Unsupported compression method in deflate header"_view));
 }
 
@@ -179,7 +179,7 @@ VALIDATION_TEST(CompressionTests, bad_method) {
 VALIDATION_TEST(CompressionTests, inflate_bad_checksum) {
   auto out = Deflate::inflate(bad_adler_compressed);
   EXPECT_EQ(out.get_size(), 0);
-  EXPECT(Perimortem::Tests::Log::error_contains("Compression: Adler-32 checksum mismatch."_view));
+  EXPECT(Log::error_contains("Compression: Adler-32 checksum mismatch."_view));
 }
 
 #endif

@@ -157,7 +157,6 @@ class alignas(64) Slab {
     return False;
 
 #endif
-
   }
 
   constexpr auto get_free_space() const -> Count {
@@ -274,12 +273,13 @@ class Librarian {
   // Still to maximize small chunk creation throughput (which is important
   // during thread start up when the Bibliotheca is empty), demote is only
   // called when we overrun the existing inventory page.
-  void manage_inventory(Count bytes) {
+  auto manage_inventory(Count bytes) -> void {
     // Demote the active inventory to possibly inactive and see if we have
     // space in another block.
     Slab* current = inventory;
     if (current->get_ancestor()) {
       secret_archive.demote_requests++;
+
       const auto free_space = current->get_free_space();
 
       // Bubble the page to it's new rank location to keep emptier pages at
@@ -304,6 +304,7 @@ class Librarian {
     // We were unable to find space so fetch a brand new slab and make it our
     // active inventory for allocations.
     secret_archive.slab_requests++;
+
     auto new_slab = Slab::get(bytes);
     new_slab->set_ancestor(inventory);
     inventory = new_slab;
@@ -311,7 +312,7 @@ class Librarian {
 
   // Bytes requested is equal to the number of actual bytes + the size of the
   // preface header for the allocation.
-  Preface* order_inventory(Count bytes) {
+  auto order_inventory(Count bytes) -> Preface* {
     secret_archive.allocation_requests++;
 
     // Check if our active inventory has space.

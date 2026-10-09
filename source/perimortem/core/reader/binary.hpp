@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/option.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Core::Reader {
 

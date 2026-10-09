@@ -5,9 +5,9 @@
 
 #include "toolchain/validation/unit_test.hpp"
 
+#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/writer/binary.hpp"
 
 using namespace Perimortem::Core;
@@ -203,6 +203,7 @@ static constexpr auto optional_reads() -> Bool {
   }
 
   reader.reset();
+
   const auto restored = reader.read_u32();
   return restored && *restored == 0;
 }

@@ -4,10 +4,8 @@
 #include "perimortem/serialization/json/node.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-
 #include "perimortem/serialization/stream/textual.hpp"
 
 enum class NodeState : U32 { Null, String, Number, Real, Object, Array, Flag };
@@ -148,7 +146,7 @@ auto parse_string(View::Bytes source, Count& position) -> View::Bytes {
   return source.slice(start);
 }
 
-auto ignored_characters(U8 c) {
+auto ignored_characters(U8 c) -> Bool {
   return c == ',' || c == '\n' || c == ' ';
 }
 

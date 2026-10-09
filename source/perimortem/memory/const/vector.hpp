@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/perimortem.hpp"
+#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/view/vector.hpp"
 
 namespace Perimortem::Memory::Const {
 
@@ -70,6 +70,7 @@ class Vector {
 
   constexpr auto insert(type value) -> type& {
     ensure_capacity(get_size() + 1);
+
     source_block[size] = static_cast<type&&>(value);
     return source_block[size++];
   }

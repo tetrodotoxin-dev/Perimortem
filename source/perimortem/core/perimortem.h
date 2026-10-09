@@ -21,20 +21,32 @@
 // C++ header, while this vocabulary also works for independently built C code.
 typedef unsigned char U8;
 typedef unsigned short int U16;
+
 #ifdef __LP32__
+
 typedef unsigned long U32;
+
 #else
+
 typedef unsigned int U32;
+
 #endif
+
 typedef unsigned long long U64;
 
 typedef signed char S8;
 typedef signed short int S16;
+
 #ifdef __LP32__
+
 typedef signed long S32;
+
 #else
+
 typedef signed int S32;
+
 #endif
+
 typedef signed long long S64;
 
 typedef float R32;

@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Memory::Allocator {
 

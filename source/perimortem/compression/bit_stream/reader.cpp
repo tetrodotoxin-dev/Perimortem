@@ -65,8 +65,7 @@ auto BitStream::Reader::read_code(Count count) -> U32 {
   return result;
 }
 
-auto BitStream::Reader::read_raw_bytes(Count count)
-    -> View::Bytes {
+auto BitStream::Reader::read_raw_bytes(Count count) -> View::Bytes {
   // Align to byte boundary: discard fractional bits in the current byte.
   const Count fractional_bits = buffered_bits & 7;
   advance_bits(fractional_bits);

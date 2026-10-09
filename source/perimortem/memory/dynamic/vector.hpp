@@ -3,12 +3,12 @@
 
 #pragma once
 
-#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/perimortem.hpp"
+#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/view/vector.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -131,6 +131,7 @@ class Vector {
           new (source_block + index, Core::Placement::Construct)
               type(Core::Data::take(source_block[last_index]));
         }
+
         source_block[last_index].~type();
       }
     }
@@ -165,6 +166,7 @@ class Vector {
           new (source_block + shift_index, Core::Placement::Construct)
               type(Core::Data::take(source_block[shift_index + 1]));
         }
+
         source_block[shift_index + 1].~type();
       }
     }

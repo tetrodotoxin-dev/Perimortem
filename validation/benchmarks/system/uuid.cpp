@@ -7,7 +7,6 @@
 
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
-
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;
@@ -59,6 +58,7 @@ VALIDATION_BENCHMARK(SystemUuid, serialize_x1024) {
                              ? &serialize_source_a
                              : &serialize_source_b;
     Benchmark::prevent_optimization(source);
+
     auto serialized = source->serialize();
     value += serialized[i % serialized.get_size()];
   }
@@ -73,6 +73,7 @@ VALIDATION_BENCHMARK(SystemUuid, deserialize_dashed_x1024) {
                              ? &dashed_source_a
                              : &dashed_source_b;
     Benchmark::prevent_optimization(source);
+
     Uuid uuid;
     uuid.deserialize(*source);
     value ^= uuid.get_value().high;
@@ -88,6 +89,7 @@ VALIDATION_BENCHMARK(SystemUuid, deserialize_packed_x1024) {
                              ? &packed_source_a
                              : &packed_source_b;
     Benchmark::prevent_optimization(source);
+
     Uuid uuid;
     uuid.deserialize(*source);
     value ^= uuid.get_value().high;

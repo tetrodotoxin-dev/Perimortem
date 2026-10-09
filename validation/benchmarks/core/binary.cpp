@@ -6,12 +6,11 @@
 #include "toolchain/validation/benchmark.hpp"
 
 #include "perimortem/core/access/bytes.hpp"
-#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/writer/binary.hpp"
-
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;

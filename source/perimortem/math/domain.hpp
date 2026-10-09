@@ -4,10 +4,10 @@
 #pragma once
 
 #include "perimortem/core/option.hpp"
+#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/math/boundary.hpp"
 #include "perimortem/math/point.hpp"
-#include "perimortem/core/scalar.hpp"
 #include "perimortem/math/size.hpp"
 #include "perimortem/math/volume.hpp"
 
@@ -18,9 +18,9 @@ namespace Perimortem::Math {
 //
 // Domain supports three modes based on its Boundary template arguments:
 //
-// - If none are passed, Clip is used for all dimensions.
-// - If one is passed, it is used for all dimensions.
-// - Otherwise, one Boundary is required for each dimension.
+// Zero arguments select Clip for every dimension. One argument selects the same
+// policy for every dimension. Every other form supplies one Boundary for each
+// dimension.
 //
 // The selected rules are part of the type, so resolution needs no runtime
 // policy dispatch. An empty axis has no valid index under any policy.
@@ -30,11 +30,10 @@ class Domain {
   static_assert(
       sizeof...(boundaries) == 0 || sizeof...(boundaries) == 1 ||
       sizeof...(boundaries) == dimensions);
-  static_assert((
-      (boundaries == Boundary::Clip ||
-       boundaries == Boundary::Saturate ||
-       boundaries == Boundary::Mirror ||
-       boundaries == Boundary::Wrap) && ...));
+  static_assert(
+      ((boundaries == Boundary::Clip || boundaries == Boundary::Saturate ||
+        boundaries == Boundary::Mirror || boundaries == Boundary::Wrap) &&
+       ...));
 
  public:
   constexpr Domain() = default;

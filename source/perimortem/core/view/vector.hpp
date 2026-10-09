@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/selection.hpp"
-#include "perimortem/core/scalar.hpp"
 
 namespace Perimortem::Core::View {
 
@@ -47,7 +47,7 @@ class Vector {
   }
 
   // Tests each value in order and returns the index of the first item that
-  // resolve the predicate or -1 if no item does.
+  // resolves the predicate or the terminal Count value when every item fails.
   template <typename predicate_type>
   constexpr auto find(predicate_type predicate) const -> Count {
     for (Count i = 0; i < size; i++) {

@@ -5,10 +5,9 @@
 
 #include "toolchain/validation/unit_test.hpp"
 
-#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
-
+#include "perimortem/core/view/vector.hpp"
 #include "perimortem/system/file.hpp"
 
 using namespace Perimortem::Core;
@@ -67,12 +66,14 @@ VALIDATION_TEST(SerializationBase64, padded_vector_tail) {
 
 VALIDATION_TEST(SerializationBase64, decode_image) {
   auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
-  auto base64 = File::read("validation/data/base64/perimortem_icon.base64"_view);
+  auto base64 =
+      File::read("validation/data/base64/perimortem_icon.base64"_view);
   ASSERT(source);
   ASSERT(base64);
   ASSERT_NOT((*source).is_empty());
   ASSERT_NOT((*base64).is_empty());
   ASSERT((*base64).get_view()[(*base64).get_size() - 1] == '\n');
+
   const View::Bytes encoded =
       (*base64).get_view().slice(0, (*base64).get_size() - 1);
 
@@ -99,12 +100,14 @@ VALIDATION_TEST(SerializationBase64, encode_simple) {
 
 VALIDATION_TEST(SerializationBase64, encode_image) {
   auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
-  auto base64 = File::read("validation/data/base64/perimortem_icon.base64"_view);
+  auto base64 =
+      File::read("validation/data/base64/perimortem_icon.base64"_view);
   ASSERT(source);
   ASSERT(base64);
   ASSERT_NOT((*source).is_empty());
   ASSERT_NOT((*base64).is_empty());
   ASSERT((*base64).get_view()[(*base64).get_size() - 1] == '\n');
+
   const View::Bytes encoded =
       (*base64).get_view().slice(0, (*base64).get_size() - 1);
 

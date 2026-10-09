@@ -4,7 +4,6 @@
 #include "toolchain/validation/unit_test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
 

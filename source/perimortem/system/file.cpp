@@ -13,11 +13,10 @@
 #include <windows.h>
 #endif
 
-#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
-
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 
 using namespace Perimortem::Core;
@@ -72,7 +71,6 @@ static auto open_stream(const char* path, const char* mode) -> FILE* {
   return nullptr;
 
 #endif
-
 }
 
 static auto replace_path(const char* source, const char* destination) -> S32 {
@@ -102,7 +100,6 @@ static auto replace_path(const char* source, const char* destination) -> S32 {
   return -1;
 
 #endif
-
 }
 
 static auto remove_path(const char* path) -> S32 {
@@ -122,7 +119,6 @@ static auto remove_path(const char* path) -> S32 {
   return -1;
 
 #endif
-
 }
 
 static auto inspect_path(const char* path) -> FileKind {
@@ -165,7 +161,6 @@ static auto inspect_path(const char* path) -> FileKind {
   return FileKind::Missing;
 
 #endif
-
 }
 
 // Metadata comes from the open stream, not a second lookup of its pathname.
@@ -227,7 +222,6 @@ static auto inspect_stream(FILE* file) -> Option<File::Fingerprint> {
   return {};
 
 #endif
-
 }
 
 // Operation identities are part of the diagnostic contract. Every stage of
@@ -324,6 +318,7 @@ static auto read_file(
   }
 
   fingerprint = *selected;
+
   Count size = selected->get_size();
   data.resize(size);
   if (size == 0) {

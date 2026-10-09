@@ -5,13 +5,13 @@
 
 #include "toolchain/validation/unit_test.hpp"
 
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/writer/textual.hpp"
 #include "perimortem/core/scalar.hpp"
+#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
 using namespace Toolchain::Validation;
@@ -46,7 +46,7 @@ static auto last_entry() -> View::Bytes {
 }
 
 static auto contains(View::Bytes haystack, View::Bytes message) -> Bool {
-  return Algorithm::search(haystack, message) != Count(-1);
+  return Algorithm::Search::find(haystack, message) != Count(-1);
 }
 
 static auto has_valid_header(View::Bytes entry) -> Bool {
@@ -114,13 +114,13 @@ static Harness DiagnosticsLog = {
 
 VALIDATION_TEST(DiagnosticsLog, info_record) {
   Diagnostics::Log::info("unique message string"_view);
+
   View::Bytes entry = last_entry();
 
   ASSERT(entry.get_size() > 0);
   EXPECT(has_valid_header(entry));
   EXPECT_EQ(entry[entry.get_size() - 1], U8('\n'));
-  EXPECT(
-      contains(entry, "validation/unit_tests/core/log.cpp:"_view));
+  EXPECT(contains(entry, "validation/unit_tests/core/log.cpp:"_view));
   EXPECT(contains(entry, "[main]"_view));
   EXPECT(contains(entry, "unique message string"_view));
 }
@@ -141,6 +141,7 @@ VALIDATION_TEST(DiagnosticsLog, message_raii_guard) {
 
 VALIDATION_TEST(DiagnosticsLog, suppress_messages) {
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
+
   Count events_before = total_events;
 
   Diagnostics::Log::error("should pass through"_view);
@@ -168,8 +169,7 @@ VALIDATION_TEST(DiagnosticsLog, attribution) {
   attributing_function();
 
   auto logged = last_entry();
-  EXPECT(contains(
-      logged, "[main] validation/unit_tests/core/log.cpp:"_view));
+  EXPECT(contains(logged, "[main] validation/unit_tests/core/log.cpp:"_view));
   EXPECT(contains(logged, "Test Attribution"_view));
   EXPECT(has_valid_header(last_entry()));
 }

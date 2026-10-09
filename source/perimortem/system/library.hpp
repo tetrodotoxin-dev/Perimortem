@@ -4,9 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
-
 #include "perimortem/memory/allocator/arena.hpp"
-
 #include "perimortem/utility/result.hpp"
 
 namespace Perimortem::System {

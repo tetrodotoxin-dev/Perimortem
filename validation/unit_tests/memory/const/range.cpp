@@ -13,6 +13,7 @@ static_assert(
     [] {
       Const::Range<int> source(2);
       source[1] = 42;
+
       const auto& view = source;
       return view[1] == 42 && view.get_size() == 2;
     }(),
@@ -22,8 +23,10 @@ static_assert(
     [] {
       Const::Range<int> source(2);
       source.get_data()[0] = 42;
+
       Const::Range<int> copy(source);
       copy.get_data()[0] = 7;
+
       auto& self = source;
       source = self;
       source = static_cast<Const::Range<int>&&>(self);
@@ -41,11 +44,13 @@ static_assert(
     [] {
       Const::Range<Const::Object<int>> source(2);
       source.get_data()[1] = Const::Object<int>(42);
+
       const auto* retained = source.get_data();
       Const::Range<Const::Object<int>> moved(
           static_cast<Const::Range<Const::Object<int>>&&>(source));
       Const::Range<Const::Object<int>> destination;
       destination = static_cast<Const::Range<Const::Object<int>>&&>(moved);
+
       const bool preserved =
           destination.get_data() == retained && *retained[1].get_data() == 42;
       destination = Const::Range<Const::Object<int>>();

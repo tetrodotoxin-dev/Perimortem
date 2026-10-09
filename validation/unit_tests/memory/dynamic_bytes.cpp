@@ -1,12 +1,11 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
+#include "toolchain/validation/unit_test.hpp"
+
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/null_terminated.hpp"
-
 #include "perimortem/memory/dynamic/bytes.hpp"
-
-#include "toolchain/validation/unit_test.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -128,6 +127,7 @@ VALIDATION_TEST(DynamicBytes, aliased_input) {
 
   bytes.resize(bytes.get_capacity());
   bytes.set(U8('x'));
+
   Count length = bytes.get_size();
   bytes.concat(bytes.get_view());
   EXPECT_EQ(bytes.get_size(), length * 2);

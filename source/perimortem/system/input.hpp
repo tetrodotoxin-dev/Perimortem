@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/view/vector.hpp"
 
 namespace Perimortem::System {
 
@@ -194,6 +194,7 @@ class Input {
       if (!is_source(source) || !is_key(destination)) {
         return False;
       }
+
       destinations[Count(source)] = destination;
       return True;
     }
@@ -206,6 +207,7 @@ class Input {
       if (!is_source(source)) {
         return False;
       }
+
       destinations[Count(source)] = source;
       return True;
     }

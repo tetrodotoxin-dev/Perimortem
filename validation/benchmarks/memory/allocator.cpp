@@ -3,13 +3,11 @@
 
 #include "toolchain/validation/benchmark.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/perimortem.hpp"
-
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
-
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;

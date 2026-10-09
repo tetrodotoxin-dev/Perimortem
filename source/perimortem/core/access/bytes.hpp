@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/option.hpp"
 #include "perimortem/core/scalar.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Core::Access {
 

@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/option.hpp"
 #include "perimortem/core/scalar.hpp"
+#include "perimortem/core/view/vector.hpp"
 
 namespace Perimortem::Core::Access {
 

@@ -3,10 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/hash.hpp"
-
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 
 namespace Perimortem::Memory::Managed {

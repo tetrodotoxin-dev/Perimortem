@@ -66,6 +66,7 @@ auto Dynamic::Bytes::operator=(Bytes&& rhs) -> Bytes& {
 
 auto Dynamic::Bytes::append(U8 byte) -> void {
   ensure_capacity(size + 1);
+
   source_block[size++] = byte;
 }
 

@@ -10,9 +10,8 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/null_terminated.hpp"
-
+#include "perimortem/core/scalar.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 
 using namespace Perimortem::Core;
@@ -59,7 +58,7 @@ static auto parse_argument(View::Bytes argument)
     argument = argument.slice(1);
   }
 
-  Count equals = Algorithm::search(argument, "="_view);
+  Count equals = Algorithm::Search::find(argument, "="_view);
   if (equals == Count(-1)) {
     return {argument, "true"_view};
   } else {

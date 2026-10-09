@@ -11,13 +11,13 @@
 
   ==============================================================================
 
-  Perimortem provides a compact runtime and standard-library surface with
+  Perimortem provides a compact runtime and standard library surface with
   explicit control over data layout, allocation, and dependencies. Avoiding the
   broad C++ standard library also keeps compile times low while keeping the ABI
   and memory management layers fully controlled.
 
   This file provides the fundamental types used throughout the runtime while
-  remaining compatible with C++ standard-library headers when interoperability
+  remaining compatible with C++ standard library headers when interoperability
   is useful. The actual Perimortem avoids using the STL as headers add both
   substantial build cost and leak complexity into the system.
 
@@ -28,9 +28,9 @@
   ==============================================================================
 
   While Perimortem does not use much of the C++ standard library it does use the
-  C++ language feautres to leverage existing toolchains. By limiting usage to C
+  C++ language features through existing toolchains. By limiting usage to C
   headers we get the benefit of C++ compiler features while sticking to C's
-  low-level data and ABI boundaries where it matters: simple enough for callers
+  low level data and ABI boundaries where it matters: simple enough for callers
   written in other languages to use the runtime while keeping the implementation
   concise and statically checked.
 

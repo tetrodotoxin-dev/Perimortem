@@ -77,6 +77,7 @@ class Option {
     if (source.set) {
       construct(source.value);
     }
+
     return *this;
   }
 
@@ -91,6 +92,7 @@ class Option {
     if (source.set) {
       construct(static_cast<value_type&&>(source.value));
     }
+
     return *this;
   }
 

@@ -6,9 +6,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/option.hpp"
-
 #include "perimortem/memory/allocator/arena.hpp"
-
 #include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Memory::Managed {

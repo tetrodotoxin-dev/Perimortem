@@ -17,8 +17,8 @@ template <typename type, Count dimensions>
 class Size {
   static_assert(dimensions > 0);
   static_assert(
-      (__is_integral(type) && !__is_same(type, bool)) ||
-      __is_same(type, R32) || __is_same(type, R64));
+      (__is_integral(type) && !__is_same(type, bool)) || __is_same(type, R32) ||
+      __is_same(type, R64));
 
  public:
   enum class Failure : U8 {

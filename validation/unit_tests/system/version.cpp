@@ -1,11 +1,11 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/null_terminated.hpp"
-
 #include "perimortem/system/version.hpp"
 
 #include "toolchain/validation/unit_test.hpp"
+
+#include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::System;

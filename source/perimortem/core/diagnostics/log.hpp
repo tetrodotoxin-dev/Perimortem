@@ -4,11 +4,13 @@
 // This should only be included in cpp files. Including it in a header would
 // pull source location machinery into every translation unit that includes it.
 
+#pragma once
+
+#include "perimortem/core/access/bytes.hpp"
+#include "perimortem/core/diagnostics/source.hpp"
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/access/bytes.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/diagnostics/source.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
 namespace Perimortem::Core::Diagnostics {

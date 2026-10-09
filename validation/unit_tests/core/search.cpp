@@ -5,8 +5,8 @@
 
 #include "toolchain/validation/unit_test.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/static/vector.hpp"
 
 using namespace Perimortem::Core;
 using namespace Toolchain::Validation;
@@ -34,10 +34,10 @@ auto load_text(Static::Bytes<size>& test_data, View::Bytes text, Count location)
 }
 
 VALIDATION_TEST(AlgoSearch, boundaries) {
-  EXPECT_EQ(Algorithm::search(""_view, ""_view), Count(0));
-  EXPECT_EQ(Algorithm::search(""_view, "abc"_view), Count(-1));
-  EXPECT_EQ(Algorithm::search("a"_view, "a"_view), Count(0));
-  EXPECT_EQ(Algorithm::search("a"_view, "b"_view), Count(-1));
+  EXPECT_EQ(Algorithm::Search::find(""_view, ""_view), Count(0));
+  EXPECT_EQ(Algorithm::Search::find(""_view, "abc"_view), Count(-1));
+  EXPECT_EQ(Algorithm::Search::find("a"_view, "a"_view), Count(0));
+  EXPECT_EQ(Algorithm::Search::find("a"_view, "b"_view), Count(-1));
 }
 
 VALIDATION_TEST(AlgoSearch, byte_offset) {
@@ -48,21 +48,30 @@ VALIDATION_TEST(AlgoSearch, byte_offset) {
 
   source[97] = '\\';
 
-  EXPECT_EQ(Algorithm::search(source, U8('\\')), Count(97));
-  EXPECT_EQ(Algorithm::search(source, U8('z')), Count(-1));
+  EXPECT_EQ(Algorithm::Search::find(source, U8('\\')), Count(97));
+  EXPECT_EQ(Algorithm::Search::find(source, U8('z')), Count(-1));
+}
+
+VALIDATION_TEST(AlgoSearch, extrema) {
+  const U32 values[] = {4, 2, 7, 2, 7};
+  const View::Vector<U32> source(values);
+  EXPECT_EQ(Algorithm::Search::find_min(source), Count(1));
+  EXPECT_EQ(Algorithm::Search::find_max(source), Count(2));
 }
 
 VALIDATION_TEST(AlgoSearch, find) {
   constexpr auto test_word = "world"_view;
   EXPECT_EQ(
-      Algorithm::search(populate_test<5>(test_word, 0), test_word), Count(0));
+      Algorithm::Search::find(populate_test<5>(test_word, 0), test_word),
+      Count(0));
   EXPECT_EQ(
-      Algorithm::search(populate_test<70>(test_word, 0), test_word), Count(0));
+      Algorithm::Search::find(populate_test<70>(test_word, 0), test_word),
+      Count(0));
   EXPECT_EQ(
-      Algorithm::search(populate_test<70>(test_word, 40), test_word),
+      Algorithm::Search::find(populate_test<70>(test_word, 40), test_word),
       Count(40));
   EXPECT_EQ(
-      Algorithm::search(populate_test<70>(test_word, 65), test_word),
+      Algorithm::Search::find(populate_test<70>(test_word, 65), test_word),
       Count(65));
 
   // Create a sparsely filled array with junk data and a few near misses.
@@ -75,11 +84,11 @@ VALIDATION_TEST(AlgoSearch, find) {
   load_text(test_text, almost_word, 620);
   load_text(test_text, almost_word, 12);
   load_text(test_text, almost_word, 800);
-  EXPECT_EQ(Algorithm::search(test_text, test_word), location);
+  EXPECT_EQ(Algorithm::Search::find(test_text, test_word), location);
 
   // Write over the only correct instance.
   load_text(test_text, almost_word, location);
-  EXPECT_EQ(Algorithm::search(test_text, test_word), Count(-1));
+  EXPECT_EQ(Algorithm::Search::find(test_text, test_word), Count(-1));
 }
 
 VALIDATION_TEST(AlgoSearch, multiple_matches) {
@@ -107,7 +116,7 @@ VALIDATION_TEST(AlgoSearch, multiple_matches) {
   }
 
   for (Count i = 0; i < word_locations.get_size(); i++) {
-    EXPECT_EQ(Algorithm::search(test_text, test_word), word_locations[i]);
+    EXPECT_EQ(Algorithm::Search::find(test_text, test_word), word_locations[i]);
     load_text(test_text, "deleted"_view, word_locations[i]);
   }
 }
@@ -136,7 +145,7 @@ VALIDATION_TEST(AlgoSearch, very_large_key) {
   }
 
   for (Count i = 0; i < word_locations.get_size(); i++) {
-    EXPECT_EQ(Algorithm::search(test_text, test_word), word_locations[i]);
+    EXPECT_EQ(Algorithm::Search::find(test_text, test_word), word_locations[i]);
     load_text(test_text, "deleted"_view, word_locations[i]);
   }
 }

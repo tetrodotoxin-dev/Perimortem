@@ -23,8 +23,7 @@ auto BitStream::Writer::drain() -> void {
   }
 }
 
-auto BitStream::Writer::write_bits(U32 value, Count length)
-    -> void {
+auto BitStream::Writer::write_bits(U32 value, Count length) -> void {
   if (length == 0) {
     return;
   }
@@ -39,8 +38,7 @@ auto BitStream::Writer::write_bits(U32 value, Count length)
 // Huffman codes stored in the Huffman table are already bit reversed into
 // stream order so they slot directly into the accumulator without further
 // reversal.
-auto BitStream::Writer::write_code(U32 code, Count length)
-    -> void {
+auto BitStream::Writer::write_code(U32 code, Count length) -> void {
   write_bits(code, length);
 }
 

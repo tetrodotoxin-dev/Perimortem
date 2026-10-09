@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/access/vector.hpp"
+#include "perimortem/core/view/vector.hpp"
 
 namespace Perimortem::Core::Static {
 

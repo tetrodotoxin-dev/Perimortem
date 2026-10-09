@@ -169,6 +169,7 @@ class Union {
       } else {
         construct<value_type>(Data::take(source.template active<value_type>()));
       }
+
       return;
     }
 
@@ -257,6 +258,7 @@ class Union {
     if (!source.is_null()) {
       construct_active<value_types...>(source);
     }
+
     return *this;
   }
 
@@ -269,6 +271,7 @@ class Union {
     if (!source.is_null()) {
       construct_active<value_types...>(source);
     }
+
     return *this;
   }
 
@@ -293,7 +296,7 @@ class Union {
   }
 
   template <typename value_type>
-  constexpr auto find() {
+  constexpr auto find() -> decltype(&active<value_type>()) {
     static_assert(
         type_count<value_type>() == 1,
         "Requested value type is not a Union alternative.");
@@ -301,7 +304,7 @@ class Union {
   }
 
   template <typename value_type>
-  constexpr auto find() const {
+  constexpr auto find() const -> decltype(&active<value_type>()) {
     static_assert(
         type_count<value_type>() == 1,
         "Requested value type is not a Union alternative.");

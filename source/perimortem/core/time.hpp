@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/perimortem.hpp"
+#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/static/bytes.hpp"
 
 namespace Perimortem::Core {
 

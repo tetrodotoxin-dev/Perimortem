@@ -11,10 +11,10 @@
 #endif
 
 #include "perimortem/core/access/bytes.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/thread/worker.hpp"
 #include "perimortem/core/time.hpp"
 #include "perimortem/core/writer/textual.hpp"
@@ -42,6 +42,7 @@ class ThreadWriter {
 
     writer << Time::now().get_stamp();
     writer << ".log"_view;
+
     name_buffer[writer.get_location()] = '\0';
 
     file = fopen(Data::cast<char>(name_buffer.get_data()), "ab");
@@ -328,14 +329,16 @@ auto Diagnostics::Log::fatal(View::Bytes message, const Source& location)
     // file only host policy and leak internal failures into user diagnostics.
     for (int index = 0; index < frame_count; index++) {
       log(Level::Fatal,
-          NullTerminated::convert_cstring(symbols[index], max_message_capacity),
+          NullTerminated(symbols[index], max_message_capacity).get_view(),
           Source());
     }
+
     free(symbols);
   } else {
     log(Level::Fatal,
         "The platform could not symbolize the fatal backtrace."_view, Source());
   }
+
   flush();
 
 #endif

@@ -11,6 +11,7 @@ auto Input::set(KeyBits& keys, Key key) -> void {
   if (key == Key::None || index >= key_count) {
     return;
   }
+
   keys[index / word_bits] |= U64(1) << (index % word_bits);
 }
 
@@ -19,6 +20,7 @@ auto Input::contains(const KeyBits& keys, Key key) -> Bool {
   if (key == Key::None || index >= key_count) {
     return False;
   }
+
   return Bool((keys[index / word_bits] & (U64(1) << (index % word_bits))) != 0);
 }
 
@@ -26,12 +28,15 @@ auto Input::add_modifier_groups(KeyBits& keys) -> void {
   if (contains(keys, Key::LeftShift) || contains(keys, Key::RightShift)) {
     set(keys, Key::Shift);
   }
+
   if (contains(keys, Key::LeftControl) || contains(keys, Key::RightControl)) {
     set(keys, Key::Control);
   }
+
   if (contains(keys, Key::LeftAlt) || contains(keys, Key::RightAlt)) {
     set(keys, Key::Alt);
   }
+
   if (contains(keys, Key::LeftSuper) || contains(keys, Key::RightSuper)) {
     set(keys, Key::Super);
   }
@@ -42,6 +47,7 @@ auto Input::collect(View::Vector<Key> keys, const Mapping& mapping) -> KeyBits {
   for (Key physical : keys) {
     set(output, mapping.resolve(physical));
   }
+
   add_modifier_groups(output);
   return output;
 }
@@ -76,6 +82,7 @@ auto Input::create(
   for (Count index = 0; index < word_count; index++) {
     changed[index] = current[index] ^ previous[index];
   }
+
   return Input(current, changed, pointer);
 }
 

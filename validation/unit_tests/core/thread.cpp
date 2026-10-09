@@ -1,15 +1,18 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/null_terminated.hpp"
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sched.h>
+#endif
 
 #include "toolchain/validation/unit_test.hpp"
 
-#include <thread>
-
 #include "perimortem/core/access/bytes.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/reader/binary.hpp"
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/thread/worker.hpp"
 #include "perimortem/core/writer/binary.hpp"
 
@@ -46,6 +49,19 @@ struct WorkerCountResult {
   Bool release = False;
   Bool read_successfully = False;
 };
+
+static auto yield_thread() -> void {
+
+#ifdef _WIN32
+
+  SwitchToThread();
+
+#else
+
+  sched_yield();
+
+#endif
+}
 
 static auto fill_worker_payload(
     Static::Bytes<large_worker_payload_size>& payload_bytes) -> void {
@@ -114,7 +130,7 @@ static auto hold_worker_job(View::Bytes job_data) -> void {
   __atomic_store_n(&worker_result->started.value, True.value, __ATOMIC_RELEASE);
   while (Bool(__atomic_load_n(
              &worker_result->release.value, __ATOMIC_ACQUIRE)) != True) {
-    std::this_thread::yield();
+    yield_thread();
   }
 }
 
@@ -210,7 +226,7 @@ VALIDATION_TEST(CoreThreadWorker, worker_count) {
       Thread::Worker::start("worker.count"_view, hold_worker_job, writer);
   while (Bool(__atomic_load_n(
              &worker_result.started.value, __ATOMIC_ACQUIRE)) != True) {
-    std::this_thread::yield();
+    yield_thread();
   }
 
   EXPECT(worker_result.read_successfully);

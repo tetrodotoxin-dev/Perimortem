@@ -48,8 +48,7 @@ auto Diagnostics::Source::get_file() const -> View::Bytes {
     return View::Bytes();
   }
 
-  return NullTerminated::convert_cstring(
-      impl->_M_file_name, max_source_name_size);
+  return NullTerminated(impl->_M_file_name, max_source_name_size).get_view();
 }
 
 auto Diagnostics::Source::get_function() const -> View::Bytes {
@@ -61,6 +60,6 @@ auto Diagnostics::Source::get_function() const -> View::Bytes {
     return View::Bytes();
   }
 
-  return NullTerminated::convert_cstring(
-      impl->_M_function_name, max_source_name_size);
+  return NullTerminated(impl->_M_function_name, max_source_name_size)
+      .get_view();
 }

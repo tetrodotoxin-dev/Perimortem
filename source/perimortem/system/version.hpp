@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/perimortem.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::System {
 
@@ -49,6 +49,7 @@ class Version {
         separator + 1 == text.get_size()) {
       return {};
     }
+
     if ((separator > 1 && text[0] == '0') ||
         (text.get_size() - separator > 2 && text[separator + 1] == '0')) {
       return {};
@@ -60,6 +61,7 @@ class Version {
       if (parsed_major > (U16(-1) - digit) / 10) {
         return {};
       }
+
       parsed_major = parsed_major * 10 + digit;
     }
 
@@ -69,6 +71,7 @@ class Version {
       if (parsed_minor > (U16(-1) - digit) / 10) {
         return {};
       }
+
       parsed_minor = parsed_minor * 10 + digit;
     }
 

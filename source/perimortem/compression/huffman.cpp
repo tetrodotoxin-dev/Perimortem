@@ -3,8 +3,8 @@
 
 #include "perimortem/compression/huffman.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/scalar.hpp"
+#include "perimortem/core/static/vector.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Compression;

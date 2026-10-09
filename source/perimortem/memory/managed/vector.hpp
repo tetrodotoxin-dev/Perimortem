@@ -3,9 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/scalar.hpp"
-
+#include "perimortem/core/view/vector.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 
 namespace Perimortem::Memory::Managed {
@@ -56,6 +55,7 @@ class Vector {
     if (size != 0) {
       memmove(rented_block + 1, rented_block, sizeof(value_type) * size);
     }
+
     new (rented_block, Core::Placement::Construct) value_type(data);
     size++;
   }

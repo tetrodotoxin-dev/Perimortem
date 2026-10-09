@@ -315,12 +315,16 @@ VALIDATION_TEST(CoreTextual, multiple_writers) {
 
   writers[0] << "Sample text for testing!"_view;
   ASSERT_TEXT(buffer, "Sample text for testing!??????????"_view);
+
   writers[1] << "test: "_view << True;
   ASSERT_TEXT(buffer, "test: truet for testing!??????????"_view);
+
   writers[0] << " "_view << 13891;
   ASSERT_TEXT(buffer, "test: truet for testing! 13891????"_view);
+
   writers[1] << 79.8106;
   ASSERT_TEXT(buffer, "test: true79.8106esting! 13891????"_view);
+
   writers[0] << "Too much text!!"_view;
   ASSERT_TEXT(buffer, "test: true79.8106esting! 13891????"_view);
 

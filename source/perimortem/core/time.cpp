@@ -38,6 +38,7 @@ auto Time::now() -> Time {
   LARGE_INTEGER counter, frequency;
   QueryPerformanceCounter(&counter);
   QueryPerformanceFrequency(&frequency);
+
   const U64 ticks = U64(counter.QuadPart);
   const U64 rate = U64(frequency.QuadPart);
   return Time(
@@ -50,7 +51,6 @@ auto Time::now() -> Time {
   return Time(time.tv_sec, time.tv_nsec);
 
 #endif
-
 }
 
 auto Time::clock() -> Time {
@@ -59,6 +59,7 @@ auto Time::clock() -> Time {
 
   FILETIME stamp;
   GetSystemTimePreciseAsFileTime(&stamp);
+
   const U64 ticks = (U64(stamp.dwHighDateTime) << 32) | stamp.dwLowDateTime;
   // FILETIME counts 100 ns intervals since 1601. The public clock uses the
   // Unix epoch, keeping timestamps comparable across native hosts.
@@ -71,7 +72,6 @@ auto Time::clock() -> Time {
   return Time(time.tv_sec, time.tv_nsec);
 
 #endif
-
 }
 
 auto Time::boot() -> Time {

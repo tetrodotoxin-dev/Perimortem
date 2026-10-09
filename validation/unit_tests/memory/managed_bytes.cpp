@@ -1,10 +1,9 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/null_terminated.hpp"
-
 #include "toolchain/validation/unit_test.hpp"
 
+#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 

@@ -3,57 +3,36 @@ BasedOnStyle: Chromium
 Standard: Latest
 AttributeMacros: [EXPORTED]
 
-# Conditional branches around code and declarations have one empty line on
-# each side of a directive. This covers #if, #ifdef, #ifndef, #elif,
-# #elifdef, #else, and #endif. Conditional include groups and header guards
-# stay compact. Review maintains this spacing beyond clang-format's options.
+# Conditional branches separate their directives from declarations and
+# executable code with one empty line. Their enclosing braces, include groups
+# and header guards remain compact structural boundaries. //:format checks the
+# spacing that clang-format preserves as authored structure.
 
 InsertBraces: true
 InsertNewlineAtEOF: true
 KeepEmptyLines:
   AtEndOfFile: false
-  AtStartOfBlock: false
+  AtStartOfBlock: true
   AtStartOfFile: false
-# InsertTrailingCommas: Wrapped
 
+# Include order follows one SDK-neutral sequence: the matching header, C system
+# headers, C++ system headers, declared SDKs, then local headers. //:format
+# generates the dependency buckets from MODULE.bazel in declaration order.
 IncludeBlocks: Regroup
+# SDK dependency include buckets begin.
 IncludeCategories:
-  # Put validation at the top to make it clear it's a test file.
-  - Regex:      '"validation/.*\.hpp"'
+  - Regex:      '^<.*\.h>'
     Priority:   1
-  # When including the C++ standard library the headers need to be included
-  # first so Perimortem can configure itself to not stub out the standard library.
   - Regex:      '^<.*>'
     Priority:   2
-  # Perimortem headers
-  - Regex:      'perimortem/core/view/.*'
-    Priority:      4
-    SortPriority:  4
-  - Regex:      'perimortem/core/access/.*'
-    Priority:      4
-    SortPriority:  5
-  - Regex:      'perimortem/core/static/.*'
-    Priority:      4
-    SortPriority:  6
-  - Regex:      'perimortem/core/.*'
-    Priority:      4
-    SortPriority:  7
-  - Regex:      'perimortem/memory/.*'
-    Priority:      8
-  - Regex:      'perimortem/system/.*'
-    Priority:      9
-    SortPriority:  9
-  - Regex:      'perimortem/serialization/.*'
-    Priority:      9
-    SortPriority:  10
-  - Regex:      'perimortem/utility/.*'
-    Priority:      19
-  # Other C system headers.
-  - Regex:      '^<.*\.h>'
-    Priority:   20
-  # Other libraries.
+  - Regex:      '^"toolchain/'
+    Priority:   3
+  - Regex:      '^".*"'
+    Priority:   4
   - Regex:      '.*'
-    Priority:   25
+    Priority:   5
+# SDK dependency include buckets end.
+SortIncludes: CaseSensitive
 
 Cpp11BracedListStyle: FunctionCall
 
@@ -62,6 +41,8 @@ IndentCaseLabels: false
 IndentExternBlock: false
 IndentWrappedFunctionNames: true
 NamespaceIndentation: None
+FixNamespaceComments: true
+SortUsingDeclarations: LexicographicNumeric
 
 MaxEmptyLinesToKeep: 1
 

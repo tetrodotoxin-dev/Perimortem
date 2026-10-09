@@ -12,7 +12,8 @@
 //
 // High holds the first sixteen hexadecimal digits of the canonical spelling.
 // Persistent formats should maintain the little endian high/low structure or
-// serialize the UUID in its string form (with or without `-`).
+// serialize the UUID in its string form with either compact or separated
+// digits.
 typedef struct perimortem_uuid {
   U64 high;
   U64 low;

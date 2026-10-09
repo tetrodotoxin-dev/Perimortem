@@ -11,11 +11,11 @@ using namespace Perimortem::Core;
 #include <immintrin.h>
 #endif
 
-auto Algorithm::search(View::Bytes src, View::Bytes value) -> Count {
+auto Algorithm::Search::find(View::Bytes src, View::Bytes value) -> Count {
   // Fall back to the more optimized value check if the View::Bytes is only a
   // single byte long. This avoids all of the extra tail checks.
   if (value.get_size() == 1) {
-    return search(src, value[0]);
+    return find(src, value[0]);
   }
 
   // If the value is larger than the source then it can't be a substring.
@@ -46,6 +46,7 @@ auto Algorithm::search(View::Bytes src, View::Bytes value) -> Count {
     Static::Bytes<vectorize_limit> value_bytes = value;
     Static::Bytes<vectorize_limit> value_filter;
     Data::set(value_filter.get_data(), 0xFF, value.get_size());
+
     const auto first_byte = _mm256_set1_epi8(value[0]);
     const auto last_byte = _mm256_set1_epi8(value[tail_offset]);
     const auto test_value =
@@ -112,7 +113,7 @@ auto Algorithm::search(View::Bytes src, View::Bytes value) -> Count {
 }
 
 // Fast vectorized sub string search for a particular byte in a View::Bytes.
-auto Algorithm::search(View::Bytes src, U8 value) -> Count {
+auto Algorithm::Search::find(View::Bytes src, U8 value) -> Count {
   // If the value is larger than the source then it can't be a substring.
   if (src.is_empty()) {
     return Count(-1);

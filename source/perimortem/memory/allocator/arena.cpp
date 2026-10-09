@@ -5,8 +5,8 @@
 
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/scalar.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

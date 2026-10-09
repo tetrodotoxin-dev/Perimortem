@@ -1,34 +1,33 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/diagnostics/log.hpp"
-
 #include "perimortem/system/args.hpp"
 
 #include "toolchain/validation/unit_test.hpp"
-#include "validation/unit_tests/log.hpp"
 
+#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/vector.hpp"
-
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
+#include "validation/unit_tests/log.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
+using namespace Perimortem::Tests;
 using namespace Toolchain::Validation;
 
 static Harness SystemArgs = {
   .name = "System::Args",
   .setup =
       []() {
-        Perimortem::Tests::Log::begin();
+        Log::begin();
         Diagnostics::Log::set_level(Diagnostics::Log::Level::Info);
       },
   .teardown =
       []() {
-        Perimortem::Tests::Log::end();
+        Log::end();
         Diagnostics::Log::set_level(Diagnostics::Log::Level::Info);
       },
 };
@@ -114,7 +113,7 @@ VALIDATION_TEST(SystemArgs, help_text) {
   ASSERT(parsed.contains("help"_view));
   EXPECT_TEXT(value_at(parsed, "help"_view), "true"_view);
   Args::log_help(arena, "Test parser."_view, config, raw);
-  EXPECT_TEXT(Perimortem::Tests::Log::captured_message(), expected_help);
+  EXPECT_TEXT(Log::captured_message(), expected_help);
 }
 
 VALIDATION_TEST(SystemArgs, double_dash_help) {
@@ -126,7 +125,7 @@ VALIDATION_TEST(SystemArgs, double_dash_help) {
   ASSERT(parsed.contains("help"_view));
   EXPECT_TEXT(value_at(parsed, "help"_view), "true"_view);
   Args::log_help(arena, "Test parser."_view, config, raw);
-  EXPECT_TEXT(Perimortem::Tests::Log::captured_message(), expected_help);
+  EXPECT_TEXT(Log::captured_message(), expected_help);
 }
 
 VALIDATION_TEST(SystemArgs, help_keeps_parsing) {
@@ -158,9 +157,10 @@ VALIDATION_TEST(SystemArgs, unknown_arg) {
   Allocator::Arena arena;
 
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
+
   Args::Values parsed = parse(arena, raw);
   ASSERT(parsed.is_empty());
-  EXPECT(Perimortem::Tests::Log::error_contains("unrecognized arg -other"_view));
+  EXPECT(Log::error_contains("unrecognized arg -other"_view));
 }
 
 VALIDATION_TEST(SystemArgs, bare_value) {
@@ -169,9 +169,10 @@ VALIDATION_TEST(SystemArgs, bare_value) {
   Allocator::Arena arena;
 
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
+
   Args::Values parsed = parse(arena, raw);
   ASSERT(parsed.is_empty());
-  EXPECT(Perimortem::Tests::Log::error_contains("unrecognized arg source.ttx"_view));
+  EXPECT(Log::error_contains("unrecognized arg source.ttx"_view));
 }
 
 VALIDATION_TEST(SystemArgs, repeated_values) {
@@ -191,7 +192,8 @@ VALIDATION_TEST(SystemArgs, dash_only) {
   Allocator::Arena arena;
 
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
+
   Args::Values parsed = parse(arena, raw);
   ASSERT(parsed.is_empty());
-  EXPECT(Perimortem::Tests::Log::error_contains("unrecognized arg --"_view));
+  EXPECT(Log::error_contains("unrecognized arg --"_view));
 }

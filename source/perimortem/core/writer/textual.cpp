@@ -280,6 +280,7 @@ auto Writer::Textual::write_real(R64 real, R64 precision) -> void {
     fract *= 10;
     precision *= 10;
     length += 1;
+
     U8 value = U8(fract);
     fract -= value;
 

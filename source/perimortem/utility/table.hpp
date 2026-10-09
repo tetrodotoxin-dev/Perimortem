@@ -3,12 +3,11 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
-#include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/option.hpp"
-
+#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
 #include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Utility {
@@ -94,6 +93,7 @@ class Table {
 
         buffer_coordinates[i].byte_index = total;
         total += buckets[i];
+
         buckets[i] = buffer_coordinates[i].byte_index;
       }
 

@@ -4,7 +4,6 @@
 #include "perimortem/serialization/stream/textual.hpp"
 
 #include "perimortem/core/writer/textual.hpp"
-
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 

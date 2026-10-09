@@ -34,7 +34,7 @@ class Hash {
     }
   }
 
-  static constexpr auto hash_numeric(U64 numeric) {
+  static constexpr auto hash_numeric(U64 numeric) -> U64 {
     U64 result = numeric * const_values[0];
     result ^= (result >> 33) * const_values[4];
     return result;

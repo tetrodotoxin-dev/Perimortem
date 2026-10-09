@@ -3,15 +3,14 @@
 
 #include "perimortem/serialization/png.hpp"
 
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/compression/deflate.hpp"
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
-
-#include "perimortem/compression/deflate.hpp"
 #include "perimortem/core/scalar.hpp"
+#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/memory/matrix.hpp"
 
 using namespace Perimortem::Core;
@@ -197,6 +196,7 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
   stored_crc =
       Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
           stored_crc);
+
   U32 actual_crc = calculate_crc32(source.slice(offset + 4, 4 + length));
   if (stored_crc != actual_crc) [[unlikely]] {
     Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
@@ -251,8 +251,7 @@ constexpr auto paeth_predictor(U8 left, U8 up, U8 upper_left) -> U8 {
 
   S16 score_left = Scalar::absolute(predictor - signed_left);
   S16 score_up = Scalar::absolute(predictor - signed_up);
-  S16 score_upper_left =
-      Scalar::absolute(predictor - signed_upper_left);
+  S16 score_upper_left = Scalar::absolute(predictor - signed_upper_left);
   if (score_left <= score_up && score_left <= score_upper_left) {
     return left;
   }
@@ -307,7 +306,7 @@ auto score_row(View::Bytes current_row, View::Bytes previous_row)
     }
   }
 
-  return FilterType(Algorithm::min_element<U64>(scores));
+  return FilterType(Algorithm::Search::find_min(View::Vector<U64>(scores)));
 }
 
 // Applies a PNG forward filter to one row of pixels, writing residuals into the
@@ -417,16 +416,18 @@ constexpr auto apply_row_filter(
 // types per row and selecting the option with the lowest residual.
 constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
     -> Dynamic::Bytes {
-  const auto row_stride = Count(image.get_column_count()) * Rgba8::get_byte_count();
+  const auto row_stride =
+      Count(image.get_column_count()) * Rgba8::get_byte_count();
   const auto output_size = Count(image.get_row_count()) * (1 + row_stride);
   const auto raw_bytes = Data::cast<U8>(image.get_values().get_data());
 
   // Create the full output buffer and resize it to the full size.
   Dynamic::Bytes output(output_size);
   output.forgetful_resize(output_size);
+
   auto* output_data = output.get_access().get_data();
 
-  // For the first row can only use one of two filters so simply score those.
+  // The first row supports two filters, so scoring covers exactly that pair.
   // We use the current row as the previous row since it's not used.
   View::Bytes current_row(raw_bytes, row_stride);
   FilterType best_filter = score_row<True>(current_row, current_row);
@@ -435,6 +436,7 @@ constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
   apply_row_filter(
       best_filter, output.get_access().slice(1, row_stride),
       View::Bytes(raw_bytes, row_stride), View::Bytes(raw_bytes, row_stride));
+
   output_data[0] = U8(best_filter);
 
   // The rest of the rows after the first are scored against all filters.
@@ -450,6 +452,7 @@ constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
     Access::Bytes output_row =
         output.get_access().slice(row * (1 + row_stride) + 1, row_stride);
     apply_row_filter(best_filter, output_row, current_row, previous_row);
+
     output_data[row * (1 + row_stride)] = U8(best_filter);
   }
 
@@ -486,8 +489,7 @@ auto reconstruct_row(
     break;
 
   case FilterType::Up:
-    // If we are processing the first row then we can simply copy the data as
-    // the previous row values are saturated to 0.
+    // The first row's saturated previous values make a direct copy exact.
     if constexpr (first_row) {
       Data::copy(output_row, filtered_row, stride);
     } else {
@@ -614,6 +616,7 @@ constexpr auto convert_to_pixels(
 
   Count pixel_count = width * height;
   output.resize(pixel_count);
+
   auto data = raw_pixels.get_data();
   for (Count pixel_index = 0; pixel_index < pixel_count; pixel_index++) {
     Count source_offset = pixel_index * source_channels;
@@ -732,8 +735,7 @@ constexpr auto process_data(
   const Domain<2, Boundary::Clip, Boundary::Clip> domain(
       Size<U32, 2>({{info.get_width(), info.get_height()}}));
   const auto pixel_count = domain.get_element_count();
-  const Count bytes_per_pixel =
-      number_of_color_channels(info.get_color_type());
+  const Count bytes_per_pixel = number_of_color_channels(info.get_color_type());
   const Count max_bytes = ~CppSize{};
   if (!pixel_count || bytes_per_pixel == 0 ||
       *pixel_count > max_bytes / sizeof(Rgba8) ||
@@ -877,16 +879,15 @@ auto Png::encode(const Matrix<Rgba8>& image) -> Dynamic::Bytes {
   Dynamic::Bytes filtered_rows = apply_adaptive_filtering(image);
 
   // Compress using the default compression level for balanced speed vs size.
-  Dynamic::Bytes compressed =
-      Deflate::deflate(filtered_rows.get_view());
+  Dynamic::Bytes compressed = Deflate::deflate(filtered_rows.get_view());
   if (compressed.is_empty()) [[unlikely]] {
     return Dynamic::Bytes();
   }
 
   // The compressed payload is one PNG chunk, whose length field is 32 bits.
   // Leave room for the signature and three chunk frames in the output buffer.
-  const Count framing_size = png_signature.get_size() + ImageInfo::size +
-                             chunk_metadata_size * 3;
+  const Count framing_size =
+      png_signature.get_size() + ImageInfo::size + chunk_metadata_size * 3;
   if (compressed.get_size() > ~U32{} ||
       compressed.get_size() > max_bytes - framing_size) {
     return Dynamic::Bytes();
@@ -895,12 +896,14 @@ auto Png::encode(const Matrix<Rgba8>& image) -> Dynamic::Bytes {
   const Count output_size = framing_size + compressed.get_size();
   Dynamic::Bytes output(output_size);
   output.forgetful_resize(output_size);
+
   auto data = output.get_access();
 
   // Write the header & data chunk along with the IEND chunk.
   ImageInfo header(image);
   Data::copy(
       data.get_data(), png_signature.get_data(), png_signature.get_size());
+
   Count write_position = png_signature.get_size();
   write_chunk(
       data, write_position, "IHDR"_view,

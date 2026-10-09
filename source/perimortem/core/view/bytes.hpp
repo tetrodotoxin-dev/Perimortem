@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.h"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/scalar.hpp"
+#include "perimortem/core/view/bytes.h"
 
 namespace Perimortem::Core::View {
 
@@ -34,6 +34,9 @@ class Bytes {
 
   constexpr Bytes(const U8* source, Count source_size)
       : source_block(source), size(source_size) {}
+
+  Bytes(const char* source, Count source_size)
+      : source_block(Data::cast<const U8>(source)), size(source_size) {}
 
   // Crossing the C boundary copies the borrowed descriptor. The byte owner
   // still determines its lifetime, including when either view is retained.

@@ -3,11 +3,10 @@
 
 #include "perimortem/memory/dynamic/record.hpp"
 
-#include "perimortem/core/null_terminated.hpp"
-
-#include "perimortem/memory/dynamic/map.hpp"
-
 #include "toolchain/validation/unit_test.hpp"
+
+#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/memory/dynamic/map.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Toolchain::Validation;
@@ -132,6 +131,7 @@ VALIDATION_TEST(DynamicRecord, map_owner) {
   }
 
   EXPECT_EQ(destructor_count, Count(0));
+
   auto found = values.find(0);
   ASSERT(found);
   EXPECT_EQ((*found).value->get_value(), Count(7));

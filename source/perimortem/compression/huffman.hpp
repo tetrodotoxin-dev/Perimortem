@@ -3,10 +3,9 @@
 
 #pragma once
 
+#include "perimortem/compression/bit_stream/reader.hpp"
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
-
-#include "perimortem/compression/bit_stream/reader.hpp"
 
 namespace Perimortem::Compression {
 
@@ -69,6 +68,7 @@ class Huffman {
         symbol_map[position] = U16(i);
         // Store codes in bit reversed form so the writer can place them
         // directly into the accumulator without a per symbol reversal.
+
         U32 canonical = base_code[length] + U32(position - base_index[length]);
         U32 reversed = 0;
         for (Count bit = 0; bit < length; bit++) {
@@ -135,6 +135,7 @@ class Huffman {
     U32 accumulated_code = 0;
     for (Count i = 1; i <= max_bits; i++) {
       accumulated_code = (accumulated_code << 1) | reader.read_bit().value;
+
       const auto code_index = base_index[i];
       const auto base = base_code[i];
       Count symbol_count = base_index[i + 1] - code_index;

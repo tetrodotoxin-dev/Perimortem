@@ -1,0 +1,21 @@
+{
+  "raw_allocation_files": [
+    "source/perimortem/core/bibliotheca.cpp",
+    "source/perimortem/core/diagnostics/log.cpp",
+    "source/perimortem/core/option.hpp",
+    "source/perimortem/core/perimortem.hpp",
+    "source/perimortem/core/static/union.hpp",
+    "source/perimortem/memory/allocator/arena.hpp",
+    "source/perimortem/memory/const/object.hpp",
+    "source/perimortem/memory/const/range.hpp",
+    "source/perimortem/memory/const/vector.hpp",
+    "source/perimortem/memory/dynamic/map.hpp",
+    "source/perimortem/memory/dynamic/record.hpp",
+    "source/perimortem/memory/dynamic/set.hpp",
+    "source/perimortem/memory/dynamic/vector.hpp",
+    "source/perimortem/memory/managed/map.hpp",
+    "source/perimortem/memory/managed/vector.hpp",
+    "source/perimortem/utility/result.hpp",
+    "validation/unit_tests/memory/vector.cpp"
+  ]
+}

@@ -1,25 +1,25 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/diagnostics/log.hpp"
-
 #include "perimortem/core/reader/serial.hpp"
 
 #include "toolchain/validation/unit_test.hpp"
-#include "validation/unit_tests/log.hpp"
 
+#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/writer/serial.hpp"
+#include "validation/unit_tests/log.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Tests;
 using namespace Toolchain::Validation;
 
 static Harness CoreSerialReader = {
   .name = "Core::Reader::Serial",
-  .setup = Perimortem::Tests::Log::begin,
-  .teardown = Perimortem::Tests::Log::end,
+  .setup = Log::begin,
+  .teardown = Log::end,
 };
 
 VALIDATION_TEST(CoreSerialReader, regular_values) {
@@ -127,7 +127,7 @@ VALIDATION_TEST(CoreSerialReader, type_mismatch) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Serial read overran data buffer while reading value at byte location 1. source_size=5 encoded_size=8"_view;
-  EXPECT(Perimortem::Tests::Log::error_contains(error_message));
+  EXPECT(Log::error_contains(error_message));
 }
 
 VALIDATION_TEST(CoreSerialReader, bad_encoding) {
@@ -140,7 +140,7 @@ VALIDATION_TEST(CoreSerialReader, bad_encoding) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Serial read found invalid encoding size 3 at byte location 1."_view;
-  EXPECT(Perimortem::Tests::Log::error_contains(error_message));
+  EXPECT(Log::error_contains(error_message));
 }
 
 VALIDATION_TEST(CoreSerialReader, bad_blob) {
@@ -154,7 +154,7 @@ VALIDATION_TEST(CoreSerialReader, bad_blob) {
   constexpr auto error_message =
       "Serial read of blob sized 57005 bytes overran source buffer at location "
       "5. source_size=5 blob_size=57005"_view;
-  EXPECT(Perimortem::Tests::Log::error_contains(error_message));
+  EXPECT(Log::error_contains(error_message));
 }
 
 VALIDATION_TEST(CoreSerialReader, read_from_empty) {
@@ -167,13 +167,13 @@ VALIDATION_TEST(CoreSerialReader, read_from_empty) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Serial read overran data buffer while reading type at byte location 0."_view;
-  EXPECT(Perimortem::Tests::Log::error_contains(error_message));
+  EXPECT(Log::error_contains(error_message));
 }
 
 static Harness CoreSerialWriter = {
   .name = "Core::Writer::Serial",
-  .setup = Perimortem::Tests::Log::begin,
-  .teardown = Perimortem::Tests::Log::end,
+  .setup = Log::begin,
+  .teardown = Log::end,
 };
 
 VALIDATION_TEST(CoreSerialWriter, regular_values) {

@@ -5,15 +5,13 @@
 
 #include "toolchain/validation/benchmark.hpp"
 
-#include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
-
+#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/view/vector.hpp"
 #include "perimortem/system/random.hpp"
-
 #include "perimortem/utility/pair.hpp"
 #include "perimortem/utility/table.hpp"
 
@@ -131,6 +129,7 @@ static auto pointer_insert_test() -> void {
   }
 
   Benchmark::end_time();
+
   Count size = map.get_size();
   Benchmark::prevent_optimization(size);
 }
@@ -224,6 +223,7 @@ static auto keyword_test() -> void {
   }
 
   create_scramble(mask);
+
   S32 accumulator = local_map.get_size();
 
   Benchmark::start_time();
@@ -238,6 +238,7 @@ static auto keyword_test() -> void {
 template <Count values, Count mask>
 static auto keyword_table() -> void {
   create_scramble(mask);
+
   S32 accumulator = 0;
 
   Benchmark::start_time();

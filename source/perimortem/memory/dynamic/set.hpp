@@ -102,6 +102,7 @@ class Set {
     }
 
     ensure_capacity(buffer_data.size + 1);
+
     key_type* empty_slot = get_empty(hash);
     buffer_data.size += 1;
     new (empty_slot, Core::Placement::Construct) key_type(key);
@@ -316,6 +317,7 @@ class Set {
   static auto create_buffer(Count buckets) -> BufferData {
     BufferData new_buffer;
     new_buffer.bucket_count = buckets;
+
     Core::Bibliotheca::Allocation allocation =
         Core::Bibliotheca::check_out(required_buffer_size(buckets));
     new_buffer.bucket_buffer = Core::Data::cast<U32>(allocation.ptr);

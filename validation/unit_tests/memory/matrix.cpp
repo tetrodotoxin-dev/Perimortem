@@ -3,11 +3,10 @@
 
 #include "perimortem/memory/matrix.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
-#include "perimortem/serialization/rgba8.hpp"
-
 #include "toolchain/validation/unit_test.hpp"
+
+#include "perimortem/core/static/vector.hpp"
+#include "perimortem/serialization/rgba8.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Math;
@@ -30,6 +29,7 @@ VALIDATION_TEST(MemoryMatrix, empty_value) {
 VALIDATION_TEST(MemoryMatrix, projects_owned_values) {
   Dynamic::Vector<Rgba8> values;
   values.emplace(Rgba8::from_rgba(17, 34, 51, 68));
+
   const auto* data = values.get_data();
   const Count requests = Bibliotheca::check_out_requests();
   auto projected = Matrix<Rgba8>::project(
@@ -46,6 +46,7 @@ VALIDATION_TEST(MemoryMatrix, projects_owned_values) {
   EXPECT_EQ(Bibliotheca::check_out_requests(), requests);
   EXPECT_EQ(moved.get_values().get_data(), data);
   EXPECT(values.get_view().is_empty());
+
   const auto& observed = moved;
   auto selected = observed.get(Point<S64, 2>({{0, 0}}));
   ASSERT(selected);
@@ -67,6 +68,7 @@ VALIDATION_TEST(MemoryMatrix, mixed_boundary_access) {
   values.emplace(Rgba8::from_rgb(1, 0, 0));
   values.emplace(Rgba8::from_rgb(2, 0, 0));
   values.emplace(Rgba8::from_rgb(3, 0, 0));
+
   Domain<2, Boundary::Wrap, Boundary::Clip> domain(Size<U32, 2>({{3, 1}}));
   auto matrix = Matrix<Rgba8, Boundary::Wrap, Boundary::Clip>::create(
       domain, values.get_view());
@@ -82,6 +84,7 @@ VALIDATION_TEST(MemoryMatrix, uniform_boundary_access) {
   values.emplace(Rgba8::from_rgb(2, 0, 0));
   values.emplace(Rgba8::from_rgb(3, 0, 0));
   values.emplace(Rgba8::from_rgb(4, 0, 0));
+
   auto matrix = Matrix<Rgba8, Boundary::Wrap>::create(
       Domain<2, Boundary::Wrap, Boundary::Wrap>(Size<U32, 2>({{2, 2}})),
       values.get_view());
@@ -109,11 +112,13 @@ VALIDATION_TEST(MemoryMatrix, swaps_complete_values) {
 VALIDATION_TEST(MemoryMatrix, copies_and_pads) {
   Dynamic::Vector<Rgba8> values;
   values.emplace(Rgba8::from_rgb(1, 2, 3));
+
   auto matrix = Matrix<Rgba8>::create(
       Domain<2, Boundary::Clip, Boundary::Clip>(Size<U32, 2>({{2, 1}})),
       values.get_view());
   EXPECT_EQ(values.get_size(), 1);
   EXPECT(matrix.get_values().get_data() != values.get_data());
+
   auto first = matrix.get(Point<S64, 2>({{0, 0}}));
   auto padded = matrix.get(Point<S64, 2>({{1, 0}}));
   ASSERT(first && padded);
@@ -135,7 +140,9 @@ VALIDATION_TEST(MemoryMatrix, pads_trivial_values) {
 VALIDATION_TEST(MemoryMatrix, truncates_source_view) {
   Dynamic::Vector<Rgba8> values;
   values.resize(32);
+
   values[0] = Rgba8::from_rgb(1, 2, 3);
+
   const auto* data = values.get_data();
   auto matrix = Matrix<Rgba8>::create(
       Domain<2, Boundary::Clip, Boundary::Clip>(Size<U32, 2>({{1, 1}})),
@@ -149,6 +156,7 @@ VALIDATION_TEST(MemoryMatrix, truncates_source_view) {
 VALIDATION_TEST(MemoryMatrix, bad_projection_dimensions) {
   Dynamic::Vector<Rgba8> values;
   values.emplace(Rgba8::from_rgb(1, 2, 3));
+
   const auto* data = values.get_data();
   auto projected = Matrix<Rgba8>::project(
       Domain<2, Boundary::Clip, Boundary::Clip>(Size<U32, 2>({{2, 1}})),

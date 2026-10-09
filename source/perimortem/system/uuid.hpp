@@ -3,9 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
-
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/system/uuid.h"
 
 namespace Perimortem::System {
