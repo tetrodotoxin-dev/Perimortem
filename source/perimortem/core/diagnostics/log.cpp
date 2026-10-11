@@ -255,9 +255,8 @@ auto Diagnostics::Log::get_level() -> Diagnostics::Log::Level {
 }
 
 auto Diagnostics::Log::set_attribution(const Source& location) -> Attribution {
-  // If we have someone already claiming attribution higher on the stack then
-  // ignore the request.
-  // If there is no attribution then create an attribution point.
+  // Preserve the outermost override so nested helpers cannot replace the source
+  // location selected by their caller.
   Attribution scope_guard;
   scope_guard.primary_guard = !attribution_override.is_set();
   if (scope_guard.primary_guard) {
@@ -288,7 +287,7 @@ auto Diagnostics::Log::format_entry(
   Writer::Textual writer(output);
 
   writer << level_char(level) << ' ';
-  writer << Time::now().calculate_clock() << ' ';
+  writer << Time::clock().calculate_clock() << ' ';
   writer << "["_view << thread_name << "] "_view;
 
   writer << location.get_file();

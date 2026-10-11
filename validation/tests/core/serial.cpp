@@ -56,6 +56,18 @@ VALIDATION_TEST(CoreSerialReader, negative_values) {
   EXPECT_EQ(reader.get_location(), reader.get_size());
 }
 
+VALIDATION_TEST(CoreSerialReader, negative_boundaries) {
+  constexpr S64 minimum = -9223372036854775807LL - 1;
+  Static::Bytes<11> buffer =
+      "\x11\x01"
+      "\x18\x00\x00\x00\x00\x00\x00\x00\x80"_view;
+  Reader::Serial reader(buffer);
+
+  EXPECT_EQ(reader.read_value(), -1);
+  EXPECT_EQ(reader.read_value(), minimum);
+  EXPECT_EQ(reader.get_location(), reader.get_size());
+}
+
 VALIDATION_TEST(CoreSerialReader, small_blobs) {
   Static::Bytes<30> buffer =
       "\x21\x0A"
@@ -124,7 +136,6 @@ VALIDATION_TEST(CoreSerialReader, type_mismatch) {
   EXPECT_EQ(reader.read_value(), 0);
   EXPECT_EQ(reader.get_location(), Count(-1));
 
-  // Make sure message was logged.
   constexpr auto error_message =
       "Serial read overran data buffer while reading value at byte location 1. source_size=5 encoded_size=8"_view;
   EXPECT(Log::error_contains(error_message));
@@ -137,7 +148,6 @@ VALIDATION_TEST(CoreSerialReader, bad_encoding) {
   EXPECT_EQ(reader.read_value(), 0);
   EXPECT_EQ(reader.get_location(), Count(-1));
 
-  // Make sure message was logged.
   constexpr auto error_message =
       "Serial read found invalid encoding size 3 at byte location 1."_view;
   EXPECT(Log::error_contains(error_message));
@@ -150,7 +160,6 @@ VALIDATION_TEST(CoreSerialReader, bad_blob) {
   EXPECT_EQ(reader.read_value(), 0);
   EXPECT_EQ(reader.get_location(), Count(-1));
 
-  // Make sure message was logged.
   constexpr auto error_message =
       "Serial read of blob sized 57005 bytes overran source buffer at location "
       "5. source_size=5 blob_size=57005"_view;
@@ -164,7 +173,6 @@ VALIDATION_TEST(CoreSerialReader, read_from_empty) {
   EXPECT_EQ(reader.read_value(), 0);
   EXPECT_EQ(reader.get_location(), Count(-1));
 
-  // Make sure message was logged.
   constexpr auto error_message =
       "Serial read overran data buffer while reading type at byte location 0."_view;
   EXPECT(Log::error_contains(error_message));
@@ -197,8 +205,8 @@ VALIDATION_TEST(CoreSerialWriter, negative_values) {
   Static::Bytes<21> buffer;
   Writer::Serial writer(buffer);
 
-  // Negated values should resolve to their unsigned version and store their
-  // negate flag.
+  // Exercise every payload width with negative magnitudes. The expected type
+  // bytes also prove that each value carries the sign flag.
   writer << -0xAB << -0x1234 << -'PERI' << -0x0123456789ABCDEF;
 
   // Negative values should compress to their smaller unsigned representation.
@@ -215,6 +223,20 @@ VALIDATION_TEST(CoreSerialWriter, negative_values) {
       "IREP"  // Stream is always little endian
       "\x18\xEF\xCD\xAB\x89\x67\x45\x23\x01"
       "\x11\x64"_view);
+}
+
+VALIDATION_TEST(CoreSerialWriter, negative_boundaries) {
+  constexpr S64 minimum = -9223372036854775807LL - 1;
+  Static::Bytes<11> buffer;
+  Writer::Serial writer(buffer);
+
+  writer << -1 << minimum;
+
+  EXPECT(writer.is_valid());
+  EXPECT_HEX(
+      buffer,
+      "\x11\x01"
+      "\x18\x00\x00\x00\x00\x00\x00\x00\x80"_view);
 }
 
 VALIDATION_TEST(CoreSerialWriter, small_blobs) {

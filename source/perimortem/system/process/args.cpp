@@ -60,7 +60,7 @@ static auto parse_argument(View::Bytes argument)
     argument = argument.slice(1);
   }
 
-  Count equals = Algorithm::Search::find(argument, "="_view);
+  Count equals = Algorithm::Search::match(argument, "="_view);
   if (equals == Count(-1)) {
     return {argument, "true"_view};
   } else {

@@ -42,26 +42,26 @@ auto Reader::Serial::read() -> Value {
     return Value();
   }
 
-  S64 value;
+  U64 magnitude;
   switch (encoded_size) {
   case 1:
-    value = source[cursor];
+    magnitude = source[cursor];
     break;
   case 2: {
     U16 actual_bytes;
     memcpy(&actual_bytes, data + cursor, sizeof(U16));
-    value = Data::ensure_endian<stream_endian, native_endian>(actual_bytes);
+    magnitude = Data::ensure_endian<stream_endian, native_endian>(actual_bytes);
     break;
   }
   case 4: {
     U32 actual_bytes;
     memcpy(&actual_bytes, data + cursor, sizeof(U32));
-    value = Data::ensure_endian<stream_endian, native_endian>(actual_bytes);
+    magnitude = Data::ensure_endian<stream_endian, native_endian>(actual_bytes);
     break;
   }
   case 8:
-    memcpy(&value, data + cursor, sizeof(U64));
-    value = Data::ensure_endian<stream_endian, native_endian>(value);
+    memcpy(&magnitude, data + cursor, sizeof(U64));
+    magnitude = Data::ensure_endian<stream_endian, native_endian>(magnitude);
     break;
   default: {
     Diagnostics::Log::Message<128> error_message(
@@ -75,15 +75,18 @@ auto Reader::Serial::read() -> Value {
   }
   }
 
-  // Bump the cursor by the encoded size.
   cursor += encoded_size;
 
-  // Take the twos complement of the value if the negate flag is set.
+  // Reconstruct the original two's complement bits with unsigned subtraction.
+  // This restores the minimum S64 without signed overflow.
+  U64 signed_bits = magnitude;
   if (byte_flag & negate_flag) {
-    value = -value;
+    signed_bits = U64(0) - magnitude;
   }
 
-  // If it's not a blob then we can return the value directly.
+  S64 value;
+  Data::copy(reinterpret_cast<U8*>(&value), signed_bits);
+
   if (!(byte_flag & blob_flag)) {
     return Value(value);
   }
@@ -100,7 +103,8 @@ auto Reader::Serial::read() -> Value {
     return Value();
   }
 
-  // Bump the cursor to include the blob as well.
+  // The blob borrows its bytes from the Serial source. Advance past that view
+  // so the next read begins at the following field.
   auto blob_start = data + cursor;
   cursor += value;
   return View::Bytes(blob_start, value);

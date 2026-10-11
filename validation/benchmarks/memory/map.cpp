@@ -202,7 +202,9 @@ using KeywordTable = Table<Count, keyword_source>;
 
 static Static::Vector<const View::Bytes*, max_key_count> lookup_scramble;
 static auto create_scramble(Count mask) -> void {
-  // Create a chaotic lookup order with a controlled percentage of misses.
+  // Build the lookup sequence before timing so random generation is excluded
+  // from each sample. Random order prevents declaration order from biasing
+  // cache and branch behavior, while `mask` selects the hit rate.
   for (Count i = 0; i < max_key_count; i++) {
     auto index = Random::generate();
     if (index & mask) {

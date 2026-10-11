@@ -24,7 +24,9 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 
-// Gives the number of bits to shift to get the minimum containing size.
+// Returns the exponent of the smallest power of two that can contain `value`.
+// Subtracting one keeps exact powers in their current size class while values
+// between powers round up.
 constexpr auto log2_pre_shift(U64 value) -> U64 {
   return 64 - __builtin_clzg(value - 1, S32(sizeof(U64) * 8));
 }
@@ -91,8 +93,8 @@ class alignas(64) Slab {
     // Attempt to grab a block using huge TLB to speed up the slab allocator.
     auto constexpr page_access = PROT_READ | PROT_WRITE;
     auto constexpr page_flags = MAP_PRIVATE | MAP_ANONYMOUS;
-    // Huge pages should be 2MB if available.
-    // 1GB pages don't make sense for our usage.
+    // Request explicit 2 MB pages. A 1 GB page exceeds the ordinary slab
+    // workload and depends on a much scarcer reserved page pool.
     auto constexpr huge_page = MAP_HUGETLB | MAP_HUGE_2MB;
     mapped_memory =
         mmap(nullptr, size, page_access, page_flags | huge_page, -1, 0);
@@ -116,7 +118,7 @@ class alignas(64) Slab {
       // pages to advised ranges. Failed advice leaves the ordinary mapping
       // valid, so it does not turn an optional optimization into allocation
       // failure.
-      (void)madvise(mapped_memory, size, MADV_HUGEPAGE);
+      madvise(mapped_memory, size, MADV_HUGEPAGE);
     }
 
 #else
@@ -178,16 +180,12 @@ class alignas(64) Slab {
   constexpr auto set_ancestor(Slab* value) -> void { ancestor = value; }
   constexpr auto get_ancestor_slot() -> Slab*& { return ancestor; }
 
-  // Allocates a chunk using a bump pointer. It's up to the Librarian to
-  // actually dish out prefaced chunks and the Bibliotheca to manage chunk
-  // flows.
+  // Bump allocation leaves size class selection and Preface construction to the
+  // Librarian. Every requested extent is a multiple of 64 bytes, so `bump_ptr`
+  // remains aligned without work on each allocation.
   //
-  // We could do additional fancy alignment to detect TLB boundries, but this
-  // is a micro optimization that slows down the common small chunk case.
-  //
-  // Note that all slabs from the Bibliotheca are `2 ^ N + 64` size where N is
-  // at minimum 6 so allocs are always 64 byte aligned which is sufficient for
-  // all resonable types so we never have to pay for caculating alignment.
+  // Additional page boundary alignment slowed the common small block path and
+  // is therefore left to slab sizing and the operating system.
   auto alloc(Count bytes) -> U8* {
     auto location = Data::cast<U8>(this) + bump_ptr;
     bump_ptr += bytes;
@@ -200,7 +198,8 @@ class alignas(64) Slab {
   Slab* ancestor = nullptr;
 };
 
-// Slab header should fill a single cache line.
+// One cache line of slab metadata keeps the first bump allocation 64 byte
+// aligned without per allocation padding.
 static_assert(sizeof(Slab) == 64);
 
 // Filling one cache line preserves the slab's 64 byte alignment for the corpus
@@ -212,12 +211,12 @@ class Preface {
   auto get_usable_bytes() const -> Count { return block_size; }
 
  private:
-  // The number of objects in this thread that have a reservation on
-  // this block.
+  // Counts active reservations that must be remitted before reuse.
   U64 reservations;
-  // The size of usable bytes in the block.
+  // Records the byte capacity published through Allocation and excludes the
+  // Preface header.
   U64 block_size;
-  // Used for storing the next free block when stored in archives.
+  // Links blocks only while they reside on a size class free list.
   Preface* next;
   // The archive index is an invariant of the block so store it in the header.
   U64 archive_index;
@@ -247,48 +246,42 @@ class Archive {
   };
 
   Collection collections[radix_range];
-  // The hirearchy of badness metrics from best to worst performance.
-  Count check_out_requests = 0;   // A checkout was requested
-  Count allocation_requests = 0;  // A new Preface was requested.
-  Count demote_requests = 0;
-  Count slab_requests = 0;
+  // These counters are cumulative for the current thread. They distinguish
+  // total checkout traffic from slower paths after a free list miss. A request
+  // contributes only to counters for the paths it uses.
+  Count check_out_requests = 0;   // Calls to `check_out`.
+  Count allocation_requests = 0;  // Free list misses that carve a Preface.
+  Count demote_requests = 0;      // Passes that reconsider retained slabs.
+  Count slab_requests = 0;        // Slabs acquired for startup or growth.
 };
 
-// Create a thread local static object that is fast to access.
-// Use a POD type so we don't have to pay any of the initialization checks.
+// A POD archive avoids guarded dynamic initialization on the allocator fast
+// path while retaining one independent cache for each thread.
 thread_local static Archive secret_archive;
 
 static_assert(sizeof(secret_archive) <= 512);
 
-// Librarian's are responsible for managing the inventory of the thread.
-// They are separate from the archive to keep them out of the loop for
-// managing inflight blocks.
+// Librarian owns the current thread's ordered slab inventory. Archive keeps
+// size class free lists and counters separately so checked out blocks do not
+// participate in slab ordering.
 class Librarian {
  public:
   Slab* inventory = nullptr;
 
-  // Avoids typical arena / slab allocation fragmentation by keeping slabs
-  // arranged based on the amount of free memory allowing us to use left over
-  // chunks greedily.
-  //
-  // The list is always sorted so a demotion is only O(n) time where N is the
-  // approximate amount of memory used / ~32 MB, improving with larger
-  // allocations.
-  //
-  // Still to maximize small chunk creation throughput (which is important
-  // during thread start up when the Bibliotheca is empty), demote is only
-  // called when we overrun the existing inventory page.
+  // Slabs stay ordered by descending free space so allocation consumes retained
+  // capacity before mapping another slab. Reordering occurs only when the
+  // active slab cannot satisfy a request, keeping the common bump path
+  // independent of inventory length.
   auto manage_inventory(Count bytes) -> void {
-    // Demote the active inventory to possibly inactive and see if we have
-    // space in another block.
     Slab* current = inventory;
     if (current->get_ancestor()) {
       secret_archive.demote_requests++;
 
       const auto free_space = current->get_free_space();
 
-      // Bubble the page to it's new rank location to keep emptier pages at
-      // the top of the inventory list.
+      // Keep slabs ordered by descending free space so later allocation starts
+      // with the candidate most likely to satisfy it. Since the list is always
+      // partially sorted we only have to do one linear `bubble sort` pass.
       auto parent = &inventory;
       while (current->get_ancestor() &&
              free_space < current->get_ancestor()->get_free_space()) {
@@ -301,13 +294,12 @@ class Librarian {
       }
     }
 
-    // If we now have room than we can avoid a slab allocation.
+    // The reordered head can satisfy this request without mapping another slab.
     if (bytes <= inventory->get_free_space()) [[likely]] {
       return;
     }
 
-    // We were unable to find space so fetch a brand new slab and make it our
-    // active inventory for allocations.
+    // No retained slab can satisfy the request, so map a new inventory head.
     secret_archive.slab_requests++;
 
     auto new_slab = Slab::get(bytes);
@@ -315,8 +307,7 @@ class Librarian {
     inventory = new_slab;
   }
 
-  // Bytes requested is equal to the number of actual bytes + the size of the
-  // preface header for the allocation.
+  // `bytes` already includes both the requested corpus extent and its Preface.
   auto order_inventory(Count bytes) -> Preface* {
     secret_archive.allocation_requests++;
 
@@ -329,14 +320,13 @@ class Librarian {
   }
 
   Librarian() {
-    // Since we require at least some memory we can preallocate a block.
-    // Having at least one block as an invariant speeds up the fast path.
+    // Establish one inventory head so allocation never needs a null slab check.
     secret_archive.slab_requests++;
     inventory = Slab::get(Slab::allocator_size);
   }
 
-  // Forcefully reclaim all outstanding rentals since we are closing
-  // out this Bibliotheca.
+  // Thread exit releases every slab, including storage for blocks that were not
+  // remitted before their owning thread ended.
   ~Librarian() {
     while (inventory) {
       auto entry = inventory;
@@ -366,7 +356,8 @@ auto preface_to_corpus(Preface* entry) -> U8* {
 auto Allocator::Bibliotheca::check_out(Count requested_bytes) -> Allocation {
   secret_archive.check_out_requests++;
 
-  // Caculate the archive information for the request.
+  // Power of two classes map each request to one free list. Rounding up
+  // preserves the guarantee that published capacity admits the requested bytes.
   const Count archive_bucket = calculate_archive_bucket(requested_bytes);
   if (archive_bucket >= max_radix) [[unlikely]] {
     Diagnostics::Log::fatal(
@@ -377,13 +368,14 @@ auto Allocator::Bibliotheca::check_out(Count requested_bytes) -> Allocation {
       archive_page_width(archive_bucket) + sizeof(Preface);
   const Count archive_index = archive_bucket - min_radix;
 
-  // Slow path on a thread cache miss.
+  // An empty size class carves another block from the slab inventory.
   if (secret_archive.collections[archive_index].initial_entry == nullptr) {
-    // Since we are allocating memory we'll need to hire a librarian.
+    // Keeping the Librarian local to this branch delays its initial slab until
+    // the thread's first free list miss.
     thread_local static Librarian dave;
 
-    // Order the requested block and log it's reservation in the archive for
-    // accounting of usage.
+    // Counting a block when carved keeps `reserved_memory` stable as the block
+    // moves between checked out and free states.
     Preface* entry = dave.order_inventory(actual_bytes);
     secret_archive.collections[archive_index].reserved_blocks += 1;
 
@@ -394,12 +386,13 @@ auto Allocator::Bibliotheca::check_out(Count requested_bytes) -> Allocation {
           "Bibliotheca was unable to allocate memory from the OS"_view);
     }
 
-    // Mark the block to detect bad remittances.
+    // Stamp a new header so `remit` can reject foreign or corrupted pointers.
     entry->block_stamp = 'PERI';
 
 #endif
 
-    // Initialize the archive and reservation data.
+    // A new block remembers its archive for `remit` and begins with one
+    // reservation. Usable capacity excludes the Preface stored before it.
     entry->archive_index = archive_index;
     entry->reservations = 1;
     entry->block_size = actual_bytes - sizeof(Preface);
@@ -412,7 +405,8 @@ auto Allocator::Bibliotheca::check_out(Count requested_bytes) -> Allocation {
   secret_archive.collections[archive_index].initial_entry = entry->next;
   secret_archive.collections[archive_index].free_blocks -= 1;
 
-  // Rehydrate the reservation data.
+  // A free list entry retains its class and capacity. Clear its link and
+  // restore one reservation before publishing the corpus again.
   entry->reservations = 1;
   entry->next = nullptr;
   return Allocation{
@@ -443,13 +437,15 @@ auto Allocator::Bibliotheca::remit(U8* data) -> Count {
 
 #ifdef PERI_DEBUG
 
-  // Verify the entry signiture
+  // The debug stamp proves this pointer resolves to a Preface created by
+  // Bibliotheca before its metadata is trusted.
   if (entry->block_stamp != 'PERI') [[unlikely]] {
     Diagnostics::Log::fatal(
         "Data returned to Bibliotheca had corrupted block_stamp, either from being invalid or from underflow."_view);
   }
 
-  // Detect if we underflowed on the reservation.
+  // Reservations must be nonzero before `remit`. Subtracting from zero wraps
+  // U64 into this high range and makes a repeated remittance fatal.
   if (entry->reservations > 1u << 30) [[unlikely]] {
     Diagnostics::Log::fatal(
         "Reservations for the data remitted block overflowed."_view);
@@ -457,7 +453,8 @@ auto Allocator::Bibliotheca::remit(U8* data) -> Count {
 
 #endif
 
-  // If there are no reservations then return to the appropriate archive.
+  // The last remittance returns the block to its size class free list. A block
+  // with remaining reservations stays checked out.
   if (entry->reservations == 0) {
     Count archive_index = entry->archive_index;
 

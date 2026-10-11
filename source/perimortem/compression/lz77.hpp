@@ -8,9 +8,13 @@
 
 namespace Perimortem::Compression {
 
-// Contains all of the Lz77 state used for compression passes.
-// Note that Lz77 uses it's own mini hash table implementation since it's in the
-// hot path of deflate. Any version of `Dynamic::Map` provides worse throughput.
+// Lz77 maintains a sliding hash chain from each three byte prefix to earlier
+// source positions. Match selection walks recent candidates within the Deflate
+// window and caller supplied depth, preserving enough history for either
+// immediate emission or speculative look ahead.
+//
+// Fixed hash and chain tables avoid `Dynamic::Map` bookkeeping in the Deflate
+// hot path, where the general map produced lower measured throughput.
 class Lz77 {
  public:
   static constexpr Count min_match = 3;
@@ -35,8 +39,8 @@ class Lz77 {
   auto find_match(Core::View::Bytes source, Count position, Count depth) const
       -> Match;
   auto insert(Core::View::Bytes source, Count position) -> void;
-  // Specialized merged find + insert which inserts position into the hash chain
-  // then searches for the best match which avoids reading the hash table twice.
+  // Inserts the position and searches from the previous chain head in one pass.
+  // Starting from that old head prevents the new entry from matching itself.
   auto find_match_and_insert(
       Core::View::Bytes source,
       Count position,

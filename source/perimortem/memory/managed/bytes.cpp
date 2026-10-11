@@ -75,7 +75,6 @@ auto Managed::Bytes::convert(U8 source, U8 target) -> void {
 }
 
 auto Managed::Bytes::ensure_capacity(Count required_bytes) -> void {
-  // Check if we can already fit required buffer.
   if (required_bytes <= capacity) {
     return;
   }
@@ -87,7 +86,6 @@ auto Managed::Bytes::ensure_capacity(Count required_bytes) -> void {
   // Fetch and transfer to new block.
   auto new_block = arena.allocate(new_capacity).get_data();
 
-  // Update block and get the new capacity.
   memcpy(new_block, source_block, size);
   source_block = new_block;
   capacity = new_capacity;

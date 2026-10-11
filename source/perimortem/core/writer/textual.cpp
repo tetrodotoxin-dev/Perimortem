@@ -4,6 +4,7 @@
 #include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/scalar.hpp"
 
 using namespace Perimortem::Core;
 
@@ -40,60 +41,54 @@ constexpr auto digit_buffer = create_digit_table();
 template <typename storage_type, typename unsigned_type>
 static constexpr auto decimal_length(storage_type value) -> Count {
   Count sign = 0;
-  unsigned_type abs_value;
 
-  // Capture the sign value for types that support it.
-  if constexpr (storage_type(0) > storage_type(-1)) {
+  if constexpr (__is_signed(storage_type)) {
     if (value < storage_type(0)) {
       sign = 1;
-      abs_value = unsigned_type(-(value + 1));
-      abs_value++;
-    } else {
-      abs_value = unsigned_type(value);
     }
-  } else {
-    abs_value = unsigned_type(value);
   }
+
+  unsigned_type magnitude = Scalar::magnitude<unsigned_type>(value);
 
   // A comparision ladder seems to perform quite a bit better (~20%) than the
   // general path with dividing down the value to caculate log10.
-  if (abs_value < 10ULL) {
+  if (magnitude < 10ULL) {
     return sign + 1;
-  } else if (abs_value < 100ULL) {
+  } else if (magnitude < 100ULL) {
     return sign + 2;
-  } else if (abs_value < 1'000ULL) {
+  } else if (magnitude < 1'000ULL) {
     return sign + 3;
-  } else if (abs_value < 10'000ULL) {
+  } else if (magnitude < 10'000ULL) {
     return sign + 4;
-  } else if (abs_value < 100'000ULL) {
+  } else if (magnitude < 100'000ULL) {
     return sign + 5;
-  } else if (abs_value < 1'000'000ULL) {
+  } else if (magnitude < 1'000'000ULL) {
     return sign + 6;
-  } else if (abs_value < 10'000'000ULL) {
+  } else if (magnitude < 10'000'000ULL) {
     return sign + 7;
-  } else if (abs_value < 100'000'000ULL) {
+  } else if (magnitude < 100'000'000ULL) {
     return sign + 8;
-  } else if (abs_value < 1'000'000'000ULL) {
+  } else if (magnitude < 1'000'000'000ULL) {
     return sign + 9;
-  } else if (abs_value < 10'000'000'000ULL) {
+  } else if (magnitude < 10'000'000'000ULL) {
     return sign + 10;
-  } else if (abs_value < 100'000'000'000ULL) {
+  } else if (magnitude < 100'000'000'000ULL) {
     return sign + 11;
-  } else if (abs_value < 1'000'000'000'000ULL) {
+  } else if (magnitude < 1'000'000'000'000ULL) {
     return sign + 12;
-  } else if (abs_value < 10'000'000'000'000ULL) {
+  } else if (magnitude < 10'000'000'000'000ULL) {
     return sign + 13;
-  } else if (abs_value < 100'000'000'000'000ULL) {
+  } else if (magnitude < 100'000'000'000'000ULL) {
     return sign + 14;
-  } else if (abs_value < 1'000'000'000'000'000ULL) {
+  } else if (magnitude < 1'000'000'000'000'000ULL) {
     return sign + 15;
-  } else if (abs_value < 10'000'000'000'000'000ULL) {
+  } else if (magnitude < 10'000'000'000'000'000ULL) {
     return sign + 16;
-  } else if (abs_value < 100'000'000'000'000'000ULL) {
+  } else if (magnitude < 100'000'000'000'000'000ULL) {
     return sign + 17;
-  } else if (abs_value < 1'000'000'000'000'000'000ULL) {
+  } else if (magnitude < 1'000'000'000'000'000'000ULL) {
     return sign + 18;
-  } else if (abs_value < 10'000'000'000'000'000'000ULL) {
+  } else if (magnitude < 10'000'000'000'000'000'000ULL) {
     return sign + 19;
   }
 
@@ -120,32 +115,27 @@ constexpr auto write_decimal(
   }
 
   U8* output_digits = data + cursor;
-  storage_type abs_value;
   Count digits = length;
-  if constexpr (value_type(0) > value_type(-1)) {
+  if constexpr (__is_signed(value_type)) {
     if (value < value_type(0)) {
       *output_digits++ = '-';
       digits--;
-      abs_value = storage_type(-(value + 1));
-      abs_value++;
-    } else {
-      abs_value = storage_type(value);
     }
-  } else {
-    abs_value = storage_type(value);
   }
 
+  storage_type magnitude = Scalar::magnitude<storage_type>(value);
+
   Count digit_position = digits - 1;
-  while (abs_value >= 10) {
-    auto two_digits = Count(abs_value % 100) << 1;
-    abs_value /= 100;
+  while (magnitude >= 10) {
+    auto two_digits = Count(magnitude % 100) << 1;
+    magnitude /= 100;
     output_digits[digit_position] = digit_buffer.get_data()[two_digits + 1];
     output_digits[digit_position - 1] = digit_buffer.get_data()[two_digits];
     digit_position -= 2;
   }
 
-  if (abs_value > 0) {
-    output_digits[0] = '0' + U8(abs_value);
+  if (magnitude > 0) {
+    output_digits[0] = '0' + U8(magnitude);
   }
 
   cursor += length;

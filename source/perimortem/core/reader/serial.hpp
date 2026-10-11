@@ -9,14 +9,14 @@ namespace Perimortem::Core::Reader {
 
 // Reads values from bytes in the Perimortem Serial format.
 //
-// Values are encoded as 1 type byte along with there minimum byte form and are
+// Values are encoded as 1 type byte along with their minimum byte form and are
 // always returned as 64 bit values regardless of how they were encoded.
 //
 // Blobs are encoded as a Value + a string of raw bytes. The Value's type byte
-// contains an additional flag encoding it's a blob.
+// contains an additional flag encoding that it is a blob.
 //
-// Negative Values are encoded as their two's complement for easier compression
-// with their type byte marked with the negate flag.
+// Negative values store an unsigned magnitude and mark their type byte with the
+// negate flag. Reading reconstructs the signed value after decoding its width.
 //
 // On any error the reader enters an invalid state and all subsequent reads
 // return zero initialized values without advancing the cursor.

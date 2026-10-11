@@ -64,14 +64,14 @@ constexpr auto extend_match(
         Data::cast<const __m256i_u>(
             data + candidate + match_length + avx2_channel_width));
 
-    // Perform two parallel compares and merge the masks on the data dependency.
+    // Invert and join the equality masks in byte order. The least set bit lets
+    // `__builtin_ctzll` locate the first mismatch across both AVX2 registers.
     const U64 mismatch_mask = ~U64(_mm256_movemask_epi8(_mm256_cmpeq_epi8(
                                   lower_source_chunk, lower_candidate_chunk))) |
                               (~U64(_mm256_movemask_epi8(_mm256_cmpeq_epi8(
                                    upper_source_chunk, upper_candidate_chunk)))
                                << 32);
 
-    // Scans 64 bytes to find a mismatch.
     if (mismatch_mask != 0) {
       match_length += Count(__builtin_ctzll(mismatch_mask));
       return match_length;
@@ -144,7 +144,7 @@ auto Lz77::find_match_and_insert(
   const U8* data = source.get_data();
   const Count remaining = source.get_size() - position;
 
-  // Only perform a match if we have enough bytes for it to be worthwhile.
+  // Fewer than `min_match` bytes means we can't form a valid LZ77 match token.
   if (remaining < min_match) {
     return Match();
   }
@@ -175,7 +175,8 @@ auto Lz77::find_match_and_insert(
       }
     }
 
-    // Select the candidate to see if we can find an improved match.
+    // Follow the hash chain to the preceding input position with the same hash.
+    // Candidates are tested from newest to oldest until `depth` is exhausted.
     candidate = chain_table.get_data()[candidate & window_mask];
   }
 
@@ -191,7 +192,7 @@ auto Lz77::find_match(View::Bytes source, Count position, Count depth) const
   const U8* data = source.get_data();
   const Count remaining = source.get_size() - position;
 
-  // Only perform a match if we have enough bytes for it to be worthwhile.
+  // Fewer than `min_match` bytes cannot form an LZ77 match token.
   if (remaining < min_match) {
     return Match();
   }
@@ -213,7 +214,8 @@ auto Lz77::find_match(View::Bytes source, Count position, Count depth) const
       best_length = match_length;
       best_distance = distance;
 
-      // If we can't find a match then just bail out.
+      // No later candidate can exceed `max_match`, so stop walking the chain
+      // once that length is reached.
       if (best_length == max_match) {
         break;
       }
@@ -222,7 +224,6 @@ auto Lz77::find_match(View::Bytes source, Count position, Count depth) const
     candidate = chain_table.get_data()[candidate & window_mask];
   }
 
-  // If we couldn't find a match then just return a null match.
   if (best_distance == 0) {
     return Match();
   }

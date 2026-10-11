@@ -145,15 +145,11 @@ class Vector {
   constexpr auto is_empty() const -> Bool { return get_size() == 0; }
 
  private:
-  // Ensures there is _at least_ enough room for the requested number of
-  // objects.
   constexpr auto ensure_capacity(Count required_size) -> void {
     if (required_size <= get_capacity()) {
       return;
     }
 
-    // Attempt to grow by a factor of 2.
-    // If that doesn't work than grow to exact size.
     const auto new_capacity =
         Core::Scalar::max(get_capacity() * 2, required_size);
 

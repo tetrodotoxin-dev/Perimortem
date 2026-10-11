@@ -20,7 +20,6 @@ static constexpr Count hash_batch = 8192;
 // The largest retained hash is 256 bytes and slides through eight offsets.
 static Static::Bytes<264> hash_buffer;
 
-// Make sure keys are randomized
 template <typename byte_array>
 static auto fill_hash(byte_array& target) -> void {
   Count* data = Data::cast<Count>(target.get_data());

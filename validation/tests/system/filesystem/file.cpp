@@ -86,7 +86,7 @@ static auto file_warning_contains(View::Bytes message) -> Bool {
   }
 
   View::Bytes captured = captured_file_log.slice(0, captured_file_log_size);
-  return Algorithm::Search::find(captured, message) != Count(-1);
+  return Algorithm::Search::match(captured, message) != Count(-1);
 }
 
 // Linux syscall tracing provides deterministic mutation between open, metadata,

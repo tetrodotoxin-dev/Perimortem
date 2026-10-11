@@ -100,7 +100,6 @@ static auto frame_stability_interleaved() -> void {
     Allocator::Bibliotheca::remit(ptrs[i - window]);
   }
 
-  // Final clean up.
   for (Count i = frame_alloc_count - window; i < frame_alloc_count; i++) {
     Allocator::Bibliotheca::remit(ptrs[i]);
   }

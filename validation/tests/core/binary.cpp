@@ -181,9 +181,10 @@ VALIDATION_TEST(CoreBinaryReader, multiple_readers) {
   EXPECT_EQ(readers[1].get_location(), Count(2));
 }
 
-// Zero and an empty view are answers, including an empty view at the end of
-// input. Absence means the requested bytes were unavailable. Exercise this
-// distinction during constant evaluation as well as through the runtime API.
+// Zero and an empty view are valid read results, including an empty view at the
+// end of input. Option is empty only when the requested bytes are unavailable.
+// Exercise this distinction during constant evaluation and through the runtime
+// API.
 static constexpr auto optional_reads() -> Bool {
   const U8 bytes[] = {0, 0, 0, 0};
   auto reader = Reader::Binary<Data::ByteOrder::Little>(

@@ -30,6 +30,20 @@ VALIDATION_TEST(SerializationBase64, decode_empty) {
   EXPECT_TEXT(decoded_bytes.get_view(), ""_view);
 }
 
+VALIDATION_TEST(SerializationBase64, reject_partial_quartet) {
+  U8 source[] = {'A', 'A', 'A', 'A', 'A', 'A', 'A'};
+  Allocator::Arena arena;
+  for (Count size = 1; size <= sizeof(source); size++) {
+    if (size == 4) {
+      continue;
+    }
+
+    View::Bytes encoded(source, size);
+    EXPECT(Base64::decode(encoded).is_empty());
+    EXPECT(Base64::decode(arena, encoded).is_empty());
+  }
+}
+
 VALIDATION_TEST(SerializationBase64, decode_simple) {
   const auto source = "Base64 test string for Perimortem."_view;
   const auto encoded = "QmFzZTY0IHRlc3Qgc3RyaW5nIGZvciBQZXJpbW9ydGVtLg=="_view;

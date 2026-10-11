@@ -16,8 +16,9 @@ using namespace Perimortem::Serialization;
 // Instead define the commonly used `_` to signal that a slot shouldn't be used.
 #define _ 0
 
-// We truly can't have nice things... Still no proper support for c99
-// initializers.
+// C++ does not support C99 array designators such as `[character] = value`.
+// Every unused byte remains explicit so each source character keeps its
+// intended lookup index.
 constexpr U8 decode_lookup[256] = {
   _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
   _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
@@ -43,7 +44,6 @@ static_assert(decode_lookup['0'] == 52);
 static_assert(decode_lookup['9'] == 61);
 static_assert(decode_lookup['+'] == 62);
 static_assert(decode_lookup['/'] == 63);
-// Equals are dropped
 static_assert(decode_lookup['='] == _);
 
 // Extra bytes needed after the true output size for vectorized working space.
@@ -54,7 +54,8 @@ constexpr Count decode_extra_bytes = sizeof(__m256i) / 4;
 
 #else
 
-// A scalar quartet can write the two bytes hidden by trailing '=' padding.
+// The scalar tail writes all three candidate bytes before the published size
+// removes bytes hidden by trailing padding, so it needs two scratch bytes.
 constexpr Count decode_extra_bytes = 2;
 
 #endif
@@ -89,11 +90,11 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
   // contention (at least on a 9950x3D).
   Count size = (source.get_size() / source_stride) * output_stride;
 
-  // Construct source buffers.
   auto source_data = source.get_data();
   auto source_bytes = source.get_size();
 
-  // Shrink to the correct size accounting for '=' padding.
+  // Each trailing padding byte removes one byte from the published result and
+  // keeps that final quartet out of a complete vector batch.
   for (Count i = 0; i < 2; i++) {
     if (source[source.get_size() - 1 - i] != '=') {
       break;
@@ -206,8 +207,8 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
           0x0001100000011000);
       const auto half_merged = _mm256_maddubs_epi16(bit_value, multiply_by_64);
 
-      // Now do the same thing horizontally across 32 bit boundries which
-      // gives us a clean stopping point.
+      // Merge adjacent 12 bit groups into 24 bit payloads. This completes each
+      // three byte decode group before lane repacking.
       const auto merged_i32 = _mm256_madd_epi16(half_merged, multiply_by_4096);
       const auto lane_repack = _mm256_shuffle_epi8(merged_i32, repack_shuffle);
 
@@ -232,7 +233,8 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
 
 #endif
 
-  // The same quartet loop handles the vector tail and the complete scalar path.
+  // Decode every quartet not consumed by a vector batch. On scalar targets the
+  // vectorized byte count is zero, so this is the complete path.
   source_bytes -= source_vectorized_bytes;
   for (Count i = 0, j = 0; j < source_bytes;
        i += output_stride, j += source_stride) {
@@ -321,7 +323,8 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
       /* '+' */ -19,
       /* '/' */ -16, _, _, _,
 
-      // Lane 2 (same as Lane 1)
+      // AVX2 shuffles operate independently within each 128 bit lane, so the
+      // second lane repeats the first lane's mapping.
       /* Alphas */ 71,
       /* '0' */ -4,
       /* '1' */ -4,
@@ -336,30 +339,23 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
       /* '+' */ -19,
       /* '/' */ -16, _, _, _);
 
-  // Split each 3 byte chunk into it's four 6 bit components.
-  // Using a shuffle lets us both swap bytes into the correct little endian
-  // format as well as duplicate the 4th 6bit block all in one go.
+  // Split each three byte group into four six bit values. The shuffle also
+  // places bytes in little endian order and duplicates the shared middle byte.
   constexpr auto a_index = 0;
   constexpr auto b_index = 1;
   constexpr auto c_index = 1;
   constexpr auto d_index = 2;
+  // `_mm256_set_epi8` lists groups from the highest output bytes down while
+  // each group itself selects C, D, A, and B for the multiplication layout
+  // below.
   const auto byte_shuffle = _mm256_set_epi8(
-      // 8th block
-      25 + c_index, 25 + d_index, 25 + a_index, 25 + b_index,
-      // 7th block
-      22 + c_index, 22 + d_index, 22 + a_index, 22 + b_index,
-      // 6th block
-      19 + c_index, 19 + d_index, 19 + a_index, 19 + b_index,
-      // 5th block
-      16 + c_index, 16 + d_index, 16 + a_index, 16 + b_index,
-      // 4th block
-      13 + c_index, 13 + d_index, 13 + a_index, 13 + b_index,
-      // 3rd block
-      10 + c_index, 10 + d_index, 10 + a_index, 10 + b_index,
-      // 2nd block
-      7 + c_index, 7 + d_index, 7 + a_index, 7 + b_index,
-      // 1st block
-      4 + c_index, 4 + d_index, 4 + a_index, 4 + b_index);
+      25 + c_index, 25 + d_index, 25 + a_index, 25 + b_index, 22 + c_index,
+      22 + d_index, 22 + a_index, 22 + b_index, 19 + c_index, 19 + d_index,
+      19 + a_index, 19 + b_index, 16 + c_index, 16 + d_index, 16 + a_index,
+      16 + b_index, 13 + c_index, 13 + d_index, 13 + a_index, 13 + b_index,
+      10 + c_index, 10 + d_index, 10 + a_index, 10 + b_index, 7 + c_index,
+      7 + d_index, 7 + a_index, 7 + b_index, 4 + c_index, 4 + d_index,
+      4 + a_index, 4 + b_index);
 
   constexpr auto input_bytes_per_channel = sizeof(U32) * 6;
   constexpr auto input_bytes_per_iteration =
@@ -369,11 +365,12 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
   constexpr auto output_bytes_per_iteration =
       output_bytes_per_channel * fused_channels;
 
-  // Need to be careful about reading past the end.
+  // Each channel load begins four bytes before its logical input and reads one
+  // AVX2 register. The scalar prefix provides the leading bytes, while the loop
+  // bound leaves four trailing bytes beyond the final complete iteration.
   while (source_bytes > input_bytes_per_iteration + 4) {
     for (auto ymm = fused_channels - 1; ymm >= 0; ymm--) {
-      // I assume this trick is used else where, but if we under read by 4
-      // bytes we can load 6 chunks of data split on the lane boundary.
+      // Underreading by four bytes places six groups across the lane boundary.
       //
       //  32   32   32   32  |  32   32   32   32
       // ____ AAAB BBCC CDDD | EEEF FFGG GHHH ____
@@ -400,7 +397,6 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
 
       const auto final_bit_values = _mm256_or_si256(low_bytes, high_bytes);
 
-      // Caculate the offset and filter lower alpha values.
       const auto shuffle_indexes =
           _mm256_subs_epu8(final_bit_values, _mm256_set1_epi8(51));
       const auto lower_alpha_mask =
@@ -440,7 +436,8 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
     source_data += source_stride;
   }
 
-  // Left over padding.
+  // One remaining byte produces two symbols and two padding bytes. Two
+  // remaining bytes produce three symbols and one padding byte.
   switch (left_over) {
   case 1:
     output_stream[0] = encode_lookup[(source_data[0] >> 2)];
@@ -461,15 +458,16 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
 }
 
 auto Base64::decode(View::Bytes source) -> Dynamic::Bytes {
-  // If empty than avoid any allocations or vectorization and just return an
-  // empty optimized Dynamic::Bytes if the size isn't large enough.
-  if (source.get_size() < 3) {
+  // Decoding consumes complete four byte groups. Reject a partial group before
+  // output allocation or vector reads.
+  if (source.get_size() < 4 || source.get_size() % 4 != 0) {
     return Dynamic::Bytes();
   }
 
   Count size = (source.get_size() / 4) * 3;
 
-  // Allocate the bytes with the full size + working buffer.
+  // Reserve the worst case decoded size plus tail scratch. The final resize
+  // removes padding bytes after vector and scalar writes finish.
   Memory::Dynamic::Bytes bytes;
   bytes.forgetful_resize(size + decode_extra_bytes);
 
@@ -481,7 +479,7 @@ auto Base64::decode(View::Bytes source) -> Dynamic::Bytes {
 
 auto Base64::decode(Allocator::Arena& arena, View::Bytes source)
     -> View::Bytes {
-  if (source.get_size() < 3) {
+  if (source.get_size() < 4 || source.get_size() % 4 != 0) {
     return View::Bytes();
   }
 

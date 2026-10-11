@@ -89,7 +89,8 @@ auto Reader::Textual::read_flag() -> Bool {
     return false;
   }
 
-  // Use a switch for cheap case insensitivity.
+  // Accept either case for the leading byte. The remaining bytes retain the
+  // canonical lowercase spelling.
   switch (source.get_data()[cursor]) {
   case 'T':
   case 't':

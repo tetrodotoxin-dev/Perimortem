@@ -188,20 +188,15 @@ class Vector {
     return True;
   }
 
-  // Resizes the container but attempts to preserve as much of the original
-  // buffer as will fit in the new size.
-  //
-  // Trivial values can be recovered by restoring the old size. Owning values
-  // are destroyed when removed and constructed again when the range grows.
+  // Changes the live element count while preserving retained values. Shrinking
+  // ends every removed nontrivial lifetime. Growing constructs nontrivial
+  // elements and leaves new trivial storage uninitialized.
   auto resize(Count new_size) -> void {
-    // Noop
     if (new_size == size) {
       return;
     }
 
     if (new_size < size) {
-      // If not trivially destructable then we need to destruct the values that
-      // are now outside of the range.
       if constexpr (!__is_trivially_destructible(type)) {
         for (Count i = new_size; i < size; i++) {
           source_block[i].~type();
@@ -212,7 +207,6 @@ class Vector {
       return;
     }
 
-    // If the size is larger check if we need to perform a growth opreation.
     ensure_capacity(new_size);
     if constexpr (!__is_trivially_constructible(type)) {
       for (Count i = size; i < new_size; i++) {
@@ -236,13 +230,11 @@ class Vector {
     requires(
         __is_trivially_constructible(type) && __is_trivially_destructible(type))
   {
-    // Always set the size.
     size = required_size;
 
-    // Get the capacity bounds and check if we need a realloc.
-    // If the block fits in the current Bibliotheca archive then reuse it.
-    // If the block size requires at least one step up or step down then request
-    // a new block.
+    // Reuse the block while the new extent remains in its current size class.
+    // Crossing capacity or shrinking below half requests a better fitting class
+    // from Bibliotheca.
     if (required_size <= capacity && required_size > (capacity >> 1)) {
       return;
     }
@@ -286,7 +278,7 @@ class Vector {
 
  private:
   auto destruct() -> void {
-    // Look over all entries and destruct the keys and values.
+    // End every live element lifetime before its backing block is remitted.
     for (Count i = 0; i < size; i++) {
       source_block[i].~type();
     }
@@ -309,12 +301,9 @@ class Vector {
       return False;
     }
 
-    // Attempt to grow by a factor of 2 but if that doesn't work than grow to
-    // exact size.
     const auto new_capacity =
         Core::Scalar::max(get_capacity() * 2, required_size);
 
-    // Fetch and transfer to new block.
     auto alloc =
         Allocator::Bibliotheca::check_out(allocation_size(new_capacity));
     auto new_block = Core::Data::cast<type>(alloc.ptr);

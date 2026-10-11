@@ -11,7 +11,13 @@
 
 namespace Perimortem::Core::Static {
 
-// Used to convert string literals into nonnull terminated bytes.
+// Bytes owns exactly `literal_size` inline bytes. Its extent never changes, so
+// views and writable access remain at the same address for the value's
+// lifetime. Copying duplicates the complete array without using an allocator.
+//
+// Constructors can populate the storage during constant evaluation. A shorter
+// View copies its available bytes and zero fills the remainder, while a longer
+// View is truncated to the fixed extent.
 template <Count literal_size>
 class Bytes {
  private:
@@ -29,8 +35,8 @@ class Bytes {
   // `Static::Bytes<3> bytes = {{1, 2, 3}}`.
   constexpr Bytes(const Storage& source) : storage(source) {}
 
-  // Initializes a buffer from a source view, either taking a slice of the data
-  // or zero extending the ouput if the buffer is larger than the input.
+  // Copies as much of the View as the fixed extent admits and zero fills any
+  // remaining bytes.
   constexpr Bytes(const View::Bytes& source) {
     const Count size = Core::Scalar::min(literal_size, source.get_size());
     if consteval {
@@ -39,7 +45,6 @@ class Bytes {
         storage.source_block[i] = source.get_data()[i];
       }
 
-      // Zero out the rest of the array so we don't expose junk data.
       for (; i < literal_size; i++) {
         storage.source_block[i] = 0;
       }
@@ -49,14 +54,16 @@ class Bytes {
     }
   }
 
-  // Allows for generating data that would be a pain to manually write out.
+  // Calls `generator` once for each index to build tables during constant
+  // evaluation.
   constexpr Bytes(U8 (*generator)(Count)) {
     for (Count i = 0; i < literal_size; i++) {
       storage.source_block[i] = generator(i);
     }
   }
 
-  // Fast read function that assumes the range is valid.
+  // Copies exactly `literal_size` bytes. The caller supplies a readable range
+  // of at least that size.
   constexpr Bytes(const U8* source) {
     if consteval {
       for (Count i = 0; i < literal_size; i++) {

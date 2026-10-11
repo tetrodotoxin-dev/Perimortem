@@ -218,6 +218,16 @@ VALIDATION_TEST(SerializationJson, parse_nested_arrays) {
   EXPECT_EQ(value[3][1][0][0].get_number(), 4);
 }
 
+VALIDATION_TEST(SerializationJson, reject_truncated_arrays) {
+  constexpr View::Bytes sources[] = {"["_view, "[1"_view, "[1   "_view};
+  Allocator::Arena arena;
+  for (View::Bytes source : sources) {
+    Json::Node value;
+    EXPECT_EQ(value.parse(arena, source), Count(-1));
+    EXPECT(value.is_null());
+  }
+}
+
 VALIDATION_TEST(SerializationJson, parse_object) {
   Allocator::Arena arena;
   Json::Node value;

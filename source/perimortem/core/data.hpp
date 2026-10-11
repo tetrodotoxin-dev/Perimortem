@@ -12,6 +12,9 @@
 
 namespace Perimortem::Core {
 
+// Data provides storage neutral operations over object representations. Callers
+// retain ownership while these operations align locations, copy bytes, adapt
+// byte order, or expose a requested type over existing storage.
 class Data {
  public:
   enum class ByteOrder {
@@ -31,7 +34,9 @@ class Data {
     return size;
   }
 
-  // Aligns data by moving to the next valid offset of alignment_size.
+  // Rounds the provided offset up to the next multiple of the requested
+  // alignment. Alignment values 0 and 1 return the offset unchanged through a
+  // compile time branch.
   template <Count alignment_size>
   static constexpr auto align(Count offset) -> Count {
     if constexpr (alignment_size <= 1) {
@@ -39,12 +44,10 @@ class Data {
     }
 
     constexpr Count alignment_filter = alignment_size - 1;
-    // Check if alignment_size is a power of two, if it is we can avoid a
-    // modulo. Any easy test for only a single set bit is to subtract one from
-    // the value and and it with itself. It will return nonzero for any non
-    // power of two.
-    //
-    // This technically let's zero through but we special case zero and one.
+    // Powers of two can align with a mask instead of division. Subtracting one
+    // leaves every lower bit set, so its intersection with the original value
+    // is zero only for a single set bit. The earlier branch handles zero and
+    // one before this test.
     if constexpr ((alignment_size & alignment_filter) == 0) {
       const auto required_alignment = (~offset + 1) & (alignment_filter);
       return offset + required_alignment;
@@ -56,14 +59,16 @@ class Data {
     }
   }
 
-  // Used for reading const raw data.
+  // Reinterprets caller storage without constructing `target_type`. The caller
+  // establishes the target lifetime and alignment before dereferencing.
   template <typename target_type>
   static auto cast(const void* source) -> const target_type* {
     // TODO: start_lifetime_as
     return reinterpret_cast<const target_type*>(source);
   }
 
-  // Used for reading raw data.
+  // Reinterprets writable caller storage without constructing `target_type`.
+  // The caller establishes the target lifetime and alignment before use.
   template <typename target_type>
   static auto cast(void* source) -> target_type* {
     // TODO: start_lifetime_as

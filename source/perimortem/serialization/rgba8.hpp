@@ -16,25 +16,30 @@ namespace Perimortem::Serialization {
 // alignment because PNG filtering addresses its channels as bytes.
 class Rgba8 {
  public:
-  // Fully transparent black is the zero state.
+  // Default member initialization leaves every channel zero, giving buffers a
+  // transparent black zero state without constructor work.
   Rgba8() = default;
 
-  // Replicates grey to all color channels and uses full opacity.
+  // Red, green, and blue channels all get set to the same grey value and do not
+  // compensate for luminance. The alpha channel is independently set to full
+  // opacity.
   static constexpr auto from_grey(U8 grey) -> Rgba8 {
     return from_rgba(grey, grey, grey, opaque);
   }
 
-  // Replicates grey to all color channels with an explicit alpha value.
+  // Replicates the decoded grey sample without luminance conversion and
+  // preserves the caller supplied alpha byte.
   static constexpr auto from_grey_alpha(U8 grey, U8 alpha) -> Rgba8 {
     return from_rgba(grey, grey, grey, alpha);
   }
 
-  // Stores three independent color channels and uses full opacity.
+  // Preserves the three decoded color samples and supplies full opacity for the
+  // missing alpha channel.
   static constexpr auto from_rgb(U8 red, U8 green, U8 blue) -> Rgba8 {
     return from_rgba(red, green, blue, opaque);
   }
 
-  // Stores all four channels directly.
+  // Preserves all four decoded samples in public channel order.
   static constexpr auto from_rgba(U8 red, U8 green, U8 blue, U8 alpha)
       -> Rgba8 {
     Rgba8 result;

@@ -11,24 +11,21 @@ using namespace Perimortem::Core;
 #include <immintrin.h>
 #endif
 
-auto Algorithm::Search::find(View::Bytes src, View::Bytes value) -> Count {
+auto Algorithm::Search::match(View::Bytes src, View::Bytes value) -> Count {
   if (value.is_empty()) {
     return 0;
   }
 
-  // Fall back to the more optimized value check if the View::Bytes is only a
-  // single byte long. This avoids all of the extra tail checks.
+  // A one byte query uses the dedicated byte scan without substring tail
+  // filtering or candidate verification.
   if (value.get_size() == 1) {
-    return find(src, value[0]);
+    return match(src, value[0]);
   }
 
-  // If the value is larger than the source then it can't be a substring.
   if (value.get_size() > src.get_size()) {
     return Count(-1);
   }
 
-  // If the value and src are the same size then we just have to test if they
-  // are the same object.
   if (value.get_size() == src.get_size()) {
     return value == src ? 0 : Count(-1);
   }
@@ -38,12 +35,9 @@ auto Algorithm::Search::find(View::Bytes src, View::Bytes value) -> Count {
 
 #ifdef PERI_AVX2
 
-  // Setup two additional registers with the exact value test as well as the
-  // test mask. Since the source can be any length this is easier to setup by
-  // loading from two Static::Bytes.
-  //
-  // Since we can find matches close to the end of the array we need twice the
-  // vector size in order to ensure we have valid padding.
+  // Pad the query and its active byte mask to one AVX2 register. Requiring two
+  // source registers keeps every candidate verification load inside the view,
+  // including candidates near the end of the vector loop.
   constexpr auto vectorize_limit = sizeof(__m256i);
   if (src.get_size() >= vectorize_limit * 2 &&
       value.get_size() <= vectorize_limit) [[likely]] {
@@ -58,10 +52,8 @@ auto Algorithm::Search::find(View::Bytes src, View::Bytes value) -> Count {
     const auto test_filter = _mm256_loadu_si256(
         Data::cast<const __m256i_u>(value_filter.get_data()));
 
-    // loop through all vectorizable chunks possible.
-    // Each chunk tests for 32 possible valid locations based on start and end
-    // pairings which performs vastly better than just checking for start values
-    // on long ranges.
+    // Compare the first and last query bytes at 32 candidate offsets. Only
+    // offsets matching both endpoints load and compare the complete query.
     for (; i < src.get_size() - vectorize_limit * 2; i += vectorize_limit) {
       const auto head_block =
           _mm256_loadu_si256(Data::cast<const __m256i_u>(src.get_data() + i));
@@ -76,7 +68,9 @@ auto Algorithm::Search::find(View::Bytes src, View::Bytes value) -> Count {
         auto index = __builtin_ctzg(range_mask);
         range_mask ^= 1 << index;
 
-        // Load the block and filter it down to only the section we care about.
+        // Zero bytes beyond the target length before comparing the complete
+        // register. One vector comparison can then validate the candidate
+        // without constructing a separate short range.
         const auto test_block = _mm256_loadu_si256(
             Data::cast<const __m256i_u>(src.get_data() + i + index));
         const auto possible_match = _mm256_and_si256(test_block, test_filter);
@@ -112,19 +106,16 @@ auto Algorithm::Search::find(View::Bytes src, View::Bytes value) -> Count {
     }
   }
 
-  // Not found
   return Count(-1);
 }
 
-// Fast vectorized sub string search for a particular byte in a View::Bytes.
-auto Algorithm::Search::find(View::Bytes src, U8 value) -> Count {
-  // If the value is larger than the source then it can't be a substring.
+auto Algorithm::Search::match(View::Bytes src, U8 value) -> Count {
   if (src.is_empty()) {
     return Count(-1);
   }
 
-  // Do a straight forward scan since we can do direct epi8 tests rather than
-  // sub ranges.
+  // Byte queries need one equality mask per block and no separate candidate
+  // verification.
   Count i = 0;
   auto source_data = src.get_data();
 
@@ -134,10 +125,8 @@ auto Algorithm::Search::find(View::Bytes src, U8 value) -> Count {
   if (src.get_size() >= vectorize_limit) [[likely]] {
     const auto test_mask = _mm256_set1_epi8(value);
 
-    // loop through all vectorizable chunks possible.
-    // Each chunk tests for 32 possible valid locations based on start and end
-    // pairings which performs vastly better than just checking for start values
-    // on long ranges.
+    // Each comparison covers 32 consecutive bytes. The least set mask bit gives
+    // the first matching offset and preserves first occurrence behavior.
     for (; i < src.get_size() - vectorize_limit; i += vectorize_limit) {
       const auto source_block =
           _mm256_loadu_si256(Data::cast<const __m256i_u>(source_data + i));
@@ -153,13 +142,13 @@ auto Algorithm::Search::find(View::Bytes src, U8 value) -> Count {
 
 #endif
 
-  // The remaining bytes use the same path on every target.
+  // Scan bytes not covered by the vector loop. This is also the complete path
+  // on targets without AVX2.
   for (; i < src.get_size(); i++) {
     if (value == source_data[i]) {
       return i;
     }
   }
 
-  // Not found
   return Count(-1);
 }

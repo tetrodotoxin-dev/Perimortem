@@ -103,16 +103,11 @@ class Vector {
   }
 
  private:
-  // Ensures there is _at least_ enough room for the requested number of
-  // objects.
   auto ensure_capacity(Count required_size) -> void {
-    // Check if we can already fit required buffer.
     if (required_size <= get_capacity()) {
       return;
     }
 
-    // Attempt to grow by a factor of 2.
-    // If that doesn't work than grow to exact size.
     const auto new_capacity =
         Core::Scalar::max(get_capacity() * 2, required_size);
 
@@ -124,7 +119,6 @@ class Vector {
       memcpy((void*)new_block, rented_block, sizeof(value_type) * size);
     }
 
-    // Update block and get the new capacity.
     rented_block = new_block;
     capacity = new_capacity;
   }

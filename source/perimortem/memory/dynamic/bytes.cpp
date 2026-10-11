@@ -126,7 +126,7 @@ auto Dynamic::Bytes::copy(View::Bytes view) -> void {
   }
 
   if (view.get_size() <= capacity) {
-    // A slice of this buffer can overlap its destination.
+    // `memmove` is required since a slice of this buffer can overlap its destination.
     memmove(source_block, view.get_data(), view.get_size());
   } else {
     auto allocation = Allocator::Bibliotheca::check_out(view.get_size());

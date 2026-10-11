@@ -32,7 +32,10 @@ class Args {
       const Memory::Managed::Map<Core::View::Bytes, Core::View::Bytes>& config,
       Core::View::Vector<Core::View::Bytes> arguments) -> Values;
 
-  // Writes help for the same configuration through Diagnostics at Info.
+  // Formats the same declarations consumed by `parse`. The executable name
+  // comes from the invocation when available and otherwise from the current
+  // process. Diagnostics publishes the result using the current logger for the
+  // thread at log level `Info`.
   static EXPORTED(PERIMORTEM) auto log_help(
       Memory::Allocator::Arena& arena,
       Core::View::Bytes tool_summary,

@@ -82,7 +82,6 @@ auto Huffman::compute_lengths(
     nodes[right_child].parent = U16(new_node);
   }
 
-  // Compute depths, clamp to max_code_bits, and build length counts.
   Static::Vector<Count, max_code_bits + 2> codes_per_length;
   for (Count i = 0; i <= max_code_bits + 1; i++) {
     codes_per_length[i] = 0;
@@ -96,7 +95,8 @@ auto Huffman::compute_lengths(
       depth++;
     }
 
-    // Cap the depth if it's outside the range of max bits.
+    // DEFLATE limits codes to `max_code_bits`. Clamp provisional depths before
+    // the following Kraft equality repair redistributes overcommitted lengths.
     if (depth > max_code_bits) {
       depth = max_code_bits;
     }

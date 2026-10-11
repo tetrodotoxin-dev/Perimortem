@@ -31,9 +31,26 @@ class Scalar {
     return value < 0 ? value + modulo : value;
   }
 
-  template <typename type>
-  static constexpr auto absolute(type value) -> type {
-    return value >= 0 ? value : -value;
+  // Converting a negative value to a wide enough unsigned type wraps within the
+  // unsigned range. Negative one becomes the maximum value, so subtracting
+  // those bits from zero produces magnitude one. The same subtraction
+  // represents the signed minimum without forming a positive value its signed
+  // type cannot hold.
+  template <typename unsigned_type, typename value_type>
+  static constexpr auto magnitude(value_type value) -> unsigned_type {
+    static_assert(__is_integral(value_type));
+    static_assert(!__is_same(value_type, bool));
+    static_assert(__is_integral(unsigned_type));
+    static_assert(!__is_signed(unsigned_type));
+    static_assert(!__is_same(unsigned_type, bool));
+    static_assert(sizeof(unsigned_type) >= sizeof(value_type));
+
+    unsigned_type bits = unsigned_type(value);
+    if constexpr (__is_signed(value_type)) {
+      return value < 0 ? unsigned_type(0) - bits : bits;
+    } else {
+      return bits;
+    }
   }
 
   // Full width values skip the terminal shift because C++ does not define a

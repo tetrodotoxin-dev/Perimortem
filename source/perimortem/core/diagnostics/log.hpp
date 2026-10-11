@@ -119,9 +119,9 @@ class Log {
       Core::View::Bytes message,
       const Source& location) -> void;
 
-  // Uses the console sink but writes colored text.
-  // Grey for debug, white for info, yellow for warning, red for error and
-  // fatal.
+  // Writes the same canonical entry and stream routing as `console_sink`,
+  // wrapped in an ANSI color selected by level. Debug is grey, Info is white,
+  // Warning is yellow, and Error and Fatal are red.
   static EXPORTED(PERIMORTEM) auto color_sink(
       Level level,
       Core::View::Bytes message,
@@ -134,8 +134,8 @@ class Log {
       Core::View::Bytes message,
       const Source& location) -> void;
 
-  // Logs to both the console_sink and the file_sink for real time and
-  // persistent logs.
+  // Sends each entry to both `console_sink` and `file_sink`, preserving
+  // interactive output together with a persistent record.
   static EXPORTED(PERIMORTEM) auto debug_sink(
       Level level,
       Core::View::Bytes message,
@@ -165,7 +165,8 @@ class Log {
   static EXPORTED(PERIMORTEM) auto set_level(Level level) -> void;
   static EXPORTED(PERIMORTEM) auto get_level() -> Diagnostics::Log::Level;
 
-  // Sets logs in the current scope
+  // Establishes source attribution until the returned guard leaves scope.
+  // Nested calls retain the outermost attributed location.
   static EXPORTED(PERIMORTEM) auto set_attribution(
       const Source& location = Source::current()) -> Attribution;
 
@@ -208,8 +209,9 @@ class Log {
   // filled or when the thread exits.
   static EXPORTED(PERIMORTEM) auto flush() -> void;
 
-  // Used by custom loggers to format output with the optional standardized
-  // Perimortem header information.
+  // Writes the canonical Perimortem header and message into caller storage.
+  // The returned byte count lets a custom sink forward exactly the written
+  // prefix.
   static EXPORTED(PERIMORTEM) auto format_entry(
       Level level,
       Core::View::Bytes message,

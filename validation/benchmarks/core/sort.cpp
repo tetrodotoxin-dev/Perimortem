@@ -59,7 +59,8 @@ static Static::Vector<Count, 1 << 9> count_512;
 static Static::Vector<Count, 1 << 12> count_4k;
 static Static::Vector<Count, 1 << 14> count_16k;
 
-// Make sure keys are randomized
+// Random input keeps the benchmark on the general sorting path instead of
+// favoring an ordered or reverse ordered case.
 template <typename count_array>
 static auto fill_random(count_array& target) -> void {
   Count* data = target.get_data();
@@ -155,7 +156,8 @@ static auto populate_words() -> void {
   populated = True;
 }
 
-// Make sure keys are randomized
+// Random input keeps the benchmark on the general sorting path instead of
+// favoring an ordered or reverse ordered case.
 template <typename word_array>
 static auto fill_words(word_array& target) -> void {
   // Randomly selects 4 Byte::View chunks to fill the array with.

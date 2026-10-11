@@ -24,8 +24,8 @@ static auto write(storage_type& storage, value_type value) -> void {
   Count start = storage.get_size();
   storage.resize(start + write_window);
 
-  // Use the Core::Writer to perform the actual serialization. Once that's done
-  // we can shrink down to the actual serialized size.
+  // Writer receives the complete window as writable capacity. Shrink to its
+  // final cursor so unused reservation does not become stream content.
   Writer::Textual writer(storage.get_access().slice(start, write_window));
   writer << value;
   storage.resize(start + writer.get_location());

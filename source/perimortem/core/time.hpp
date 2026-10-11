@@ -10,31 +10,39 @@
 
 namespace Perimortem::Core {
 
-// Time captures a relative timestamp that can be used to compare time points.
+// Time stores a nanosecond stamp from either the monotonic interval clock or
+// Unix wall time. A stamp does not record its clock source, so comparison and
+// measurement are meaningful only between values obtained from the same source.
+//
+// `now` supplies the monotonic clock for measuring elapsed time. `clock`
+// supplies Unix wall time for timestamps and clock formatting. `boot` preserves
+// the monotonic stamp captured during Perimortem initialization.
 class Time {
  public:
-  // Duration captures the explicit distance between any two time points.
-  // Allows for centralized conversion into actual time units for measurement.
+  // Duration stores the absolute nanosecond distance produced by `measure`.
+  // Conversions preserve fractional units rather than truncating subsecond
+  // precision.
   class Duration {
    public:
-    Duration(U64 delta) : nanosecond_delta(delta) {};
+    constexpr Duration(U64 nanoseconds) : nanosecond_delta(nanoseconds) {};
 
-    // Converts a delta time into nanoseconds.
-    constexpr auto convert_to_nanoseconds() -> U64 { return nanosecond_delta; }
+    // Returns the complete duration as nanoseconds.
+    constexpr auto convert_to_nanoseconds() const -> U64 {
+      return nanosecond_delta;
+    }
 
-    // Converts a delta time into microseconds.
-    constexpr auto convert_to_microseconds() -> R64 {
+    // Returns the duration as fractional microseconds.
+    constexpr auto convert_to_microseconds() const -> R64 {
       return nanosecond_delta / R64(1'000.0);
     }
 
-    // Converts a delta time into milliseconds.
-    constexpr auto convert_to_milliseconds() -> R64 {
+    // Returns the duration as fractional milliseconds.
+    constexpr auto convert_to_milliseconds() const -> R64 {
       return nanosecond_delta / R64(1'000'000.0);
     }
 
-    // Converts a delta time into seconds.
-    // Drops the micro & nano second portions.
-    constexpr auto convert_to_seconds() -> R64 {
+    // Returns the duration as fractional seconds.
+    constexpr auto convert_to_seconds() const -> R64 {
       return (nanosecond_delta / 1'000'000.0) / R64(1'000.0);
     }
 
@@ -42,43 +50,45 @@ class Time {
     U64 nanosecond_delta;
   };
 
-  Time() : timestamp(0) {};
-  Time(U64 stamp) : timestamp(stamp) {};
-  Time(U64 seconds, U64 nanoseconds)
+  constexpr Time() : timestamp(0) {};
+  constexpr Time(U64 stamp) : timestamp(stamp) {};
+  constexpr Time(U64 seconds, U64 nanoseconds)
       : timestamp(seconds * 1'000'000'000 + nanoseconds) {};
 
-  // Returns a time object capturing the delta time from UNIX epoch.
+  // Returns the current platform monotonic stamp. Use it only with other
+  // monotonic stamps when comparing or measuring elapsed time.
   static EXPORTED(PERIMORTEM) auto now() -> Time;
 
-  // Returns the best guess at wall clock time.
+  // Returns Unix wall time in nanoseconds. Wall time can change when the system
+  // clock is adjusted and must not be used to measure elapsed intervals.
   static EXPORTED(PERIMORTEM) auto clock() -> Time;
 
-  // Returns the time the application booted.
+  // Returns the monotonic stamp captured during Perimortem initialization.
   static EXPORTED(PERIMORTEM) auto boot() -> Time;
 
-  // Returns an arbitrary time point that should never exist.
+  // Returns the all bits set sentinel, which no supported clock produces.
   static auto never() -> Time { return -1; };
 
-  // Checks if two deltas are equal to each other, but doesn't guarantee they
-  // are in the same reference frame.
+  // Compares the numeric stamps. The caller must supply values obtained from
+  // the same clock source.
   constexpr auto operator==(const Time& rhs) const -> Bool {
     return get_stamp() == rhs.get_stamp();
   };
 
-  // Gets the raw 64 bit time stamp in nanoseconds.
+  // Returns the raw nanosecond stamp without identifying its clock source.
   constexpr auto get_stamp() const -> U64 { return timestamp; }
 
-  // Calculation the time between two time points.
-  // If none is provided then `Time::now()` is used as the end point.
-  constexpr auto measure(const Time& end_point = Time::now()) const
-      -> Duration {
-    // Ensure duration is always the absolute value.
+  // Returns the absolute distance between stamps from the same clock source.
+  // Requiring both values prevents a wall time stamp from implicitly measuring
+  // against the monotonic `now` clock.
+  constexpr auto measure(const Time& end_point) const -> Duration {
     auto start_stamp = Core::Scalar::min(get_stamp(), end_point.get_stamp());
     auto end_stamp = Core::Scalar::max(get_stamp(), end_point.get_stamp());
     return Duration(end_stamp - start_stamp);
   }
 
-  // Returns the wall clock time as a formatted buffer.
+  // Formats a Unix wall time stamp as `HH:MM:SS.mmm` in UTC. Calling this on a
+  // monotonic stamp has no meaningful result.
   EXPORTED(PERIMORTEM) auto calculate_clock() const -> Static::Bytes<12>;
 
  private:

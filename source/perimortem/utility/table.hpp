@@ -12,19 +12,18 @@
 
 namespace Perimortem::Utility {
 
-// An optimized look up table for `Core::View::Bytes` that avoids a level of
-// indirection by packing string keys inline and provides major speed gains
-// when testings a large number of keys with a low hit rate making it ideal for
-// keyword lookups.
+// Table compiles a fixed set of byte keys into one immutable lookup layout. Key
+// length selects a bucket directly, and each bucket packs its key bytes inline
+// beside mapping indexes without per entry pointers or hashes.
 //
-// Tables are only immutable and unlike `Map` always have static linkage.
-// For instances where keys are all known at compile time and the list of keys
-// is relatively small the speed of Table tends to be >2x faster than any Map
-// for key kits.
+// `source` has static storage because the referenced object participates in the
+// Table type. Different source arrays therefore produce distinct tables. This
+// makes Table suitable for small vocabularies known at compile time rather than
+// mutable data.
 //
-// The source template parameter is a bit funky since the type itself is
-// parameterized over it's source data to create a type that expresses the
-// compressed form of the lookups.
+// Keyword benchmarks with low hit rates measured more than twice the throughput
+// of `Dynamic::Map`. `cache_line_size` can keep a complete length bucket within
+// one cache line when its packed bytes fit.
 template <typename value_type, const auto& source, U64 cache_line_size = 1>
 class Table {
  private:
@@ -57,8 +56,9 @@ class Table {
     return total;
   }
 
-  // Get the number of size buckets we will need to store.
-  // We give up one bucket for size "0" strings for clamping later.
+  // Key length indexes its bucket directly. Reserve an empty sentinel one byte
+  // beyond the longest key so that immediately oversized lookups return no
+  // items without accessing key storage.
   static consteval auto max_length() -> Count {
     Count max = 0;
     for (Count i = 0; i < get_source_count(); i++) {
@@ -69,7 +69,6 @@ class Table {
     return max;
   }
 
-  // The stroage required for all of the string values.
   static constexpr Count storage_size = required_storage();
   static constexpr Count max_range = max_length();
 
@@ -84,7 +83,9 @@ class Table {
       // Align and set all bucket indexes
       Count total = 0;
       for (Count i = 0; i < max_length(); i++) {
-        // If the bucket crosses a cache line then move it over.
+        // Advance a bucket that would straddle `cache_line_size` to the next
+        // boundary. A bucket no larger than that boundary can then be scanned
+        // from one cache line.
         const auto cache_alignment = (total % cache_line_size);
         if (cache_alignment != 0 &&
             cache_alignment + buckets[i] > cache_line_size) {
@@ -130,7 +131,6 @@ class Table {
 
   static constexpr auto find_or_null(const Core::View::Bytes key)
       -> const value_type* {
-    // Get the value in range.
     const auto range_step = key.get_size();
     if (range_step > max_range) {
       return nullptr;

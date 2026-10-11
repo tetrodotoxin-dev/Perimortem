@@ -165,7 +165,7 @@ class ThreadInitializer {
     lock_workers();
 
     auto worker_index =
-        Algorithm::Search::find_min(View::Vector<U8>(thread_occupancy));
+        Algorithm::Search::min(View::Vector<U8>(thread_occupancy));
     if (thread_occupancy[worker_index] != 0) {
       unlock_workers();
       Diagnostics::Log::fatal(
@@ -270,31 +270,19 @@ class ThreadInitializer {
     initializer.mark_initialized();
     job_function(job_data);
 
-    // To improve observability the worker posts a completion message to the
-    // spawning threads diagnostics to signal start / finished pairs. Since the
-    // job might have changed the logger during execution we reset the sink to
-    // the initalized logger.
-    //
-    // TODO: Two design considerations for the future:
-    //
-    // 1. We can also log a message to the worker's diagnostics but to avoid
-    // repeat messages we would want to detect if that's safe somehow.
-    //
-    // 2. There is no guarantee that the spawning thread's logger hasn't
-    // driffted since this worker was spawned. We might be reviving a stale
-    // logger.
+    // A job may choose a different logger while it runs. Report completion
+    // through the logger currently installed for this thread rather than
+    // restoring state owned by the spawning thread.
     {
-      Diagnostics::Log::set_sink(initializer.sink);
-      Diagnostics::Log::set_disable_header(initializer.disable_log_header);
       Diagnostics::Log::Message<128> exit_message(
           Diagnostics::Log::Level::Debug);
       exit_message << "Process::Worker completed worker_index="_view
                    << this_thread_id;
     }
 
-    // The job data lives in this thread's Bibliotheca so thread and will be
-    // closed on clean up so we need to mark the thread as free before closing
-    // out.
+    // All code associated with the logical worker has finished. Returning after
+    // releasing its slot ends the native thread and tears down thread local
+    // storage.
     release_thread(this_thread_id);
     return nullptr;
   }

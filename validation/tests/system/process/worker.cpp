@@ -10,6 +10,7 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/access/bytes.h"
+#include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/reader/binary.hpp"
 #include "perimortem/core/static/bytes.hpp"
@@ -30,6 +31,22 @@ static constexpr Count large_worker_payload_size = 4096;
 static constexpr View::Bytes long_worker_name =
     "worker.thread.name.with.more.than.twenty.four.bytes"_view;
 static constexpr Count long_worker_name_size = long_worker_name.get_size();
+static Count spawning_log_events = 0;
+static Count worker_log_events = 0;
+
+static auto spawning_sink(
+    Diagnostics::Log::Level,
+    View::Bytes,
+    const Diagnostics::Source&) -> void {
+  spawning_log_events++;
+}
+
+static auto worker_sink(
+    Diagnostics::Log::Level,
+    View::Bytes,
+    const Diagnostics::Source&) -> void {
+  worker_log_events++;
+}
 
 struct WorkerPayloadResult {
   Count byte_count = 0;
@@ -137,6 +154,11 @@ static auto hold_worker_job(View::Bytes job_data) -> void {
   }
 }
 
+static auto select_worker_logger(View::Bytes) -> void {
+  Diagnostics::Log::set_sink(worker_sink);
+  Diagnostics::Log::set_level(Diagnostics::Log::Level::Debug);
+}
+
 VALIDATION_TEST(SystemProcessWorker, copies_large_job) {
   WorkerPayloadResult worker_result;
   Static::Bytes<large_worker_payload_size> expected_payload;
@@ -241,4 +263,23 @@ VALIDATION_TEST(SystemProcessWorker, worker_count) {
   worker.join();
 
   EXPECT_EQ(Process::Worker::get_worker_count(), baseline_worker_count);
+}
+
+VALIDATION_TEST(SystemProcessWorker, completion_uses_worker_logger) {
+  const auto original_sink = Diagnostics::Log::get_sink();
+  const auto original_level = Diagnostics::Log::get_level();
+  spawning_log_events = 0;
+  worker_log_events = 0;
+
+  Diagnostics::Log::set_sink(spawning_sink);
+
+  auto worker =
+      Process::Worker::start("worker.logger"_view, select_worker_logger);
+  worker.join();
+
+  Diagnostics::Log::set_sink(original_sink);
+  Diagnostics::Log::set_level(original_level);
+
+  EXPECT_EQ(spawning_log_events, Count(0));
+  EXPECT_EQ(worker_log_events, Count(1));
 }

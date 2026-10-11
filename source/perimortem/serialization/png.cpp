@@ -19,7 +19,8 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::Math;
 using namespace Perimortem::Serialization;
 
-// The color encoding used in a PNG file's IHDR chunk.
+// Values are the wire codes stored in IHDR. Unknown codes map to zero channels
+// and are rejected before allocating pixel storage.
 enum class ColorType : U8 {
   Greyscale = 0,
   Rgb = 2,
@@ -38,7 +39,11 @@ enum class FilterType : U8 {
   Paeth = 4,
 };
 
-// ImageInfo follows the Binary layout of an IHDR chunk.
+// ImageInfo stores the 13 byte IHDR payload at the beginning of its native
+// record. Width and height remain in big endian storage while accessors expose
+// native values. `size` excludes trailing C++ padding so chunk reads and writes
+// never serialize it. A default record has zero dimensions and represents
+// header admission failure.
 struct ImageInfo {
  public:
   constexpr ImageInfo() = default;
@@ -49,7 +54,6 @@ struct ImageInfo {
     color_type = ColorType::Rgba;
   }
 
-  // C++ will add padding to the end of the struct so store the actual size.
   static constexpr Count size = 13;
 
   constexpr auto get_width() const -> U32 {
@@ -146,14 +150,13 @@ constexpr auto calculate_crc32(View::Bytes data) -> U32 {
   // The 256 entry CRC32 look up table is prepopulated at compile time.
   constexpr Static::Vector<U32, 256> crc_table = populate_crc_table();
 
-  // CRC computation starts with all bit set.
+  // PNG initializes CRC32 to all ones and complements it after the final byte.
   U32 running_crc = 0xFFFFFFFF;
   for (Count byte_index = 0; byte_index < data.get_size(); byte_index++) {
     running_crc =
         crc_table[(running_crc ^ data[byte_index]) & 0xFF] ^ (running_crc >> 8);
   }
 
-  // XOR the bits to produce the final CRC value.
   return running_crc ^ 0xFFFFFFFF;
 }
 
@@ -217,21 +220,23 @@ constexpr auto write_chunk(
     View::Bytes data) -> void {
   auto output = buffer.get_data();
 
-  // Write the size in Big endian format
   Data::write<Data::ByteOrder::Big>(
       Data::cast<U32>(output + write_position), U32(data.get_size()));
   write_position += sizeof(U32);
 
-  // Copy the tag into the buffer.
   Data::copy(output + write_position, type_tag.get_data(), type_tag.get_size());
   write_position += type_tag.get_size();
 
-  // If data isn't empty for the chunk then write that next.
-  Data::copy(output + write_position, data.get_data(), data.get_size());
+  // An empty View can carry null storage. Avoid passing it to `Data::copy` even
+  // with a zero byte count.
+  if (!data.is_empty()) {
+    Data::copy(output + write_position, data.get_data(), data.get_size());
+  }
+
   write_position += data.get_size();
 
-  // Finally write out the crc32 value (also in big endian) which includes the
-  // tag and any other chunk data.
+  // PNG checksums the type tag and payload but excludes the length field. Store
+  // the resulting CRC32 in big endian order.
   Count chunk_length = type_tag.get_size() + data.get_size();
   U32 chunk_crc = calculate_crc32(
       View::Bytes(output + write_position - chunk_length, chunk_length));
@@ -249,9 +254,10 @@ constexpr auto paeth_predictor(U8 left, U8 up, U8 upper_left) -> U8 {
   S16 signed_upper_left = S16(upper_left);
   S16 predictor = signed_left + signed_up - signed_upper_left;
 
-  S16 score_left = Scalar::absolute(predictor - signed_left);
-  S16 score_up = Scalar::absolute(predictor - signed_up);
-  S16 score_upper_left = Scalar::absolute(predictor - signed_upper_left);
+  U16 score_left = Scalar::magnitude<U16>(S16(predictor - signed_left));
+  U16 score_up = Scalar::magnitude<U16>(S16(predictor - signed_up));
+  U16 score_upper_left =
+      Scalar::magnitude<U16>(S16(predictor - signed_upper_left));
   if (score_left <= score_up && score_left <= score_upper_left) {
     return left;
   }
@@ -269,7 +275,9 @@ constexpr auto paeth_predictor(U8 left, U8 up, U8 upper_left) -> U8 {
 template <Bool first_row>
 auto score_row(View::Bytes current_row, View::Bytes previous_row)
     -> FilterType {
-  constexpr auto signed_abs = Scalar::absolute<S8>;
+  constexpr auto residual_magnitude = [](U8 residual) -> U8 {
+    return Scalar::magnitude<U8>(__builtin_bit_cast(S8, residual));
+  };
   constexpr auto filter_count = first_row ? 2 : 5;
   constexpr auto channel_count = Rgba8::get_channel_count();
   Static::Vector<U64, filter_count> scores;
@@ -277,44 +285,45 @@ auto score_row(View::Bytes current_row, View::Bytes previous_row)
   auto current_row_data = current_row.get_data();
   auto previous_row_data = previous_row.get_data();
 
-  // Process the first column of data.
+  // The first pixel has no left neighbor. Sub therefore matches None, while
+  // row dependent filters use only the sample above.
   for (Count i = 0; i < channel_count; i++) {
-    scores[U8(FilterType::None)] += signed_abs(S8(current_row_data[i]));
-    scores[U8(FilterType::Sub)] += signed_abs(S8(current_row_data[i]));
+    scores[U8(FilterType::None)] += residual_magnitude(current_row_data[i]);
+    scores[U8(FilterType::Sub)] += residual_magnitude(current_row_data[i]);
     if constexpr (!first_row) {
       U8 up = previous_row_data[i];
-      scores[U8(FilterType::Up)] += signed_abs(current_row_data[i] - up);
+      scores[U8(FilterType::Up)] +=
+          residual_magnitude(current_row_data[i] - up);
       scores[U8(FilterType::Average)] +=
-          signed_abs(current_row_data[i] - up / 2);
-      scores[U8(FilterType::Paeth)] += signed_abs(current_row_data[i] - up);
+          residual_magnitude(current_row_data[i] - up / 2);
+      scores[U8(FilterType::Paeth)] +=
+          residual_magnitude(current_row_data[i] - up);
     }
   }
 
   for (Count i = channel_count; i < current_row.get_size(); i++) {
     U8 left = current_row_data[i - channel_count];
-    scores[U8(FilterType::None)] += signed_abs(S8(current_row_data[i]));
+    scores[U8(FilterType::None)] += residual_magnitude(current_row_data[i]);
     scores[U8(FilterType::Sub)] +=
-        Scalar::absolute<S8>(current_row_data[i] - left);
+        residual_magnitude(current_row_data[i] - left);
     if constexpr (!first_row) {
       U8 up = previous_row_data[i];
       U8 upper_left = previous_row_data[i - channel_count];
-      scores[U8(FilterType::Up)] += signed_abs(current_row_data[i] - up);
+      scores[U8(FilterType::Up)] +=
+          residual_magnitude(current_row_data[i] - up);
       scores[U8(FilterType::Average)] +=
-          signed_abs(current_row_data[i] - (U16(left) + U16(up)) / 2);
-      scores[U8(FilterType::Paeth)] += signed_abs(
+          residual_magnitude(current_row_data[i] - (U16(left) + U16(up)) / 2);
+      scores[U8(FilterType::Paeth)] += residual_magnitude(
           current_row_data[i] - paeth_predictor(left, up, upper_left));
     }
   }
 
-  return FilterType(Algorithm::Search::find_min(View::Vector<U64>(scores)));
+  return FilterType(Algorithm::Search::min(View::Vector<U64>(scores)));
 }
 
-// Applies a PNG forward filter to one row of pixels, writing residuals into the
-// output row. previous_row is the previous unfiltered row and is empty for the
-// first row.
-//
-// If previous_row isn't valid then the function will corrupt memory, so keep
-// the row size precondition explicit at the call site.
+// Encodes one unfiltered RGBA row into PNG residual bytes. All three ranges
+// have the same extent. `previous_row` contains the unfiltered row above when
+// the filter uses upper samples. The first row supplies a valid placeholder.
 constexpr auto apply_row_filter(
     FilterType filter_type,
     Access::Bytes output_row,
@@ -339,7 +348,8 @@ constexpr auto apply_row_filter(
 
 #endif
 
-  // Special case the first pixel in the row
+  // The first pixel has no left sample. PNG substitutes zero there, while Up,
+  // Average, and Paeth can still use the sample above.
   switch (filter_type) {
   case FilterType::Sub:
     Data::copy(output_row_data, current_row_data, channel_count);
@@ -364,7 +374,8 @@ constexpr auto apply_row_filter(
 
     break;
 
-    // Treat default as None for now, but we should most likely log an error.
+    // `score_row` produces only declared filters. Keep other enum
+    // representations deterministic by treating them as None.
   case FilterType::None:
   default:
     Data::copy(output_row_data, current_row_data, size);
@@ -405,7 +416,6 @@ constexpr auto apply_row_filter(
 
     break;
 
-    // Treat default as None for now, but we should most likely log an error.
   case FilterType::None:
   default:
     Data::copy(output_row_data, current_row_data, size);
@@ -421,7 +431,6 @@ constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
   const auto output_size = Count(image.get_row_count()) * (1 + row_stride);
   const auto raw_bytes = Data::cast<U8>(image.get_values().get_data());
 
-  // Create the full output buffer and resize it to the full size.
   Dynamic::Bytes output(output_size);
   output.forgetful_resize(output_size);
 
@@ -432,7 +441,6 @@ constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
   View::Bytes current_row(raw_bytes, row_stride);
   FilterType best_filter = score_row<True>(current_row, current_row);
 
-  // Apply the filtering to the first row and set the filter used.
   apply_row_filter(
       best_filter, output.get_access().slice(1, row_stride),
       View::Bytes(raw_bytes, row_stride), View::Bytes(raw_bytes, row_stride));
@@ -444,9 +452,8 @@ constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
     View::Bytes previous_row = current_row;
     current_row = View::Bytes(raw_bytes + row * row_stride, row_stride);
 
-    // Apply the lowest scoring filter to the row so we only write to the output
-    // buffer once. This saves a ton of memory traffic as we minimize the number
-    // of actual writes.
+    // Score before writing so only the selected residual reaches output instead
+    // of materializing all five candidate rows.
     const auto best_filter = score_row<False>(current_row, previous_row);
     Access::Bytes output_row =
         output.get_access().slice(row * (1 + row_stride) + 1, row_stride);
@@ -458,14 +465,12 @@ constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
   return output;
 }
 
-// Reconstructs a single filtered row into output_row with a minor optimization
-// that statically compiles away usage of the previous_row pointer when
-// processing the first row, while guaranteeing that previous_row is always
-// valid for the following rows.
+// Reconstructs one filtered row. PNG defines unavailable samples above the
+// first row as zero, so `first_row` compiles away every `previous_row` access.
+// Following rows always receive the preceding reconstructed output.
 //
-// The code takes raw U8* pointers and is hand optimized since it's the
-// main hot loop for the load path which is the main use case for production
-// builds.
+// Raw pointers keep bounds work outside this decoder hot loop. The caller
+// validates the complete filtered and output extents before entering it.
 template <Bool first_row>
 auto reconstruct_row(
     FilterType filter_type,
@@ -524,7 +529,8 @@ auto reconstruct_row(
     break;
 
   case FilterType::Paeth:
-    // For the first row this reduces to Sub.
+    // PNG substitutes zero for upper samples on the first row. Paeth then
+    // selects the left sample and becomes Sub.
     if constexpr (first_row) {
       Data::copy(output_row, filtered_row, bytes_per_pixel);
       for (Count i = bytes_per_pixel; i < stride; i++) {
@@ -547,7 +553,6 @@ auto reconstruct_row(
 
     break;
 
-  // For all unknown values error out.
   default: {
     Diagnostics::Log::Message<64> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: Unknown filter type "_view << U32(filter_type);
@@ -577,7 +582,7 @@ constexpr auto reconstruct_filter(
     return False;
   }
 
-  // First row compiles away all null checks.
+  // The first row specialization never reads its null `previous_row` argument.
   FilterType filter_type = FilterType(filtered_row_data[0]);
   if (!reconstruct_row<True>(
           filter_type, filtered_row_data + 1, output_pixels, nullptr, stride,
@@ -585,7 +590,8 @@ constexpr auto reconstruct_filter(
     return False;
   }
 
-  // Now that previous_row is always valid no runtime null checks needed.
+  // Later rows pass the preceding output directly, so their specialization also
+  // needs no runtime null check.
   for (Count row = 1; row < height; row++) {
     FilterType filter_type = FilterType(filtered_row_data[row * row_bytes]);
     const U8* filtered_row = filtered_row_data + row * row_bytes + 1;
@@ -636,7 +642,8 @@ constexpr auto convert_to_pixels(
       U8 palette_index = data[source_offset];
       Count palette_offset = Count(palette_index) * 3;
 
-      // If the color is outside the palette size then error out.
+      // Each indexed color consumes three PLTE bytes. Reject an index whose RGB
+      // triple is not completely present.
       if (palette_offset + 3 > palette.get_size()) [[unlikely]] {
         Diagnostics::Log::Message<128> error_message(
             Diagnostics::Log::Level::Error);
@@ -653,7 +660,8 @@ constexpr auto convert_to_pixels(
       break;
     }
 
-      // RGBA should be fast pathed by the decoder to avoid a copy.
+      // `process_data` reconstructs RGBA directly into final pixel storage, so
+      // conversion deliberately excludes that layout.
     case ColorType::Rgba:
     default:
       return False;
@@ -700,7 +708,8 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
           header_tag.get_size(),
       ImageInfo::size);
 
-  // Currently only support 8 bit color depth
+  // Rgba8 output supports only 8 bit samples. Other PNG depths require separate
+  // unpacking and scaling before conversion.
   if (image_info.get_bit_depth() != Rgba8::get_bit_depth()) [[unlikely]] {
     Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: Unsupported bit depth "_view
@@ -754,7 +763,8 @@ constexpr auto process_data(
 
   Dynamic::Vector<Rgba8> pixels;
 
-  // RGBA rows can be reconstructed directly into their final sample storage.
+  // PNG RGBA samples match the four byte Rgba8 layout, so reconstruction can
+  // write final pixel storage without an intermediate conversion buffer.
   if (info.get_color_type() == ColorType::Rgba) {
     pixels.resize(*pixel_count);
     if (!reconstruct_filter(
@@ -799,7 +809,8 @@ constexpr auto process_data(
 }
 
 auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
-  // If we can't load the image or if the image is empty then return empty.
+  // `read_header` uses zero dimensions as its failure state. PNG also forbids
+  // an empty dimension, so both cases produce the same empty result.
   ImageInfo info = read_header(source);
   if (info.get_width() == 0 || info.get_height() == 0) [[unlikely]] {
     return Matrix<Rgba8>();
@@ -862,7 +873,8 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
 auto Png::encode(const Matrix<Rgba8>& image) -> Dynamic::Bytes {
   View::Vector<Rgba8> pixels = image.get_values();
 
-  // An empty domain has no scanlines to encode.
+  // PNG requires at least one scanline, and adaptive filtering reads row zero.
+  // An empty Matrix therefore has no encodable representation here.
   if (pixels.is_empty()) [[unlikely]] {
     return Dynamic::Bytes();
   }
@@ -900,7 +912,8 @@ auto Png::encode(const Matrix<Rgba8>& image) -> Dynamic::Bytes {
 
   auto data = output.get_access();
 
-  // Write the header & data chunk along with the IEND chunk.
+  // Emit the required signature, IHDR, image payload, and terminal IEND in wire
+  // order. The precomputed capacity includes framing for all three chunks.
   ImageInfo header(image);
   Data::copy(
       data.get_data(), png_signature.get_data(), png_signature.get_size());

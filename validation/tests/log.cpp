@@ -40,5 +40,5 @@ auto Log::captured_message() -> View::Bytes {
 
 auto Log::error_contains(View::Bytes message) -> bool {
   return captured_level == Diagnostics::Log::Level::Error &&
-         Algorithm::Search::find(captured_message(), message) != Count(-1);
+         Algorithm::Search::match(captured_message(), message) != Count(-1);
 }

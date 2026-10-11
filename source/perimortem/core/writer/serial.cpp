@@ -4,6 +4,7 @@
 #include "perimortem/core/writer/serial.hpp"
 
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/scalar.hpp"
 
 using namespace Perimortem::Core;
 
@@ -16,20 +17,23 @@ constexpr auto blob_flag = 0x20;
 constexpr auto
     write_value(Access::Bytes target, Count& cursor, S64 value, U8 flags)
         -> Bool {
-  // Negate any negative values and store the operation as a flag.
-  if (value < -1) {
-    // Store negate flag
+  // Serial stores negative values as a magnitude plus a sign flag so their
+  // payload width matches positive values.
+  if (value < 0) {
     flags |= negate_flag;
-    value = -value;
   }
 
-  // Choose the smallest integer type that fits the element count.
+  U64 magnitude = Scalar::magnitude<U64>(value);
+
+  // The low type nibble records payload width. Select the narrowest width that
+  // preserves the magnitude so small values and blob lengths do not carry
+  // unused leading bytes.
   Count encoding_size = 8;
-  if (value <= U8(-1)) {
+  if (magnitude <= U8(-1)) {
     encoding_size = 1;
-  } else if (value <= U16(-1)) {
+  } else if (magnitude <= U16(-1)) {
     encoding_size = 2;
-  } else if (value <= U32(-1)) {
+  } else if (magnitude <= U32(-1)) {
     encoding_size = 4;
   }
 
@@ -44,22 +48,22 @@ constexpr auto
   data[cursor++] = static_cast<U8>(encoding_size | flags);
   switch (encoding_size) {
   case 1:
-    data[cursor] = U8(value);
+    data[cursor] = U8(magnitude);
     break;
   case 2:
     Data::copy(
         data + cursor,
-        Data::ensure_endian<native_endian, stream_endian, U16>(value));
+        Data::ensure_endian<native_endian, stream_endian, U16>(magnitude));
     break;
   case 4:
     Data::copy(
         data + cursor,
-        Data::ensure_endian<native_endian, stream_endian, U32>(value));
+        Data::ensure_endian<native_endian, stream_endian, U32>(magnitude));
     break;
   case 8:
     Data::copy(
         data + cursor,
-        Data::ensure_endian<native_endian, stream_endian, U64>(value));
+        Data::ensure_endian<native_endian, stream_endian, U64>(magnitude));
     break;
   }
 

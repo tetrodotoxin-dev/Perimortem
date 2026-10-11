@@ -23,7 +23,6 @@ class Sort {
   template <typename type>
   constexpr auto operator()(Core::Access::Vector<type> access) const
       -> Core::Access::Vector<type> {
-    // Special case trivially sorted arrays.
     if (access.get_size() <= 1) {
       return access;
     }
@@ -53,7 +52,8 @@ class Sort {
           [(a_bigger_b == a_bigger_c).value + (a_bigger_c ^ b_bigger_c).value];
     };
 
-    // Spread out sampling for larger array spans.
+    // A ninther samples the complete span so clustered values do not dominate
+    // one local median.
     auto ninther_median = [&](type* data, Count size) -> Count {
       auto group = size / 8;
       auto a = branchless_median_three(data, 0, group, group * 2);
@@ -66,19 +66,16 @@ class Sort {
                           Count root_index) -> void {
       auto left = 2 * root_index + 1;
       while (left < size) {
-        // Start with the left index.
         auto largest = left;
 
         if (left + 1 < size && partition[left + 1] > partition[left]) {
           largest += 1;
         }
 
-        // Hit a point where we are already a valid heap.
         if (!(partition[largest] > partition[root_index])) {
           return;
         }
 
-        // Need to swap and decend to the next level.
         Core::Data::swap(partition[root_index], partition[largest]);
         root_index = largest;
         left = 2 * root_index + 1;
@@ -89,12 +86,10 @@ class Sort {
     // exhausted. Heapsort is used since it guarantees O(n log n) work even
     // after pathological pivot choices and only requires stack memory.
     auto heap_sort = [&heapify_max](type* partition, Count size) -> void {
-      // Heapify the partition.
       for (Count i = size / 2; i > 0; i--) {
         heapify_max(partition, size, i - 1);
       }
 
-      // Perform the actual heap sort.
       for (Count i = size - 1; i > 0; i--) {
         Core::Data::swap(partition[0], partition[i]);
         heapify_max(partition, i, 0);
@@ -122,7 +117,6 @@ class Sort {
       }
     };
 
-    // Quick sort partitioning.
     auto quick_partition = [](type* partition, Count partition_size,
                               Count pivot_index) -> Count {
       Core::Data::swap(partition[pivot_index], partition[partition_size - 1]);
@@ -177,11 +171,9 @@ class Sort {
       }
     };
 
-    // Perform the introsort to start fixing the array.
     // 2 times the log2 depth gives us the cutoff point for heap sorting.
     introsort(data, size, 2 * Core::Scalar::log2(size));
 
-    // Fix residual fragmented chunks in the array.
     insertion_sort(data, size);
     return access;
   }

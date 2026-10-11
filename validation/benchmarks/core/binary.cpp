@@ -19,7 +19,6 @@ using namespace Toolchain::Validation;
 
 static Static::Bytes<1 << 12> io_buffer;
 
-// Make sure keys are randomized
 auto fill_buffer() -> void {
   Count* data = Data::cast<Count>(io_buffer.get_data());
   for (Count i = 0; i < io_buffer.get_size() / 8; i++) {

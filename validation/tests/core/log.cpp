@@ -46,7 +46,7 @@ static auto last_entry() -> View::Bytes {
 }
 
 static auto contains(View::Bytes haystack, View::Bytes message) -> Bool {
-  return Algorithm::Search::find(haystack, message) != Count(-1);
+  return Algorithm::Search::match(haystack, message) != Count(-1);
 }
 
 static auto has_valid_header(View::Bytes entry) -> Bool {

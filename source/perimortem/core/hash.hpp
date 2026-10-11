@@ -9,6 +9,11 @@
 
 namespace Perimortem::Core {
 
+// Hash produces 64 bit values for byte sequences, numeric values, pointers, and
+// types with their own `hash` operation. Byte input uses two accumulation lanes
+// and includes its length before the lanes are combined. These values serve
+// runtime lookup tables and provide neither cryptographic protection nor a
+// persistent identity contract.
 class Hash {
   // Since memcpy isn't constexpr but is guaranteed to give us the optimum
   // runtime logic but Clang isn't smart enough to do the substitution for the
@@ -72,7 +77,8 @@ class Hash {
       small_hash_value = const_values[0] ^ (small_hash_value + const_values[3]);
       small_hash_value *= const_values[2];
 
-      // Avalanche the small hash.
+      // Mix both the packed bytes and key length so short keys with common
+      // prefixes do not retain correlated low bits.
       value = small_hash_value ^ (bytes.get_size() * const_values[0]);
       value ^= value >> 27;
       value *= const_values[2];
@@ -89,7 +95,8 @@ class Hash {
       return;
     }
 
-    // Prep blocks to prime cascade.
+    // Seed each accumulation lane independently before the bulk loop mixes
+    // source words into it.
     U64 result[block_stride];
     const Count block_count = bytes.get_size() / sizeof(U64);
     for (Count i = 0; i < block_stride; i++) {
@@ -123,8 +130,9 @@ class Hash {
     // bytes with three possible cases:
     Count left_over = bytes.get_size() & (sizeof(U64) * block_stride - 1);
     switch (left_over) {
-    // Case 1: We need to under read the higher 64bits and shift, then we can
-    //         fallthrough to case 2.
+    // Tails longer than eight bytes load their final word first. Shifting
+    // removes bytes belonging to the leading word before control falls through
+    // to consume that word.
     case 15:
     case 14:
     case 13:
@@ -147,7 +155,6 @@ class Hash {
 
     // Case 2: We have exactly 8 bytes left so read them in a single read.
     case 8: {
-      // Read the exact 8 bytes left over.
       U64 remainder[1];
       memcpy_64(remainder, data);
 
@@ -164,7 +171,8 @@ class Hash {
     case 3:
     case 2:
     case 1: {
-      // Read the exact 8 bytes left over.
+      // The bulk loop leaves `data` at its next block boundary. Reading back
+      // from that point keeps the final partial word inside the source.
       U64 remainder[1];
       memcpy_64(remainder, data + left_over - sizeof(U64));
 
@@ -181,7 +189,9 @@ class Hash {
       break;
     }
 
-    // Perform final avalanche
+    // Include the source length while avalanching each lane, then fold both
+    // lanes into one result. Length separates equal prefixes with different
+    // extents.
     U64 final_result = result[0];
     for (Count i = 0; i < block_stride; i++) {
       result[i] ^= bytes.get_size() * const_values[0];
@@ -208,7 +218,8 @@ class Hash {
   Hash(pointer_type* pointer)
       : value(hash_numeric(U64(reinterpret_cast<CppSize>(pointer)))) {}
 
-  // Escape constructor for custom types.
+  // Nonpointer types can supply a type specific hash without exposing a byte
+  // representation.
   template <typename hashable_type>
     requires(!__is_pointer(hashable_type))
   constexpr Hash(const hashable_type& obj) {
@@ -217,7 +228,8 @@ class Hash {
 
   constexpr auto get_value() const -> U64 { return value; }
 
-  // Rehash with an avalanch.
+  // Avalanche another numeric hash before combining it with this value. The
+  // ordered mixing prevents composite fields from collapsing to a plain XOR.
   constexpr auto Rehash(U64 hash) const -> U64 {
     U64 result;
 

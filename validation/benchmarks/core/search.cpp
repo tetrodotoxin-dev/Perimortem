@@ -51,7 +51,7 @@ static Harness AlgorithmSearch = {
 VALIDATION_BENCHMARK(AlgorithmSearch, 2_byte_x1024) {
   Count result = 0;
   for (Count i = 0; i < search_batch; i++) {
-    result += Algorithm::Search::find(source.get_view(), "if"_view);
+    result += Algorithm::Search::match(source.get_view(), "if"_view);
   }
 
   Benchmark::prevent_optimization(result);
@@ -60,7 +60,7 @@ VALIDATION_BENCHMARK(AlgorithmSearch, 2_byte_x1024) {
 VALIDATION_BENCHMARK(AlgorithmSearch, 4_byte_x1024) {
   Count result = 0;
   for (Count i = 0; i < search_batch; i++) {
-    result += Algorithm::Search::find(source.get_view(), "func"_view);
+    result += Algorithm::Search::match(source.get_view(), "func"_view);
   }
 
   Benchmark::prevent_optimization(result);
@@ -69,7 +69,7 @@ VALIDATION_BENCHMARK(AlgorithmSearch, 4_byte_x1024) {
 VALIDATION_BENCHMARK(AlgorithmSearch, 6_byte_x1024) {
   Count result = 0;
   for (Count i = 0; i < search_batch; i++) {
-    result += Algorithm::Search::find(source.get_view(), "struct"_view);
+    result += Algorithm::Search::match(source.get_view(), "struct"_view);
   }
 
   Benchmark::prevent_optimization(result);
@@ -78,7 +78,7 @@ VALIDATION_BENCHMARK(AlgorithmSearch, 6_byte_x1024) {
 VALIDATION_BENCHMARK(AlgorithmSearch, 12_byte_x1024) {
   Count result = 0;
   for (Count i = 0; i < search_batch; i++) {
-    result += Algorithm::Search::find(source.get_view(), "alias Pipeli"_view);
+    result += Algorithm::Search::match(source.get_view(), "alias Pipeli"_view);
   }
 
   Benchmark::prevent_optimization(result);
@@ -87,7 +87,7 @@ VALIDATION_BENCHMARK(AlgorithmSearch, 12_byte_x1024) {
 VALIDATION_BENCHMARK(AlgorithmSearch, 62_byte_x1024) {
   Count result = 0;
   for (Count i = 0; i < search_batch; i++) {
-    result += Algorithm::Search::find(
+    result += Algorithm::Search::match(
         source.get_view(),
         "init pass = RenderPass { width: 1920, height: 1080, depth: 4 }"_view);
   }
@@ -98,7 +98,7 @@ VALIDATION_BENCHMARK(AlgorithmSearch, 62_byte_x1024) {
 VALIDATION_BENCHMARK(AlgorithmSearch, total_miss_x1024) {
   Count result = 0;
   for (Count i = 0; i < search_batch; i++) {
-    result += Algorithm::Search::find(source.get_view(), "zarningz"_view);
+    result += Algorithm::Search::match(source.get_view(), "zarningz"_view);
   }
 
   Benchmark::prevent_optimization(result);
@@ -107,7 +107,7 @@ VALIDATION_BENCHMARK(AlgorithmSearch, total_miss_x1024) {
 VALIDATION_BENCHMARK(AlgorithmSearch, near_miss_x1024) {
   Count result = 0;
   for (Count i = 0; i < search_batch; i++) {
-    result += Algorithm::Search::find(source.get_view(), "stract"_view);
+    result += Algorithm::Search::match(source.get_view(), "stract"_view);
   }
 
   Benchmark::prevent_optimization(result);
@@ -116,7 +116,7 @@ VALIDATION_BENCHMARK(AlgorithmSearch, near_miss_x1024) {
 VALIDATION_BENCHMARK(AlgorithmSearch, near_miss_large_x1024) {
   Count result = 0;
   for (Count i = 0; i < search_batch; i++) {
-    result += Algorithm::Search::find(
+    result += Algorithm::Search::match(
         source.get_view(),
         "init pass = RendeaPass { width: 1920, height: 1080, depth: 5 }"_view);
   }

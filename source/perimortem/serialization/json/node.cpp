@@ -403,10 +403,8 @@ auto Json::Node::parse(
           continue;
         }
 
-        // Parse the name string.
         auto name = parse_string(source, position);
 
-        // :
         position++;
 
         // Try to parse the child and if it fails propagate errors up the stack
@@ -430,8 +428,14 @@ auto Json::Node::parse(
       Managed::Vector<Json::Node> array(arena);
       position++;
       while (position < source.get_size()) {
-        if (ignored_characters(source[position])) {
+        while (position < source.get_size() &&
+               ignored_characters(source[position])) {
           position++;
+        }
+
+        if (position >= source.get_size()) {
+          set();
+          return Count(-1);
         }
 
         if (source[position] == ']') {
@@ -450,8 +454,13 @@ auto Json::Node::parse(
         array.insert(child);
       }
 
-      // If we are past the end then this is safe as we null out anyway.
-      // If we are at a valid closing ']' then this consumes it.
+      if (position >= source.get_size()) {
+        set();
+        return Count(-1);
+      }
+
+      // Publish collected elements only after observing the closing bracket.
+      // Truncated input leaves this node null and propagates failure.
       set(array.get_view());
       position++;
       return position;
@@ -472,7 +481,6 @@ auto Json::Node::parse(
         return Count(-1);
       }
 
-      // Move past "true"
       position += true_view.get_size();
 
       set(True);
@@ -487,7 +495,6 @@ auto Json::Node::parse(
         return Count(-1);
       }
 
-      // Move past "false"
       position += false_view.get_size();
 
       set(False);
@@ -520,8 +527,8 @@ auto Json::Node::parse(
       R64 float_value = value;
       U64 divisor = 1;
 
-      // Try to perserve precision by using fixed point and only convert into
-      // floating point once.
+      // Accumulate fractional digits and their decimal divisor together. One
+      // division then places the accumulated digits after the radix point.
       while (position < source.get_size() && source[position] >= '0' &&
              source[position] <= '9') {
         float_value *= 10;
@@ -673,9 +680,7 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
     }
   };
 
-  // Start the format chain.
   inplace_format(stream, *this);
 
-  // Return the output buffer.
   return output;
 }

@@ -105,7 +105,8 @@ static constexpr Static::Bytes<9> single_compressed = {{
   0x43,
 }};
 
-// hello_compressed with the last byte of its checksum flipped
+// Corrupt only the Adler32 trailer so inflation reaches checksum validation
+// after decoding an otherwise valid payload.
 
 #if PERI_DEBUG
 
@@ -146,7 +147,6 @@ VALIDATION_TEST(CompressionTests, stored_blocks) {
 VALIDATION_TEST(CompressionTests, back_references) {
   auto out = Deflate::inflate(repeat_compressed);
 
-  // Check that ABCD bytes are repeated 50 times.
   ASSERT_EQ(out.get_size(), 100);
   for (Count i = 0; i < 100; i += 2) {
     EXPECT_EQ(out[i + 0], U8(0xAB));

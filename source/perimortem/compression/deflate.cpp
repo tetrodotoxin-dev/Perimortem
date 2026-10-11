@@ -146,7 +146,10 @@ class Token {
   U8 literal;
 };
 
-// A single entry in a run length encoded code length sequence.
+// RleEntry stores one symbol from a dynamic header's compressed code length
+// sequence. Symbols zero through fifteen carry a length directly. Symbols
+// sixteen through eighteen combine extra bits and a value to repeat the
+// previous length or a run of zeros.
 class RleEntry {
  public:
   RleEntry() : extra_value(0), symbol(0), extra_bits(0) {}
@@ -163,9 +166,9 @@ class RleEntry {
   U8 extra_bits;
 };
 
-// Validates all the header data in one go.
-// The checks are light weight compared to the other checks so it should always
-// be run, even on release builds.
+// Admits only a complete zlib header using Deflate with a valid FCHECK value
+// and no preset dictionary. These stream boundaries apply in release builds
+// before the bit reader consumes payload data.
 constexpr auto validate_header(View::Bytes source) -> Bool {
   constexpr Count deflate_min_input_size = 7;
   constexpr U8 deflate_compression_method = 8;
@@ -200,12 +203,14 @@ constexpr auto validate_header(View::Bytes source) -> Bool {
   return True;
 }
 
-// Writes the two header bytes.
+// Emit the zlib CMF and FLG bytes for Deflate with a 32 KiB window, default
+// compression policy, no dictionary, and a valid FCHECK remainder.
 constexpr auto write_header(Dynamic::Bytes& output) -> void {
   output.concat("\x78\x9c"_view);
 }
 
-// Adler 32 calculation for checksum operations.
+// Compute the zlib trailer's Adler32 over uncompressed bytes. The standard 5552
+// byte batches amortize modulus operations while bounding both running sums.
 constexpr auto calculate_checksum(View::Bytes data) -> U32 {
   constexpr U64 adler_modulus = 65521;
   constexpr Count batch_size = 5552;
@@ -266,7 +271,6 @@ constexpr auto inflate_symbols(
       continue;
     }
 
-    // Complete the string if the end symbol is found.
     if (symbol == end_of_block_symbol) {
       return True;
     }
@@ -293,8 +297,8 @@ constexpr auto inflate_symbols(
       6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13,
     }};
 
-    // Caculate the offset for the match and if it's outside our currently
-    // proccessed output then kill the inflate.
+    // A Deflate distance addresses bytes already emitted. Reject a distance
+    // before the output start prior to subtraction or output growth.
     Count match_offset = distance_base[distance_symbol] +
                          reader.read_code(distance_extra_bits[distance_symbol]);
     if (match_offset > output.get_size()) [[unlikely]] {
@@ -310,14 +314,16 @@ constexpr auto inflate_symbols(
 
     auto bytes = output.get_access().get_data();
 
-    // Ranges that do not overlap permit one bulk copy.
+    // A distance at least as large as the match length places the complete
+    // source before its destination, permitting one bulk copy.
     if (match_offset >= match_length) {
       Data::copy(bytes + write_start, bytes + copy_start, match_length);
       continue;
     }
 
-    // For overlapping repeated copies we have to copy the stride forward in
-    // match_offset chunks.
+    // Deflate permits overlap by repeating the `match_offset` seed bytes. Copy
+    // that seed into forward chunks rather than requesting one overlapping bulk
+    // transfer.
     for (Count i = 0; i < match_length; i += match_offset) {
       Data::copy(
           bytes + write_start + i, bytes + copy_start,
@@ -716,9 +722,9 @@ constexpr auto collect_lz77_tokens(
     Dynamic::Vector<Token>& tokens,
     Static::Vector<U32, deflate_literal_len_count>& literal_len_frequencies,
     Static::Vector<U32, deflate_distance_count>& distance_frequencies) -> void {
-  // Matches at least this long are emitted immediately without looking ahead.
-  // the extra chain search is wasted work when the current match is already
-  // good. Same heuristic as zlib level 6.
+  // Matches at least this long emit immediately because another chain search is
+  // unlikely to recover its cost. The threshold follows the zlib level 6 lazy
+  // matching heuristic.
   constexpr Count lazy_match_threshold = 32;
 
   Count position = 0;
@@ -804,10 +810,12 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
     return deflate_fixed(source, search_depth);
   }
 
-  // Create lz77 and start populating frequency tables.
   Lz77 lz77;
   Static::Vector<U32, deflate_distance_count> distance_frequencies;
   Static::Vector<U32, deflate_literal_len_count> literal_len_frequencies;
+
+  // Every block emits symbol 256 as its terminator. Seed that frequency so
+  // length generation cannot omit its code before any source tokens are read.
   literal_len_frequencies[256] = 1;
 
   // Single lz77 pass to collect tokens and count frequencies simultaneously.

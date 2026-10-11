@@ -63,10 +63,9 @@ class Bytes {
   // invalid state.
   EXPORTED(PERIMORTEM) auto forgetful_resize(Count required_size) -> void;
 
-  // Shrinks the container from the front by a number of bytes.
-  //
-  // If the container is shrunk more than it's current size the call is
-  // equivilant to a clear.
+  // Removes up to `bytes_to_remove` bytes from the front while preserving the
+  // order of the remaining bytes. A request at least as large as the current
+  // size leaves the container empty.
   EXPORTED(PERIMORTEM) auto shrink(Count bytes_to_remove) -> void;
 
   EXPORTED(PERIMORTEM) auto operator[](Count index) const -> U8;
