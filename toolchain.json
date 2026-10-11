@@ -1,6 +1,7 @@
 {
   "raw_allocation_files": [
     "source/perimortem/memory/allocator/bibliotheca.cpp",
-    "source/perimortem/memory/allocator/compiler.hpp"
+    "source/perimortem/memory/allocator/compiler.hpp",
+    "source/perimortem/memory/global/bytes.cpp"
   ]
 }

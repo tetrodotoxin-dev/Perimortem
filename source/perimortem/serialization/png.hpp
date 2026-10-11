@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/matrix.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 #include "perimortem/serialization/rgba8.hpp"
 
 namespace Perimortem::Serialization {
@@ -58,7 +58,7 @@ class Png {
   //   zoneplate        33 MB/s          7 MB/s       1.40 (much bigger)
   //
   static EXPORTED(PERIMORTEM) auto encode(const Memory::Matrix<Rgba8>& image)
-      -> Memory::Dynamic::Bytes;
+      -> Memory::Thread::Bytes;
 };
 
 }  // namespace Perimortem::Serialization

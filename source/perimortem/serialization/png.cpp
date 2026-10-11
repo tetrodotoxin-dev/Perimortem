@@ -425,13 +425,13 @@ constexpr auto apply_row_filter(
 // Applies adaptive PNG filtering to the source pixels, scoring all five filter
 // types per row and selecting the option with the lowest residual.
 constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
-    -> Dynamic::Bytes {
+    -> Thread::Bytes {
   const auto row_stride =
       Count(image.get_column_count()) * Rgba8::get_byte_count();
   const auto output_size = Count(image.get_row_count()) * (1 + row_stride);
   const auto raw_bytes = Data::cast<U8>(image.get_values().get_data());
 
-  Dynamic::Bytes output(output_size);
+  Thread::Bytes output(output_size);
   output.forgetful_resize(output_size);
 
   auto* output_data = output.get_access().get_data();
@@ -761,12 +761,11 @@ constexpr auto process_data(
   // throughput.
 #if PERI_DEBUG
 
-  Dynamic::Bytes filtered_rows =
-      Deflate::inflate(source, decompressed_capacity);
+  Thread::Bytes filtered_rows = Deflate::inflate(source, decompressed_capacity);
 
 #else
 
-  Dynamic::Bytes filtered_rows =
+  Thread::Bytes filtered_rows =
       Deflate::inflate_without_checksum(source, decompressed_capacity);
 
 #endif
@@ -792,7 +791,7 @@ constexpr auto process_data(
   } else {
     // Other channel layouts need an intermediate byte buffer before conversion
     // can fill the Rgba8 vector.
-    Dynamic::Bytes raw_pixels;
+    Thread::Bytes raw_pixels{};
     raw_pixels.forgetful_resize(*pixel_count * bytes_per_pixel);
     if (!reconstruct_filter(
             filtered_rows.get_view(), info.get_width(), info.get_height(),
@@ -834,7 +833,7 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
   // copying the entire compressed stream, but if any additional IDAT chunks are
   // found we switch to merging them into a dynamic buffer.
   View::Bytes binary_data{};
-  Dynamic::Bytes merged_data;
+  Thread::Bytes merged_data{};
   View::Bytes palette{};
 
   // Walk the chunk sequence collecting all IDAT payloads plus the optional
@@ -884,13 +883,13 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
           [](Matrix<Rgba8>& image) { return Data::take(image); });
 }
 
-auto Png::encode(const Matrix<Rgba8>& image) -> Dynamic::Bytes {
+auto Png::encode(const Matrix<Rgba8>& image) -> Thread::Bytes {
   View::Vector<Rgba8> pixels = image.get_values();
 
   // PNG requires at least one scanline, and adaptive filtering reads row zero.
   // An empty Matrix therefore has no encodable representation here.
   if (pixels.is_empty()) [[unlikely]] {
-    return Dynamic::Bytes();
+    return Thread::Bytes();
   }
 
   // Filtering adds one byte per row. Matrix's pixel allocation bound does not
@@ -899,16 +898,16 @@ auto Png::encode(const Matrix<Rgba8>& image) -> Dynamic::Bytes {
   const Count max_bytes = ~CppSize{};
   if (row_stride >= max_bytes ||
       image.get_row_count() > max_bytes / (row_stride + 1)) {
-    return Dynamic::Bytes();
+    return Thread::Bytes();
   }
 
   // Filter the rows using adaptive PNG filtering then deflate the output.
-  Dynamic::Bytes filtered_rows = apply_adaptive_filtering(image);
+  Thread::Bytes filtered_rows = apply_adaptive_filtering(image);
 
   // Compress using the default compression level for balanced speed vs size.
-  Dynamic::Bytes compressed = Deflate::deflate(filtered_rows.get_view());
+  Thread::Bytes compressed = Deflate::deflate(filtered_rows.get_view());
   if (compressed.is_empty()) [[unlikely]] {
-    return Dynamic::Bytes();
+    return Thread::Bytes();
   }
 
   // The compressed payload is one PNG chunk, whose length field is 32 bits.
@@ -917,11 +916,11 @@ auto Png::encode(const Matrix<Rgba8>& image) -> Dynamic::Bytes {
       png_signature.get_size() + ImageInfo::size + chunk_metadata_size * 3;
   if (compressed.get_size() > ~U32{} ||
       compressed.get_size() > max_bytes - framing_size) {
-    return Dynamic::Bytes();
+    return Thread::Bytes();
   }
 
   const Count output_size = framing_size + compressed.get_size();
-  Dynamic::Bytes output(output_size);
+  Thread::Bytes output(output_size);
   output.forgetful_resize(output_size);
 
   auto data = output.get_access();

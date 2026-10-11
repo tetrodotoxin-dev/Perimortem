@@ -457,18 +457,18 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
   }
 }
 
-auto Base64::decode(View::Bytes source) -> Dynamic::Bytes {
+auto Base64::decode(View::Bytes source) -> Thread::Bytes {
   // Decoding consumes complete four byte groups. Reject a partial group before
   // output allocation or vector reads.
   if (source.get_size() < 4 || source.get_size() % 4 != 0) {
-    return Dynamic::Bytes();
+    return Thread::Bytes();
   }
 
   Count size = (source.get_size() / 4) * 3;
 
   // Reserve the worst case decoded size plus tail scratch. The final resize
   // removes padding bytes after vector and scalar writes finish.
-  Memory::Dynamic::Bytes bytes;
+  Memory::Thread::Bytes bytes;
   bytes.forgetful_resize(size + decode_extra_bytes);
 
   U8* text = bytes.get_access().get_data();
@@ -491,14 +491,14 @@ auto Base64::decode(Allocator::Arena& arena, View::Bytes source)
   return View::Bytes(text, actual_size);
 }
 
-auto Base64::encode(View::Bytes source) -> Dynamic::Bytes {
+auto Base64::encode(View::Bytes source) -> Thread::Bytes {
   if (source.is_empty()) {
-    return Dynamic::Bytes();
+    return Thread::Bytes();
   }
 
   const Count left_over = source.get_size() % 3;
   const Count output_size = (source.get_size() / 3) * 4 + (left_over ? 4 : 0);
-  Dynamic::Bytes bytes;
+  Thread::Bytes bytes{};
   bytes.forgetful_resize(output_size);
   vectorize_encode(bytes.get_access(), source);
   return bytes;

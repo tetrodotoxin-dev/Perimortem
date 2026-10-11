@@ -7,7 +7,7 @@
 
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -30,7 +30,7 @@ VALIDATION_TEST(SystemPath, normalize) {
 
 VALIDATION_TEST(SystemPath, normalize_in_arena) {
   Allocator::Arena arena;
-  Dynamic::Bytes authored("unit\\./folder//file.ttx"_view);
+  Thread::Bytes authored("unit\\./folder//file.ttx"_view);
   auto normalized = Path::normalize(arena, authored);
   auto rooted = Path::normalize(arena, "/usr//local/./bin"_view);
   ASSERT(normalized);

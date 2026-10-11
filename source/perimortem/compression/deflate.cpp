@@ -205,7 +205,7 @@ constexpr auto validate_header(View::Bytes source) -> Bool {
 
 // Emit the zlib CMF and FLG bytes for Deflate with a 32 KiB window, default
 // compression policy, no dictionary, and a valid FCHECK remainder.
-constexpr auto write_header(Dynamic::Bytes& output) -> void {
+constexpr auto write_header(Thread::Bytes& output) -> void {
   output.concat("\x78\x9c"_view);
 }
 
@@ -256,7 +256,7 @@ constexpr auto inflate_symbols(
     const Huffman& literal_table,
     const Huffman& distance_table,
     BitStream::Reader& reader,
-    Dynamic::Bytes& output) -> Bool {
+    Thread::Bytes& output) -> Bool {
   constexpr U16 end_of_block_symbol = 256;
   constexpr U16 length_code_start = 257;
   while (reader.is_valid()) {
@@ -334,7 +334,7 @@ constexpr auto inflate_symbols(
   return False;
 }
 
-constexpr auto inflate_stored(BitStream::Reader& reader, Dynamic::Bytes& output)
+constexpr auto inflate_stored(BitStream::Reader& reader, Thread::Bytes& output)
     -> Bool {
   constexpr Count stored_block_header_size = 4;
   constexpr U16 stored_block_complement_check = 0xFFFF;
@@ -362,16 +362,15 @@ constexpr auto inflate_stored(BitStream::Reader& reader, Dynamic::Bytes& output)
   return True;
 }
 
-constexpr auto inflate_fixed(BitStream::Reader& reader, Dynamic::Bytes& output)
+constexpr auto inflate_fixed(BitStream::Reader& reader, Thread::Bytes& output)
     -> Bool {
   constexpr Huffman literal_table = Huffman::make_fixed_literal();
   constexpr Huffman distance_table = Huffman::make_fixed_distance();
   return inflate_symbols(literal_table, distance_table, reader, output);
 }
 
-constexpr auto inflate_dynamic(
-    BitStream::Reader& reader,
-    Dynamic::Bytes& output) -> Bool {
+constexpr auto inflate_dynamic(BitStream::Reader& reader, Thread::Bytes& output)
+    -> Bool {
   Count literal_code_count = reader.read_code(5) + 257;
   Count distance_code_count = reader.read_code(5) + 1;
   Count huffman_code_count = reader.read_code(4) + 4;
@@ -493,7 +492,7 @@ constexpr auto inflate_dynamic(
       Huffman(literal_symbols), Huffman(distance_symbols), reader, output);
 }
 
-constexpr auto write_checksum(Dynamic::Bytes& output, View::Bytes source)
+constexpr auto write_checksum(Thread::Bytes& output, View::Bytes source)
     -> void {
   U32 checksum = calculate_checksum(source);
 
@@ -558,7 +557,7 @@ constexpr auto write_lz77_block(
 constexpr auto write_deflate_footer(
     BitStream::Writer& writer,
     const Huffman& literal_table,
-    Dynamic::Bytes& output,
+    Thread::Bytes& output,
     View::Bytes source) -> void {
   constexpr Count end_of_block = 256;
   auto eob_code = literal_table.encode_symbol(end_of_block);
@@ -669,7 +668,7 @@ constexpr auto write_dynamic_block_header(
   }
 }
 
-constexpr auto deflate_stored(View::Bytes source) -> Dynamic::Bytes {
+constexpr auto deflate_stored(View::Bytes source) -> Thread::Bytes {
   constexpr Count max_stored_block_size = 1 << 16;
   constexpr Count deflate_header_size = 2;
   constexpr Count stored_block_header_size = 5;
@@ -679,7 +678,7 @@ constexpr auto deflate_stored(View::Bytes source) -> Dynamic::Bytes {
                             block_count * stored_block_header_size +
                             source.get_size() + sizeof(U32);
 
-  Dynamic::Bytes output;
+  Thread::Bytes output{};
   output.ensure_capacity(output_size);
   write_header(output);
   for (Count i = 0; i <= source.get_size();) {
@@ -709,11 +708,11 @@ constexpr auto deflate_stored(View::Bytes source) -> Dynamic::Bytes {
 }
 
 constexpr auto deflate_fixed(View::Bytes source, Count search_depth)
-    -> Dynamic::Bytes {
+    -> Thread::Bytes {
   constexpr Huffman literal_table = Huffman::make_fixed_literal();
   constexpr Huffman distance_table = Huffman::make_fixed_distance();
 
-  Dynamic::Bytes output;
+  Thread::Bytes output{};
   output.ensure_capacity(source.get_size() + 128);
   write_header(output);
 
@@ -820,7 +819,7 @@ constexpr auto emit_lz77_tokens(
 }
 
 constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
-    -> Dynamic::Bytes {
+    -> Thread::Bytes {
   if (source.is_empty()) {
     return deflate_fixed(source, search_depth);
   }
@@ -882,7 +881,7 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
     }
   }
 
-  Dynamic::Bytes output;
+  Thread::Bytes output{};
   output.ensure_capacity(source.get_size() / 2 + 1024);
   write_header(output);
 
@@ -904,13 +903,13 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
 static auto inflate_stream(
     const View::Bytes source,
     Count capacity_hint,
-    Bool checksum_required) -> Dynamic::Bytes {
+    Bool checksum_required) -> Thread::Bytes {
   if (!validate_header(source)) {
-    return Dynamic::Bytes();
+    return Thread::Bytes();
   }
 
   BitStream::Reader reader{source.slice(2, source.get_size() - 6)};
-  Dynamic::Bytes output;
+  Thread::Bytes output{};
   output.ensure_capacity(
       capacity_hint > 0 ? capacity_hint : source.get_size() * 4);
 
@@ -924,7 +923,7 @@ static auto inflate_stream(
       if (!inflate_stored(reader, output)) {
         Diagnostics::Log::error(
             "Compression: stored block decompression failed"_view);
-        return Dynamic::Bytes();
+        return Thread::Bytes();
       }
 
       break;
@@ -932,7 +931,7 @@ static auto inflate_stream(
       if (!inflate_fixed(reader, output)) {
         Diagnostics::Log::error(
             "Compression: fixed Huffman block decompression failed"_view);
-        return Dynamic::Bytes();
+        return Thread::Bytes();
       }
 
       break;
@@ -940,40 +939,40 @@ static auto inflate_stream(
       if (!inflate_dynamic(reader, output)) {
         Diagnostics::Log::error(
             "Compression: dynamic Huffman block decompression failed"_view);
-        return Dynamic::Bytes();
+        return Thread::Bytes();
       }
 
       break;
     default:
       Diagnostics::Log::error(
           "Compression: unknown block type in deflate stream"_view);
-      return Dynamic::Bytes();
+      return Thread::Bytes();
     }
   }
 
   if (!reader.is_valid()) [[unlikely]] {
-    return Dynamic::Bytes();
+    return Thread::Bytes();
   }
 
   if (checksum_required && !test_checksum(output, source)) {
-    return Dynamic::Bytes();
+    return Thread::Bytes();
   }
 
   return output;
 }
 
 auto Deflate::inflate(const View::Bytes source, Count capacity_hint)
-    -> Dynamic::Bytes {
+    -> Thread::Bytes {
   return inflate_stream(source, capacity_hint, True);
 }
 
 auto Deflate::inflate_without_checksum(
     const View::Bytes source,
-    Count capacity_hint) -> Dynamic::Bytes {
+    Count capacity_hint) -> Thread::Bytes {
   return inflate_stream(source, capacity_hint, False);
 }
 
-auto Deflate::deflate(View::Bytes source, Level level) -> Dynamic::Bytes {
+auto Deflate::deflate(View::Bytes source, Level level) -> Thread::Bytes {
   constexpr Count default_search_depth = 8;
   constexpr Count best_search_depth = 128;
   switch (level) {

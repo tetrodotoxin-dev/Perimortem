@@ -6,7 +6,7 @@
 
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -21,7 +21,7 @@ template <Count byte_length>
 static auto concat_test() -> void {
   Count size = 0;
   for (Count i = 0; i < string_batch; i++) {
-    Dynamic::Bytes buffer;
+    Thread::Bytes buffer{};
     buffer.concat(Static::Bytes<byte_length>());
     size += buffer.get_size();
   }
@@ -41,7 +41,7 @@ CONCAT_TEST(64);
 CONCAT_TEST(128);
 
 VALIDATION_BENCHMARK(StringBench, append_1024_bytes) {
-  Dynamic::Bytes buffer;
+  Thread::Bytes buffer{};
   constexpr auto append_count = 1 << 10;
   for (Count i = 0; i < append_count; i++) {
     buffer.append('0');
@@ -55,7 +55,7 @@ VALIDATION_BENCHMARK(StringBench, append_1024_bytes) {
 VALIDATION_BENCHMARK(StringBench, small_string_x1024) {
   Count size = 0;
   for (Count i = 0; i < string_batch; i++) {
-    Dynamic::Bytes buffer = "small string"_view;
+    Thread::Bytes buffer("small string"_view);
     size += buffer.get_size();
   }
 
@@ -65,7 +65,7 @@ VALIDATION_BENCHMARK(StringBench, small_string_x1024) {
 VALIDATION_BENCHMARK(StringBench, small_concat_x1024) {
   Count size = 0;
   for (Count i = 0; i < string_batch; i++) {
-    Dynamic::Bytes buffer = "small"_view;
+    Thread::Bytes buffer("small"_view);
     buffer.concat(" string"_view);
     size += buffer.get_size();
   }

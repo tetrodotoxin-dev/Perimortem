@@ -6,7 +6,7 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -106,15 +106,15 @@ VALIDATION_TEST(UtilityResult, reference) {
 }
 
 VALIDATION_TEST(UtilityResult, dynamic_value) {
-  Result<Dynamic::Bytes, ResultError> selected(Dynamic::Bytes("owned"_view));
+  Result<Thread::Bytes, ResultError> selected(Thread::Bytes("owned"_view));
 
   selected.visit(
-      [](Dynamic::Bytes& value) -> void { value.concat(" value"_view); },
+      [](Thread::Bytes& value) -> void { value.concat(" value"_view); },
       [](ResultError) {});
 
   const auto& observed = selected;
   View::Bytes value = observed.visit(
-      [](const Dynamic::Bytes& selected) { return selected.get_view(); },
+      [](const Thread::Bytes& selected) { return selected.get_view(); },
       [](ResultError) { return View::Bytes(); });
   EXPECT_TEXT(value, "owned value"_view);
 }

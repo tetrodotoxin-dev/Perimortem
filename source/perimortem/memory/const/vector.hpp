@@ -36,9 +36,9 @@ class Vector {
   }
 
   constexpr Vector(Vector&& rhs) {
-    Perimortem::Core::Data::swap(source_block, rhs.source_block);
-    Perimortem::Core::Data::swap(size, rhs.size);
-    Perimortem::Core::Data::swap(capacity, rhs.capacity);
+    Core::Data::swap(source_block, rhs.source_block);
+    Core::Data::swap(size, rhs.size);
+    Core::Data::swap(capacity, rhs.capacity);
   }
 
   constexpr auto operator=(const Vector& rhs) -> Vector& {

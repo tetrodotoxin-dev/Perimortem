@@ -6,7 +6,7 @@
 #include "perimortem/core/option.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 
 namespace Perimortem::System::Filesystem {
 
@@ -62,16 +62,16 @@ class File {
   // object. Callers may probe the Fingerprint before reusing those bytes.
   class Snapshot {
    public:
-    Snapshot(Memory::Dynamic::Bytes&& contents, Fingerprint fingerprint)
-        : contents(static_cast<Memory::Dynamic::Bytes&&>(contents)),
+    Snapshot(Memory::Thread::Bytes&& contents, Fingerprint fingerprint)
+        : contents(static_cast<Memory::Thread::Bytes&&>(contents)),
           fingerprint(fingerprint) {}
 
     constexpr auto get_contents() const -> Core::View::Bytes {
       return contents.get_view();
     }
 
-    auto take_contents() -> Memory::Dynamic::Bytes {
-      return static_cast<Memory::Dynamic::Bytes&&>(contents);
+    auto take_contents() -> Memory::Thread::Bytes {
+      return static_cast<Memory::Thread::Bytes&&>(contents);
     }
 
     constexpr auto get_fingerprint() const -> Fingerprint {
@@ -79,7 +79,7 @@ class File {
     }
 
    private:
-    Memory::Dynamic::Bytes contents;
+    Memory::Thread::Bytes contents;
     Fingerprint fingerprint;
   };
 
@@ -104,7 +104,7 @@ class File {
     // Member reads and fingerprints return None for absence and I/O failure.
     // The caller that requested the path decides whether and how to log them.
     EXPORTED(PERIMORTEM) auto read(Core::View::Bytes relative_path) const
-        -> Core::Option<Memory::Dynamic::Bytes>;
+        -> Core::Option<Memory::Thread::Bytes>;
     EXPORTED(PERIMORTEM) auto read_snapshot(
         Core::View::Bytes relative_path) const -> Core::Option<Snapshot>;
     EXPORTED(PERIMORTEM) auto fingerprint(Core::View::Bytes relative_path) const
@@ -126,11 +126,11 @@ class File {
    private:
     Root(Core::View::Bytes location) : location(location) {}
 
-    Memory::Dynamic::Bytes location;
+    Memory::Thread::Bytes location;
   };
 
   static EXPORTED(PERIMORTEM) auto read(Core::View::Bytes location)
-      -> Core::Option<Memory::Dynamic::Bytes>;
+      -> Core::Option<Memory::Thread::Bytes>;
   // Reads into the caller Arena and returns a View over that allocation. The
   // View remains valid until the Arena resets or is destroyed.
   static EXPORTED(PERIMORTEM) auto read(

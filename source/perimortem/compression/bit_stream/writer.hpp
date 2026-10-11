@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 
 namespace Perimortem::Compression::BitStream {
 
@@ -21,7 +21,7 @@ namespace Perimortem::Compression::BitStream {
 // a zero overhead alias for write_bits.
 class Writer {
  public:
-  Writer(Memory::Dynamic::Bytes& output) : output(output) {}
+  Writer(Memory::Thread::Bytes& output) : output(output) {}
 
   // Write `length` bits of `value` least significant bit first (extra bits,
   // block headers).
@@ -33,7 +33,7 @@ class Writer {
  private:
   auto drain() -> void;
 
-  Memory::Dynamic::Bytes& output;
+  Memory::Thread::Bytes& output;
   U64 accumulator = 0;
   Count bits = 0;
 };

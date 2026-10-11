@@ -7,7 +7,7 @@
 
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 #include "validation/tests/memory/hashable.hpp"
 
 using namespace Perimortem::Memory;
@@ -189,28 +189,34 @@ VALIDATION_TEST(DynamicSet, insert_stress_test) {
 }
 
 VALIDATION_TEST(DynamicSet, dynamic_keys) {
-  Dynamic::Set<Dynamic::Bytes> values;
+  Dynamic::Set<Thread::Bytes> values;
+  Thread::Bytes hello("Hello"_view);
+  Thread::Bytes world("World"_view);
+  Thread::Bytes missing("Missing"_view);
 
-  EXPECT(values.insert("Hello"_view));
-  EXPECT(values.insert("World"_view));
-  EXPECT(!values.insert("Hello"_view));
-  EXPECT(values.contains("Hello"_view));
-  EXPECT(values.contains("World"_view));
-  EXPECT(!values.contains("Missing"_view));
+  EXPECT(values.insert(hello));
+  EXPECT(values.insert(world));
+  EXPECT(!values.insert(hello));
+  EXPECT(values.contains(hello));
+  EXPECT(values.contains(world));
+  EXPECT(!values.contains(missing));
   EXPECT_EQ(values.get_size(), 2);
 }
 
 VALIDATION_TEST(DynamicSet, remove_dynamic) {
-  Dynamic::Set<Dynamic::Bytes> values;
+  Dynamic::Set<Thread::Bytes> values;
+  Thread::Bytes hello("Hello"_view);
+  Thread::Bytes world("World"_view);
+  Thread::Bytes longer("Longer test string"_view);
 
-  values.insert("Hello"_view);
-  values.insert("World"_view);
-  values.insert("Longer test string"_view);
+  values.insert(hello);
+  values.insert(world);
+  values.insert(longer);
 
-  EXPECT(values.remove("World"_view));
-  EXPECT(values.contains("Hello"_view));
-  EXPECT(!values.contains("World"_view));
-  EXPECT(values.contains("Longer test string"_view));
+  EXPECT(values.remove(world));
+  EXPECT(values.contains(hello));
+  EXPECT(!values.contains(world));
+  EXPECT(values.contains(longer));
   EXPECT_EQ(values.get_size(), 2);
 }
 
@@ -304,8 +310,8 @@ VALIDATION_TEST(DynamicSet, leak_test) {
   auto pre_test_memory = Allocator::Bibliotheca::allocated_memory();
 
   {
-    Dynamic::Set<Dynamic::Bytes> memory_intensive;
-    Dynamic::Bytes source;
+    Dynamic::Set<Thread::Bytes> memory_intensive;
+    Thread::Bytes source{};
     for (Count i = 0; i < 100; i++) {
       source.append('A');
       memory_intensive.insert(source);
@@ -325,14 +331,16 @@ VALIDATION_TEST(DynamicSet, leak_test) {
   }
 
   {
-    Dynamic::Set<Dynamic::Bytes> first;
-    Dynamic::Set<Dynamic::Bytes> second;
+    Dynamic::Set<Thread::Bytes> first;
+    Dynamic::Set<Thread::Bytes> second;
+    Thread::Bytes old_block("old block"_view);
+    Thread::Bytes new_block("new block"_view);
 
-    first.insert("old block"_view);
-    second.insert("new block"_view);
-    first = static_cast<Dynamic::Set<Dynamic::Bytes>&&>(second);
-    ASSERT(first.contains("new block"_view));
-    ASSERT(!first.contains("old block"_view));
+    first.insert(old_block);
+    second.insert(new_block);
+    first = static_cast<Dynamic::Set<Thread::Bytes>&&>(second);
+    ASSERT(first.contains(new_block));
+    ASSERT(!first.contains(old_block));
   }
 
   auto post_test_memory = Allocator::Bibliotheca::allocated_memory();

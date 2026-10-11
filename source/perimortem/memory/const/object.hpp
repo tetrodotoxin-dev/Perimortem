@@ -29,7 +29,7 @@ class Object {
   }
 
   consteval Object(Object&& rhs) {
-    Perimortem::Core::Data::swap(source_block, rhs.source_block);
+    Core::Data::swap(source_block, rhs.source_block);
   }
 
   consteval auto operator=(const Object& rhs) -> Object& {
@@ -51,7 +51,7 @@ class Object {
   }
 
   consteval auto operator=(Object&& rhs) -> Object& {
-    Perimortem::Core::Data::swap(source_block, rhs.source_block);
+    Core::Data::swap(source_block, rhs.source_block);
     return *this;
   }
 

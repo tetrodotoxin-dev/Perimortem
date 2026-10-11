@@ -8,8 +8,8 @@
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/writer/binary.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 #include "perimortem/serialization/stream/binary.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
@@ -23,8 +23,8 @@ static Harness SerializationStream = {
 };
 
 VALIDATION_TEST(SerializationStream, binary_endian) {
-  Dynamic::Bytes output;
-  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> writer(output);
+  Thread::Bytes output{};
+  Stream::Binary<Data::ByteOrder::Little, Thread::Bytes> writer(output);
 
   writer << U16(0x1234) << U32(0xAABBCCDD) << "OK"_view;
 
@@ -40,8 +40,8 @@ VALIDATION_TEST(SerializationStream, binary_endian) {
 }
 
 VALIDATION_TEST(SerializationStream, big_endian) {
-  Dynamic::Bytes output;
-  Stream::Binary<Data::ByteOrder::Big, Dynamic::Bytes> writer(output);
+  Thread::Bytes output{};
+  Stream::Binary<Data::ByteOrder::Big, Thread::Bytes> writer(output);
 
   writer << U16(0x1234) << U32(0xAABBCCDD);
 
@@ -60,16 +60,16 @@ VALIDATION_TEST(SerializationStream, binary_reals) {
       expected.get_access());
   expected_writer << R32(12.5) << R64(-0.125);
 
-  Dynamic::Bytes output;
-  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> writer(output);
+  Thread::Bytes output{};
+  Stream::Binary<Data::ByteOrder::Little, Thread::Bytes> writer(output);
   writer << R32(12.5) << R64(-0.125);
 
   EXPECT(output.get_view() == expected.get_view());
 }
 
 VALIDATION_TEST(SerializationStream, binary_appends) {
-  Dynamic::Bytes output("prefix"_view);
-  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> writer(output);
+  Thread::Bytes output("prefix"_view);
+  Stream::Binary<Data::ByteOrder::Little, Thread::Bytes> writer(output);
 
   writer << View::Bytes() << U16(0x1234);
 
@@ -81,7 +81,7 @@ VALIDATION_TEST(SerializationStream, binary_appends) {
 
 VALIDATION_TEST(SerializationStream, managed_write) {
   Allocator::Arena arena;
-  Managed::Bytes output(arena);
+  Managed::Bytes output{arena};
   Stream::Binary<Data::ByteOrder::Little, Managed::Bytes> writer(output);
 
   writer << U8(0x7F) << U16(0x1234);
@@ -98,8 +98,8 @@ VALIDATION_TEST(SerializationStream, vector_write) {
     U16(0x0304),
     U16(0x0506),
   }};
-  Dynamic::Bytes output;
-  Stream::Binary<Data::ByteOrder::Big, Dynamic::Bytes> writer(output);
+  Thread::Bytes output{};
+  Stream::Binary<Data::ByteOrder::Big, Thread::Bytes> writer(output);
 
   writer << values.get_view();
 
@@ -118,8 +118,8 @@ VALIDATION_TEST(SerializationStream, native_vector) {
     U32(0x11223344),
     U32(0xAABBCCDD),
   }};
-  Dynamic::Bytes output;
-  Stream::Binary<Data::ByteOrder::Native, Dynamic::Bytes> writer(output);
+  Thread::Bytes output{};
+  Stream::Binary<Data::ByteOrder::Native, Thread::Bytes> writer(output);
 
   writer << values.get_view();
 
@@ -128,8 +128,8 @@ VALIDATION_TEST(SerializationStream, native_vector) {
 }
 
 VALIDATION_TEST(SerializationStream, textual_api) {
-  Dynamic::Bytes output;
-  Stream::Textual<Dynamic::Bytes> writer(output);
+  Thread::Bytes output{};
+  Stream::Textual<Thread::Bytes> writer(output);
 
   writer << "value="_view << U32(120000) << ","_view << S32(-31) << " "_view
          << True;
@@ -138,8 +138,8 @@ VALIDATION_TEST(SerializationStream, textual_api) {
 }
 
 VALIDATION_TEST(SerializationStream, textual_appends) {
-  Dynamic::Bytes output("prefix="_view);
-  Stream::Textual<Dynamic::Bytes> writer(output);
+  Thread::Bytes output("prefix="_view);
+  Stream::Textual<Thread::Bytes> writer(output);
 
   writer << U8(42) << ";payload"_view;
 
@@ -148,7 +148,7 @@ VALIDATION_TEST(SerializationStream, textual_appends) {
 
 VALIDATION_TEST(SerializationStream, managed_textual) {
   Allocator::Arena arena;
-  Managed::Bytes output(arena);
+  Managed::Bytes output{arena};
   Stream::Textual<Managed::Bytes> writer(output);
 
   writer << R32(12.5) << " "_view << False;

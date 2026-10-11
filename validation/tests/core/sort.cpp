@@ -6,7 +6,7 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -43,7 +43,7 @@ class SortBytes {
   }
 
  private:
-  Dynamic::Bytes bytes;
+  Thread::Bytes bytes{};
 };
 
 static Harness AlgoSort = {
@@ -139,7 +139,7 @@ VALIDATION_TEST(AlgoSort, dynamic_types) {
   auto sorted = Algorithm::sort(Access::Vector(test));
   auto* sorted_data = sorted.get_data();
 
-  Dynamic::Bytes validate = {};
+  Thread::Bytes validate{};
   for (Count i = 0; i < item_count; i++) {
     validate = "test_string #"_view;
     validate.append(U8('0' + (i / 10)));

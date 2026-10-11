@@ -25,8 +25,8 @@ class Range {
   }
 
   consteval Range(Range&& rhs) {
-    Perimortem::Core::Data::swap(size, rhs.size);
-    Perimortem::Core::Data::swap(source_block, rhs.source_block);
+    Core::Data::swap(size, rhs.size);
+    Core::Data::swap(source_block, rhs.source_block);
   }
 
   consteval auto operator=(const Range& rhs) -> Range& {
@@ -52,8 +52,8 @@ class Range {
   }
 
   consteval auto operator=(Range&& rhs) -> Range& {
-    Perimortem::Core::Data::swap(size, rhs.size);
-    Perimortem::Core::Data::swap(source_block, rhs.source_block);
+    Core::Data::swap(size, rhs.size);
+    Core::Data::swap(source_block, rhs.source_block);
     return *this;
   }
 

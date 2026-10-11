@@ -7,7 +7,7 @@
 
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 #include "validation/tests/memory/hashable.hpp"
 
 using namespace Perimortem::Core;
@@ -104,17 +104,17 @@ VALIDATION_TEST(DynamicMap, remove) {
 }
 
 VALIDATION_TEST(DynamicMap, empty_keys) {
-  Dynamic::Map<Dynamic::Bytes, S32> empty_map;
+  Dynamic::Map<Thread::Bytes, S32> empty_map;
 
   Count i = 0;
   while (i < 1000) {
     i++;
-    empty_map.insert(Dynamic::Bytes(), i);
+    empty_map.insert(Thread::Bytes(), i);
   }
 
   // Map should contain a single key which maps to the last value used.
   EXPECT_EQ(empty_map.get_size(), 1);
-  EXPECT_EQ(empty_map[Dynamic::Bytes()], i);
+  EXPECT_EQ(empty_map[Thread::Bytes()], i);
 }
 
 VALIDATION_TEST(DynamicMap, insert_stress_test) {
@@ -170,13 +170,16 @@ VALIDATION_TEST(DynamicMap, value_construction) {
 }
 
 VALIDATION_TEST(DynamicMap, dynamic_keys) {
-  Dynamic::Map<Dynamic::Bytes, S32> text_map;
+  Dynamic::Map<Thread::Bytes, S32> text_map;
+  Thread::Bytes hello("Hello"_view);
+  Thread::Bytes world("World"_view);
+  Thread::Bytes longer("Longer test string"_view);
+  Thread::Bytes text{};
 
-  text_map["Hello"_view] = 0;
-  text_map["World"_view] = 1;
+  text_map[hello] = 0;
+  text_map[world] = 1;
 
   // Byte keys
-  Dynamic::Bytes text;
   text.append('a');
   for (U8 ch = 'A'; ch < 'z'; ch++) {
     text.get_access().get_data()[0] = ch;
@@ -184,25 +187,25 @@ VALIDATION_TEST(DynamicMap, dynamic_keys) {
     text_map[text] = 2 + ch;
   }
 
-  text_map["Longer test string"_view] = 2;
+  text_map[longer] = 2;
 
-  ASSERT_EQ(text_map["Hello"_view], 0);
-  ASSERT_EQ(text_map["World"_view], 1);
-  ASSERT_EQ(text_map["Longer test string"_view], 2);
+  ASSERT_EQ(text_map[hello], 0);
+  ASSERT_EQ(text_map[world], 1);
+  ASSERT_EQ(text_map[longer], 2);
   for (U8 ch = 'A'; ch < 'z'; ch++) {
     text.get_access().get_data()[0] = ch;
     ASSERT_EQ(text_map[text], 2 + ch);
   }
 
-  ASSERT_EQ(text_map["Longer test string"_view], 2);
+  ASSERT_EQ(text_map[longer], 2);
 
   auto copied = text_map;
-  ASSERT_EQ(copied["Hello"_view], 0);
-  ASSERT_EQ(copied["Longer test string"_view], 2);
+  ASSERT_EQ(copied[hello], 0);
+  ASSERT_EQ(copied[longer], 2);
 }
 
 VALIDATION_TEST(DynamicMap, dynamic_value) {
-  Dynamic::Map<S32, Dynamic::Bytes> text_map;
+  Dynamic::Map<S32, Thread::Bytes> text_map;
 
   text_map[0] = "Hello"_view;
   text_map[1] = "World"_view;
@@ -260,8 +263,8 @@ VALIDATION_TEST(DynamicMap, leak_test) {
   auto pre_test_memory = Allocator::Bibliotheca::allocated_memory();
 
   {
-    Dynamic::Map<Dynamic::Bytes, Dynamic::Bytes> memory_intensive;
-    Dynamic::Bytes source;
+    Dynamic::Map<Thread::Bytes, Thread::Bytes> memory_intensive;
+    Thread::Bytes source{};
     for (Count i = 0; i < 100; i++) {
       source.append('A');
 

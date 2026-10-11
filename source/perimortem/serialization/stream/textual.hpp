@@ -7,7 +7,8 @@
 
 namespace Perimortem::Serialization::Stream {
 
-// Appends Core::Writer::Textual output to Dynamic::Bytes or Managed::Bytes.
+// Appends Core::Writer::Textual output to byte containers using thread or
+// managed allocation.
 template <typename storage_type>
 class Textual {
  public:

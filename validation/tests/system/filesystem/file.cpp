@@ -545,7 +545,7 @@ class TemporaryRoot {
     return File::write(data, NullTerminated(path, sizeof(path)).get_view());
   }
 
-  auto read_outside_member(const char* member) const -> Option<Dynamic::Bytes> {
+  auto read_outside_member(const char* member) const -> Option<Thread::Bytes> {
     char path[temporary_path_capacity];
     Bool built =
         build_member_path(path, sizeof(path), outside_directory_path, member);

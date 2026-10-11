@@ -380,7 +380,7 @@ VALIDATION_TEST(CompressionTests, roundtrip_large) {
 
 VALIDATION_TEST(CompressionTests, skewed_frequencies) {
   constexpr Count size = 50000;
-  Dynamic::Bytes source;
+  Thread::Bytes source{};
   source.forgetful_resize(size);
   Data::set(source.get_access().get_data(), U8(0), size);
   for (Count i = 1; i <= 200; i++) {

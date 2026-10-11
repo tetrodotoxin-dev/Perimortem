@@ -81,7 +81,7 @@ static auto format_help(
 
   label_width += 2;
 
-  Managed::Bytes output(arena);
+  Managed::Bytes output{arena};
   output.concat("usage: "_view);
   output.concat(command);
   output.concat(" [arguments]\n\n"_view);

@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 
 namespace Perimortem::Compression {
 
@@ -22,20 +22,20 @@ class Deflate {
   // inputs.
   static EXPORTED(PERIMORTEM) auto inflate(
       Core::View::Bytes source,
-      Count capacity_hint = 0) -> Memory::Dynamic::Bytes;
+      Count capacity_hint = 0) -> Memory::Thread::Bytes;
 
   // Applies the same structural validation as `inflate` without computing
   // Adler32 over the decompressed payload. Callers explicitly accept undetected
   // payload corruption in exchange for avoiding that additional pass.
   static EXPORTED(PERIMORTEM) auto inflate_without_checksum(
       Core::View::Bytes source,
-      Count capacity_hint = 0) -> Memory::Dynamic::Bytes;
+      Count capacity_hint = 0) -> Memory::Thread::Bytes;
 
   // Compresses data to a deflate stream (RFC 1950 + RFC 1951).
   // Level::None stores raw blocks. Higher levels apply LZ77 + Huffman coding.
   static EXPORTED(PERIMORTEM) auto deflate(
       Core::View::Bytes source,
-      Level level = Level::Default) -> Memory::Dynamic::Bytes;
+      Level level = Level::Default) -> Memory::Thread::Bytes;
 };
 
 }  // namespace Perimortem::Compression

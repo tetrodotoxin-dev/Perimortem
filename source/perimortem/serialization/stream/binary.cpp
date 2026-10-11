@@ -4,8 +4,8 @@
 #include "perimortem/serialization/stream/binary.hpp"
 
 #include "perimortem/core/writer/binary.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -172,9 +172,9 @@ auto Stream::Binary<stream_endian, storage_type>::operator<<(
 // The operator definitions live here. Each supported storage variant needs an
 // exported instantiation for consumers that link the shared library.
 template class EXPORTED(PERIMORTEM)
-Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>;
+Stream::Binary<Data::ByteOrder::Little, Thread::Bytes>;
 template class EXPORTED(PERIMORTEM)
-Stream::Binary<Data::ByteOrder::Big, Dynamic::Bytes>;
+Stream::Binary<Data::ByteOrder::Big, Thread::Bytes>;
 template class EXPORTED(PERIMORTEM)
 Stream::Binary<Data::ByteOrder::Little, Managed::Bytes>;
 template class EXPORTED(PERIMORTEM)

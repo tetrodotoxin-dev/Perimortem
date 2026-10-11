@@ -9,9 +9,9 @@
 
 namespace Perimortem::Serialization::Stream {
 
-// Appends packed values to Dynamic::Bytes or Managed::Bytes. Existing bytes
-// are never revisited. Core::Writer::Binary supports output that needs later
-// patching.
+// Appends packed values to byte containers using thread or managed allocation.
+// Existing bytes are never revisited. Core::Writer::Binary supports output
+// that needs later patching.
 template <
     Perimortem::Core::Data::ByteOrder stream_endian,
     typename storage_type>

@@ -13,8 +13,8 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/writer/textual.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -65,7 +65,7 @@ Library::~Library() {
 
 auto Library::open(View::Bytes path, Allocator::Arena& errors)
     -> Result<Library, View::Bytes> {
-  Dynamic::Bytes name(path);
+  Thread::Bytes name(path);
   name.append(0);
 
 #ifdef TOOLCHAIN_WINDOWS
@@ -108,7 +108,7 @@ auto Library::open(View::Bytes path, Allocator::Arena& errors)
 
 auto Library::symbol(View::Bytes name, Allocator::Arena& errors) const
     -> Result<void*, View::Bytes> {
-  Dynamic::Bytes terminated(name);
+  Thread::Bytes terminated(name);
   terminated.append(0);
 
 #ifdef TOOLCHAIN_WINDOWS

@@ -4,8 +4,8 @@
 #include "perimortem/serialization/stream/textual.hpp"
 
 #include "perimortem/core/writer/textual.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -105,5 +105,5 @@ auto Stream::Textual<storage_type>::operator<<(View::Bytes raw) -> Textual& {
 
 // The operator definitions live here. Each supported storage variant needs an
 // exported instantiation for consumers that link the shared library.
-template class EXPORTED(PERIMORTEM) Stream::Textual<Dynamic::Bytes>;
+template class EXPORTED(PERIMORTEM) Stream::Textual<Thread::Bytes>;
 template class EXPORTED(PERIMORTEM) Stream::Textual<Managed::Bytes>;

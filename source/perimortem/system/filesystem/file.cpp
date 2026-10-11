@@ -18,6 +18,7 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -501,17 +502,17 @@ auto File::Root::open(View::Bytes location) -> Option<Root> {
 }
 
 auto File::Root::read(View::Bytes relative_path) const
-    -> Option<Dynamic::Bytes> {
+    -> Option<Thread::Bytes> {
   auto snapshot = read_snapshot(relative_path);
-  return snapshot ? Option<Dynamic::Bytes>(snapshot->take_contents())
-                  : Option<Dynamic::Bytes>();
+  return snapshot ? Option<Thread::Bytes>(snapshot->take_contents())
+                  : Option<Thread::Bytes>();
 }
 
 auto File::Root::read_snapshot(View::Bytes relative_path) const
     -> Option<File::Snapshot> {
   Static::Bytes<max_path_size> buffer;
   auto path = member_path(buffer, location, relative_path);
-  Dynamic::Bytes data;
+  Thread::Bytes data{};
   File::Fingerprint fingerprint;
   if (!path || !read_file(*path, data, fingerprint, FailureReporting::Silent)) {
     return {};
@@ -543,7 +544,7 @@ auto File::Root::read(Allocator::Arena& arena, View::Bytes relative_path) const
     -> Option<View::Bytes> {
   Static::Bytes<max_path_size> buffer;
   auto path = member_path(buffer, location, relative_path);
-  Managed::Bytes data(arena);
+  Managed::Bytes data{arena};
   File::Fingerprint fingerprint;
   if (!path || !read_file(*path, data, fingerprint, FailureReporting::Silent)) {
     return {};
@@ -571,22 +572,23 @@ auto File::Root::exists(View::Bytes relative_path) const -> Bool {
   return path && File::exists(*path);
 }
 
-auto File::read(View::Bytes location) -> Option<Dynamic::Bytes> {
-  // Dynamic storage gives this overload an independently owned result.
-  Dynamic::Bytes data;
+auto File::read(View::Bytes location) -> Option<Thread::Bytes> {
+  // Thread storage gives this overload an independently owned result in the
+  // calling thread.
+  Thread::Bytes data{};
   File::Fingerprint fingerprint;
   Bool read = read_file(location, data, fingerprint);
   if (!read) {
     return {};
   }
 
-  return Option<Dynamic::Bytes>(static_cast<Dynamic::Bytes&&>(data));
+  return Option<Thread::Bytes>(static_cast<Thread::Bytes&&>(data));
 }
 
 auto File::read(Allocator::Arena& arena, View::Bytes location)
     -> Option<View::Bytes> {
   // Arena storage returns stable bytes without introducing another owner.
-  Managed::Bytes data(arena);
+  Managed::Bytes data{arena};
   File::Fingerprint fingerprint;
   Bool read = read_file(location, data, fingerprint);
   if (!read) {

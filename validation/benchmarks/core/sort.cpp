@@ -10,7 +10,7 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/view/bytes.h"
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/thread/bytes.hpp"
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;

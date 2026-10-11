@@ -265,7 +265,7 @@ auto Json::Node::get_string() const -> const View::Bytes {
 
 auto Json::Node::decode_string(Allocator::Arena& arena) const -> View::Bytes {
   View::Bytes source = get_string();
-  Managed::Bytes decoded(arena);
+  Managed::Bytes decoded{arena};
   for (Count i = 0; i < source.get_size(); i++) {
     if (source[i] != '\\' || i + 1 >= source.get_size()) {
       decoded.append(source[i]);
@@ -567,7 +567,7 @@ auto Json::Node::parse(
 }
 
 auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
-  Managed::Bytes output(arena);
+  Managed::Bytes output{arena};
   Stream::Textual<Managed::Bytes> stream(output);
 
   auto inplace_format = [](this auto&& self,
