@@ -15,12 +15,12 @@ auto BitStream::Reader::fill() -> void {
   const Count size = data.get_size();
   const U8* source_pointer = data.get_data();
 
-  // Fast path: enough bytes remain for a single unaligned 64 bit load.
-  // On little endian hosts (x86) stream byte order matches load order directly.
-  //
-  // TODO: Support Big endian at some point.
+  // Fast path: enough bytes remain for one packed 64 bit read. DEFLATE stores
+  // the least significant stream byte first, so the declared byte order keeps
+  // the accumulator identical on every host.
   if (byte_position + Count(sizeof(U64)) <= size) {
-    U64 word = *Data::cast<const U64>(source_pointer + byte_position);
+    U64 word = Data::read<Data::ByteOrder::Little, U64>(
+        source_pointer + byte_position);
     Count consumed = (64 - buffered_bits) >> 3;
     buffer |= word << buffered_bits;
     byte_position += consumed;

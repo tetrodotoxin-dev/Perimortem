@@ -128,6 +128,44 @@ class Data {
     return value;
   }
 
+  // Reads a fixed width integer from packed bytes in a declared byte order. The
+  // runtime copy accepts every source alignment, while constant evaluation
+  // assembles the value through its unsigned representation. Signed results
+  // retain the exact two's complement bits authored by the stream.
+  template <ByteOrder source, typename storage_type>
+  static constexpr auto read(const U8* source_data) -> storage_type {
+    static_assert(__is_integral(storage_type));
+    static_assert(!__is_same(storage_type, bool));
+    static_assert(sizeof(storage_type) <= sizeof(U64));
+
+    if constexpr (__is_signed(storage_type)) {
+      if constexpr (sizeof(storage_type) == sizeof(U8)) {
+        return __builtin_bit_cast(storage_type, read<source, U8>(source_data));
+      } else if constexpr (sizeof(storage_type) == sizeof(U16)) {
+        return __builtin_bit_cast(storage_type, read<source, U16>(source_data));
+      } else if constexpr (sizeof(storage_type) == sizeof(U32)) {
+        return __builtin_bit_cast(storage_type, read<source, U32>(source_data));
+      } else {
+        return __builtin_bit_cast(storage_type, read<source, U64>(source_data));
+      }
+    } else {
+      storage_type value = 0;
+      if consteval {
+        for (Count index = 0; index < sizeof(storage_type); index++) {
+          const Count shift = source == ByteOrder::Little
+                                  ? index * 8
+                                  : (sizeof(storage_type) - index - 1) * 8;
+          value |= storage_type(source_data[index]) << shift;
+        }
+
+        return value;
+      } else {
+        memcpy(&value, source_data, sizeof(storage_type));
+        return ensure_endian<source, ByteOrder::Native>(value);
+      }
+    }
+  }
+
   template <ByteOrder target, typename storage_type>
   static constexpr auto write(storage_type* dest, storage_type value) -> void {
     value = Data::ensure_endian<Data::ByteOrder::Native, target>(value);

@@ -122,6 +122,19 @@ VALIDATION_TEST(CompressionTests, dynamic_huffman) {
   EXPECT_HEX(out.get_view(), hello_raw.get_view());
 }
 
+VALIDATION_TEST(CompressionTests, unaligned_input) {
+  Static::Bytes<hello_compressed.get_size() + 1> storage;
+  Data::copy(
+      storage.get_data() + 1, hello_compressed.get_data(),
+      hello_compressed.get_size());
+
+  auto out = Deflate::inflate(
+      View::Bytes(storage.get_data() + 1, hello_compressed.get_size()));
+
+  ASSERT_EQ(out.get_size(), hello_raw.get_size());
+  EXPECT_HEX(out.get_view(), hello_raw.get_view());
+}
+
 VALIDATION_TEST(CompressionTests, stored_blocks) {
   auto out = Deflate::inflate(stored_compressed);
 

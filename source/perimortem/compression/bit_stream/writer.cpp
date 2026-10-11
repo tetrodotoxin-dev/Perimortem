@@ -11,10 +11,9 @@ using namespace Perimortem::Compression;
 // Append complete bytes from the accumulator to the output buffer.
 // Leaves at most 7 bits (the partial final byte) in the accumulator.
 //
-// The accumulator is little endian so byte 0 is the LSB which maps to
-// the bit ordering required by RFC 1951.
-//
-// TODO: If we ever support ARM we'll need to fix the LSB ordering.
+// Numeric shifts keep the next stream byte in the accumulator's least
+// significant bits. Appending that byte directly establishes the RFC 1951 bit
+// order independently of the host's object representation.
 auto BitStream::Writer::drain() -> void {
   while (bits >= 8) {
     output.append(U8(accumulator & 0xFF));

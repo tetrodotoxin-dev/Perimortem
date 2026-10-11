@@ -338,11 +338,9 @@ constexpr auto inflate_stored(BitStream::Reader& reader, Dynamic::Bytes& output)
   }
 
   U16 block_length =
-      Data::ensure_endian<Data::ByteOrder::Little, Data::ByteOrder::Native>(
-          *Data::cast<U16>(block_header.get_data()));
+      Data::read<Data::ByteOrder::Little, U16>(block_header.get_data());
   U16 block_length_complement =
-      Data::ensure_endian<Data::ByteOrder::Little, Data::ByteOrder::Native>(
-          *Data::cast<U16>(block_header.get_data() + 2));
+      Data::read<Data::ByteOrder::Little, U16>(block_header.get_data() + 2);
   if (U16(block_length ^ block_length_complement) !=
       stored_block_complement_check) [[unlikely]] {
     return False;
@@ -487,10 +485,8 @@ constexpr auto write_checksum(Dynamic::Bytes& output, View::Bytes source)
 constexpr auto test_checksum(View::Bytes stream, View::Bytes source) -> Bool {
   U32 stream_checksum = calculate_checksum(stream);
 
-  U32 checksum =
-      Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
-          *Data::cast<U32>(
-              source.get_data() + source.get_size() - sizeof(U32)));
+  U32 checksum = Data::read<Data::ByteOrder::Big, U32>(
+      source.get_data() + source.get_size() - sizeof(U32));
   if (stream_checksum != checksum) [[unlikely]] {
     Diagnostics::Log::Message<128> error_message(
         Diagnostics::Log::Level::Error);
