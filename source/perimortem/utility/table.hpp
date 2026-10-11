@@ -24,6 +24,10 @@ namespace Perimortem::Utility {
 // Keyword benchmarks with low hit rates measured more than twice the throughput
 // of `Dynamic::Map`. `cache_line_size` can keep a complete length bucket within
 // one cache line when its packed bytes fit.
+//
+// The compact coordinates admit from 1 through 255 entries and 65535 bytes of
+// packed storage. Every key contains at least one byte. Bucket alignment counts
+// toward storage. Sources outside those limits fail during compilation.
 template <typename value_type, const auto& source, U64 cache_line_size = 1>
 class Table {
  private:
@@ -35,6 +39,25 @@ class Table {
       return Core::Data::array_size(source);
     }
   }
+
+  static constexpr Count source_count = get_source_count();
+
+  static consteval auto has_empty_key() -> Bool {
+    for (Count i = 0; i < source_count; i++) {
+      if (source[i].key.is_empty()) {
+        return True;
+      }
+    }
+
+    return False;
+  }
+
+  static_assert(cache_line_size > 0, "Table cache line size cannot be zero.");
+  static_assert(source_count > 0, "Table requires at least one entry.");
+  static_assert(
+      source_count <= U8(-1),
+      "Table U8 coordinates support at most 255 entries.");
+  static_assert(!has_empty_key(), "Table does not support empty keys.");
 
   static consteval auto required_storage() -> Count {
     Count buckets[max_length()] = {0};
@@ -71,6 +94,10 @@ class Table {
 
   static constexpr Count storage_size = required_storage();
   static constexpr Count max_range = max_length();
+
+  static_assert(
+      storage_size <= U16(-1),
+      "Table U16 coordinates support at most 65535 bytes of packed storage.");
 
   struct Storage {
     consteval Storage() {
@@ -124,7 +151,7 @@ class Table {
 
     alignas(64) Core::Static::Vector<U8, storage_size> buffer = {};
     Core::Static::Vector<Coord, max_range + 1> buffer_coordinates = {};
-    Core::Static::Vector<value_type, get_source_count()> mappings = {};
+    Core::Static::Vector<value_type, source_count> mappings = {};
   };
 
   static constexpr Storage byte_pack;

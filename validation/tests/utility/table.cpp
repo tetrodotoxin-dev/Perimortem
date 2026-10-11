@@ -72,6 +72,19 @@ constexpr Static::Vector<FactEntry, 3> fact_source = {{
 using fact_table = Table<Fact, fact_source>;
 using fact_table_aligned = Table<Fact, fact_source>;
 
+constexpr auto make_limit_key(Count index) -> U8 {
+  return U8(index);
+}
+constexpr Static::Vector<U8, U8(-1)> limit_keys(make_limit_key);
+
+using LimitEntry = Pair<View::Bytes, U8>;
+constexpr auto make_limit_entry(Count index) -> LimitEntry {
+  return {View::Bytes(limit_keys.get_data() + index, 1), U8(index)};
+}
+
+constexpr Static::Vector<LimitEntry, U8(-1)> limit_source(make_limit_entry);
+using limit_table = Table<U8, limit_source>;
+
 static Harness StaticTable = {
   .name = "Utility::Table",
 };
@@ -121,4 +134,10 @@ VALIDATION_TEST(StaticTable, find) {
 
   EXPECT_NOT(fact_table::find("Missing"_view));
   EXPECT_NOT(fact_table::find(""_view));
+}
+
+VALIDATION_TEST(StaticTable, entry_limit) {
+  for (Count i = 0; i < limit_source.get_size(); i++) {
+    EXPECT_EQ(limit_table::find_or_default(limit_source[i].key, U8(-1)), U8(i));
+  }
 }
