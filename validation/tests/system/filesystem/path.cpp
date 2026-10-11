@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/system/path.hpp"
+#include "perimortem/system/filesystem/path.hpp"
 
 #include "toolchain/validation/test.hpp"
 
@@ -14,8 +14,10 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 
+using Filesystem::Path;
+
 static Harness SystemPath = {
-  .name = "System::Path",
+  .name = "System::Filesystem::Path",
 };
 
 VALIDATION_TEST(SystemPath, normalize) {

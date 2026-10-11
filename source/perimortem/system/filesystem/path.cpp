@@ -1,13 +1,15 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/system/path.hpp"
+#include "perimortem/system/filesystem/path.hpp"
 
 #include "perimortem/core/data.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
+
+using Filesystem::Path;
 
 // A Path is bounded to a small fixed size, so rescanning the normalized prefix
 // costs less state than retaining a second stack of segment offsets. The root
@@ -29,8 +31,8 @@ static auto pop_segment(Access::Bytes text, Count& size) -> Bool {
   return True;
 }
 
-// Truncation could make two different paths compare equal. Reject the complete
-// path when a segment does not fit instead of publishing a shortened spelling.
+// Truncation could make two different paths compare equal. A segment that does
+// not fit rejects the complete path and preserves exact cache identities.
 static auto append_segment(Access::Bytes text, Count& size, View::Bytes segment)
     -> Bool {
   auto* data = text.get_data();
@@ -104,9 +106,9 @@ static auto append_path(Access::Bytes text, Count& size, View::Bytes path)
   return True;
 }
 
-// The writable view describes capacity rather than result length. Returning
-// the final size lets the same routine serve fixed storage and exact Arena
-// storage without introducing another Path representation.
+// The writable View size is its capacity. Returning the final size lets the
+// same routine serve fixed storage and exact Arena storage without introducing
+// a second Path type.
 static auto normalize_path(Access::Bytes text, View::Bytes path)
     -> Option<Count> {
   if (path.is_empty()) {

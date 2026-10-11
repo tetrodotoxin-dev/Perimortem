@@ -3,39 +3,22 @@
 
 #pragma once
 
-#include "toolchain/toolchain.hpp"
+#include "toolchain/toolchain.h"
 
-namespace Perimortem::Core {
+namespace Perimortem::Memory::Allocator {
 
-// The primary memory manager used by all systems in the Perimortem engine.
+// The thread local runtime allocator used by Perimortem containers and workers.
 //
-// Provides Thread local allocator for isolating and caching thread allocations.
-// Can be mixed with the standard library but using STL objects with the
-// Bibliotheca is not recommended.
+// Each thread caches its own allocations in power of two size classes. Thread
+// exit releases every slab owned by that cache.
 //
-// Any memory fetched from the Bibliotheca is guaranteed to be cleaned up on
-// thread exit. Until thread exit memory is perserved and is allocated into
-// power of 2 chunks.
-//
-// For ideal performance threads should have stable allocation and deallocation
-// patterns but this isn't a hard requirement.
+// Stable allocation and remittance patterns maximize reuse while varied
+// workloads continue through the same size classes.
 class Bibliotheca {
  public:
-  // The legal amount that algorithms are able to underwrite the allocated
-  // buffer.
-  //
-  // For x86_64 the underwrite buffer is guaranteed to be on a separate cache
-  // line from the data pointer address making it can be useful for storing
-  // infrequently used data related to the allocation or for algorithms that
-  // avoid a copy by using a bit of the underwrite buffer.
-  //
-  // Algorithms and types that use the underwrite buffer are incompatable with
-  // the C++ standard library so it should be used sparingly.
-  static constexpr auto legal_underwrite_size = 16;
-
   // Every corpus begins after one cache line sized Preface. Slab pages preserve
-  // that boundary, so consumers may construct values with alignment no greater
-  // than this contract.
+  // that boundary, so returned pointers support values with alignment no
+  // greater than 64 bytes.
   static constexpr auto allocation_alignment = 64;
 
   struct Allocation {
@@ -71,4 +54,4 @@ class Bibliotheca {
   static EXPORTED(PERIMORTEM) auto slab_requests() -> Count;
 };
 
-}  // namespace Perimortem::Core
+}  // namespace Perimortem::Memory::Allocator

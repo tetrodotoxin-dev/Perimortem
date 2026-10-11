@@ -54,7 +54,7 @@ class Textual {
 
  private:
   auto write_real(R64 real, R64 precision) -> void;
-  Access::Bytes source;
+  Access::Bytes source{};
   Count cursor = 0;
   Bool valid_state = true;
 };

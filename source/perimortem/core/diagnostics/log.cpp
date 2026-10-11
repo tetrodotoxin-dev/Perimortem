@@ -7,6 +7,7 @@
 #include <stdlib.h>
 
 #ifdef TOOLCHAIN_LINUX
+#include <dlfcn.h>
 #include <execinfo.h>
 #endif
 
@@ -15,13 +16,13 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/thread/worker.hpp"
 #include "perimortem/core/time.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
 
 constexpr Count max_message_capacity = 1 << 11;
+static thread_local View::Bytes thread_name = "main"_view;
 
 class ThreadWriter {
  public:
@@ -38,7 +39,7 @@ class ThreadWriter {
     Writer::Textual writer(name_buffer.get_access().slice(0, 511));
 
     writer << "perimortem_"_view;
-    writer << "["_view << Thread::Worker::get_thread_name() << "]_"_view;
+    writer << "["_view << thread_name << "]_"_view;
 
     writer << Time::now().get_stamp();
     writer << ".log"_view;
@@ -241,6 +242,10 @@ auto Diagnostics::Log::get_disable_header() -> Bool {
   return disable_log_header;
 }
 
+auto Diagnostics::Log::set_thread_name(View::Bytes name) -> void {
+  thread_name = name;
+}
+
 auto Diagnostics::Log::set_level(Level level) -> void {
   thread_log_level = level;
 }
@@ -284,7 +289,7 @@ auto Diagnostics::Log::format_entry(
 
   writer << level_char(level) << ' ';
   writer << Time::now().calculate_clock() << ' ';
-  writer << "["_view << Thread::Worker::get_thread_name() << "] "_view;
+  writer << "["_view << thread_name << "] "_view;
 
   writer << location.get_file();
   writer << ':' << location.get_line();
@@ -321,22 +326,17 @@ auto Diagnostics::Log::fatal(View::Bytes message, const Source& location)
 #ifdef TOOLCHAIN_LINUX
 
   Static::Vector<void*, 64> frames;
-  int frame_count = backtrace(frames.get_data(), frames.get_size());
-  char** symbols = backtrace_symbols(frames.get_data(), frame_count);
-  if (symbols) {
-    // Fatal diagnostics obey the same selected sink as every other toolchain
-    // message. Writing the trace directly to descriptor 2 would bypass a
-    // file only host policy and leak internal failures into user diagnostics.
-    for (int index = 0; index < frame_count; index++) {
+  const S32 frame_count = backtrace(frames.get_data(), frames.get_size());
+  for (S32 index = 0; index < frame_count; index++) {
+    Dl_info symbol;
+    const S32 resolved = dladdr(frames[index], &symbol);
+    if (resolved && symbol.dli_sname) {
       log(Level::Fatal,
-          NullTerminated(symbols[index], max_message_capacity).get_view(),
+          NullTerminated(symbol.dli_sname, max_message_capacity).get_view(),
           Source());
+    } else {
+      log(Level::Fatal, "Unknown backtrace frame."_view, Source());
     }
-
-    free(symbols);
-  } else {
-    log(Level::Fatal,
-        "The platform could not symbolize the fatal backtrace."_view, Source());
   }
 
   flush();

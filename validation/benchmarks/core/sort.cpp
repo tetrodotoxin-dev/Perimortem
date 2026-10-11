@@ -3,11 +3,11 @@
 
 #include "perimortem/core/algorithm/sort.hpp"
 
+#include "toolchain/toolchain.hpp"
 #include "toolchain/validation/benchmark.hpp"
 
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "toolchain/toolchain.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/memory/dynamic/bytes.hpp"
@@ -51,7 +51,7 @@ class SortWord {
   }
 
  private:
-  View::Bytes view;
+  View::Bytes view{};
 };
 
 static Static::Vector<Count, 1 << 6> count_64;

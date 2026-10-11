@@ -3,13 +3,13 @@
 
 #include "toolchain/validation/benchmark.hpp"
 
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 
-using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
 using namespace Toolchain::Validation;
 
 // Allocation counts come from the library under measurement. The shared
 // runner only samples the counter and has no allocator dependency of its own.
 static const bool registered = Benchmark::register_counter(
     "checkouts/run",
-    Bibliotheca::check_out_requests);
+    Allocator::Bibliotheca::check_out_requests);

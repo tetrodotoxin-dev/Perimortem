@@ -3,10 +3,10 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -36,7 +36,7 @@ Dynamic::Bytes::~Bytes() {
 }
 
 auto Dynamic::Bytes::operator=(View::Bytes view) -> Bytes& {
-  proxy(view);
+  copy(view);
   return *this;
 }
 
@@ -45,7 +45,7 @@ auto Dynamic::Bytes::operator=(const Bytes& rhs) -> Bytes& {
     return *this;
   }
 
-  proxy(rhs.get_view());
+  copy(rhs.get_view());
   return *this;
 }
 
@@ -99,16 +99,17 @@ auto Dynamic::Bytes::concat(View::Bytes view) -> void {
   if (required_size <= capacity) {
     memmove(source_block + size, view.get_data(), view.get_size());
   } else {
-    auto allocation = Bibliotheca::check_out(required_size);
+    auto allocation = Allocator::Bibliotheca::check_out(required_size);
     if (size) {
       Data::copy(allocation.ptr, source_block, size);
     }
 
-    // The appended view may borrow this allocation. Finish reading it before
-    // returning the old block to Bibliotheca for reuse.
+    // The appended View can address the current allocation. Copying it into the
+    // new block first keeps every source byte valid until the read completes,
+    // after which Bibliotheca can reuse the old block.
     Data::copy(allocation.ptr + size, view.get_data(), view.get_size());
     if (source_block) {
-      Bibliotheca::remit(source_block);
+      Allocator::Bibliotheca::remit(source_block);
     }
 
     source_block = allocation.ptr;
@@ -118,7 +119,7 @@ auto Dynamic::Bytes::concat(View::Bytes view) -> void {
   size = required_size;
 }
 
-auto Dynamic::Bytes::proxy(View::Bytes view) -> void {
+auto Dynamic::Bytes::copy(View::Bytes view) -> void {
   if (view.is_empty()) {
     reset();
     return;
@@ -128,7 +129,7 @@ auto Dynamic::Bytes::proxy(View::Bytes view) -> void {
     // A slice of this buffer can overlap its destination.
     memmove(source_block, view.get_data(), view.get_size());
   } else {
-    auto allocation = Bibliotheca::check_out(view.get_size());
+    auto allocation = Allocator::Bibliotheca::check_out(view.get_size());
     Data::copy(allocation.ptr, view.get_data(), view.get_size());
     reset();
     source_block = allocation.ptr;
@@ -203,7 +204,7 @@ auto Dynamic::Bytes::clear() -> void {
 
 auto Dynamic::Bytes::reset() -> void {
   if (source_block) {
-    Bibliotheca::remit(source_block);
+    Allocator::Bibliotheca::remit(source_block);
     source_block = nullptr;
   }
 
@@ -216,12 +217,12 @@ auto Dynamic::Bytes::ensure_capacity(Count required_size) -> void {
     return;
   }
 
-  auto allocation = Bibliotheca::check_out(required_size);
+  auto allocation = Allocator::Bibliotheca::check_out(required_size);
   if (source_block) {
     // Shrinking only changes the visible size. Preserve the complete buffer
     // so a later resize can expose those bytes again, including after growth.
     Data::copy(allocation.ptr, source_block, capacity);
-    Bibliotheca::remit(source_block);
+    Allocator::Bibliotheca::remit(source_block);
   }
 
   source_block = allocation.ptr;

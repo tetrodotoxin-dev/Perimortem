@@ -57,7 +57,7 @@ constexpr Static::Vector<WordEntry, 8> word_source = {{
 using word_table = Table<View::Bytes, word_source>;
 
 struct Fact {
-  View::Bytes name;
+  View::Bytes name{};
   Count byte_size = 0;
   Bool exposed = False;
 };

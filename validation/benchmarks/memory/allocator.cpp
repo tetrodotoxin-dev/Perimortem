@@ -1,12 +1,12 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
+#include "toolchain/toolchain.hpp"
 #include "toolchain/validation/benchmark.hpp"
 
-#include "perimortem/core/bibliotheca.hpp"
-#include "toolchain/toolchain.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/system/random.hpp"
 
@@ -21,11 +21,11 @@ static Harness AllocatorBench = {
 
 template <Count alloc_size>
 static auto bibliotheca_cycle() -> void {
-  Bibliotheca::Allocation alloc;
+  Allocator::Bibliotheca::Allocation alloc;
   for (Count i = 0; i < 100; i++) {
-    alloc = Bibliotheca::check_out(alloc_size);
+    alloc = Allocator::Bibliotheca::check_out(alloc_size);
     Benchmark::prevent_optimization(alloc.ptr);
-    Bibliotheca::remit(alloc.ptr);
+    Allocator::Bibliotheca::remit(alloc.ptr);
   }
 }
 
@@ -54,13 +54,13 @@ template <Count frame_alloc_count, Count size_minimum, Count size_range>
 static auto frame_stability() -> void {
   Static::Vector<U8*, frame_alloc_count> ptrs;
   for (Count i = 0; i < frame_alloc_count; i++) {
-    auto alloc = Bibliotheca::check_out(
+    auto alloc = Allocator::Bibliotheca::check_out(
         (Random::generate() & size_range) + size_minimum);
     ptrs[i] = alloc.ptr;
   }
 
   for (Count i = 0; i < frame_alloc_count; i++) {
-    Bibliotheca::remit(ptrs[i]);
+    Allocator::Bibliotheca::remit(ptrs[i]);
   }
 
   Benchmark::prevent_optimization(ptrs[0]);
@@ -87,22 +87,22 @@ static auto frame_stability_interleaved() -> void {
 
   // Initial allocation.
   for (Count i = 0; i < window; i++) {
-    ptrs[i] =
-        Bibliotheca::check_out((Random::generate() & size_range) + size_minimum)
-            .ptr;
+    ptrs[i] = Allocator::Bibliotheca::check_out(
+                  (Random::generate() & size_range) + size_minimum)
+                  .ptr;
   }
 
   // Rolling exchange.
   for (Count i = window; i < frame_alloc_count; i++) {
-    ptrs[i] =
-        Bibliotheca::check_out((Random::generate() & size_range) + size_minimum)
-            .ptr;
-    Bibliotheca::remit(ptrs[i - window]);
+    ptrs[i] = Allocator::Bibliotheca::check_out(
+                  (Random::generate() & size_range) + size_minimum)
+                  .ptr;
+    Allocator::Bibliotheca::remit(ptrs[i - window]);
   }
 
   // Final clean up.
   for (Count i = frame_alloc_count - window; i < frame_alloc_count; i++) {
-    Bibliotheca::remit(ptrs[i]);
+    Allocator::Bibliotheca::remit(ptrs[i]);
   }
 
   Benchmark::prevent_optimization(ptrs[0]);

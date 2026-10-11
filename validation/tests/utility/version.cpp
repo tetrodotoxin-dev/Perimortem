@@ -1,21 +1,21 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/system/version.hpp"
+#include "perimortem/utility/version.hpp"
 
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::System;
+using namespace Perimortem::Utility;
 using namespace Toolchain::Validation;
 
-static Harness SystemVersion = {
-  .name = "System::Version",
+static Harness UtilityVersion = {
+  .name = "Utility::Version",
 };
 
-VALIDATION_TEST(SystemVersion, value) {
+VALIDATION_TEST(UtilityVersion, value) {
   constexpr Version unset;
   constexpr Version development(0, 1);
   constexpr Version release(1, 0);
@@ -38,7 +38,7 @@ VALIDATION_TEST(SystemVersion, value) {
   EXPECT_EQ(maximum.get_minor(), U16(-1));
 }
 
-VALIDATION_TEST(SystemVersion, canonical_text) {
+VALIDATION_TEST(UtilityVersion, canonical_text) {
   constexpr Version development = Version::parse("0.1"_view);
   constexpr Version release = Version::parse("12.34"_view);
   constexpr Version maximum = Version::parse("65535.65535"_view);

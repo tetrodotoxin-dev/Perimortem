@@ -13,14 +13,17 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/reader/binary.hpp"
 #include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/thread/worker.hpp"
 #include "perimortem/core/writer/binary.hpp"
+#include "perimortem/system/process/worker.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 
-static Harness CoreThreadWorker = {
-  .name = "Core::Thread::Worker",
+using Process::Worker;
+
+static Harness SystemProcessWorker = {
+  .name = "System::Process::Worker",
 };
 
 static constexpr Count large_worker_payload_size = 4096;
@@ -108,8 +111,8 @@ static auto read_thread_name_job(View::Bytes job_data) -> void {
   }
 
   auto* worker_result = reinterpret_cast<WorkerNameResult*>(*result_address);
-  const View::Bytes actual_name = Thread::Worker::get_thread_name();
-  worker_result->on_main_thread = Thread::Worker::on_main_thread();
+  const View::Bytes actual_name = Process::Worker::get_thread_name();
+  worker_result->on_main_thread = Process::Worker::on_main_thread();
   worker_result->name_size = actual_name.get_size();
   worker_result->checksum = checksum_worker_payload(actual_name);
   worker_result->matches_expected = actual_name == *expected_name;
@@ -124,8 +127,8 @@ static auto hold_worker_job(View::Bytes job_data) -> void {
   }
 
   auto* worker_result = reinterpret_cast<WorkerCountResult*>(*result_address);
-  worker_result->active_worker_count = Thread::Worker::get_worker_count();
-  worker_result->thread_id = Thread::Worker::get_thread_id();
+  worker_result->active_worker_count = Process::Worker::get_worker_count();
+  worker_result->thread_id = Process::Worker::get_thread_id();
   worker_result->read_successfully = reader.get_location() == reader.get_size();
   __atomic_store_n(&worker_result->started.value, True.value, __ATOMIC_RELEASE);
   while (Bool(__atomic_load_n(
@@ -134,7 +137,7 @@ static auto hold_worker_job(View::Bytes job_data) -> void {
   }
 }
 
-VALIDATION_TEST(CoreThreadWorker, copies_large_job) {
+VALIDATION_TEST(SystemProcessWorker, copies_large_job) {
   WorkerPayloadResult worker_result;
   Static::Bytes<large_worker_payload_size> expected_payload;
   fill_worker_payload(expected_payload);
@@ -158,7 +161,7 @@ VALIDATION_TEST(CoreThreadWorker, copies_large_job) {
          << expected_payload.get_view();
   ASSERT(writer.is_valid());
 
-  Thread::Worker worker = Thread::Worker::start(
+  Process::Worker worker = Process::Worker::start(
       "worker.payload"_view, read_large_payload_job, writer);
   for (Count i = 0; i < job_storage.get_size(); i++) {
     job_storage[i] = 0xA5;
@@ -170,7 +173,7 @@ VALIDATION_TEST(CoreThreadWorker, copies_large_job) {
   EXPECT_EQ(worker_result.checksum, expected_checksum);
 }
 
-VALIDATION_TEST(CoreThreadWorker, copies_thread_name) {
+VALIDATION_TEST(SystemProcessWorker, copies_thread_name) {
   WorkerNameResult worker_result;
   Static::Bytes<long_worker_name_size> requested_name(long_worker_name);
   const U64 expected_checksum = checksum_worker_payload(long_worker_name);
@@ -183,7 +186,7 @@ VALIDATION_TEST(CoreThreadWorker, copies_thread_name) {
          << requested_name.get_view();
   ASSERT(writer.is_valid());
 
-  Thread::Worker worker = Thread::Worker::start(
+  Process::Worker worker = Process::Worker::start(
       requested_name.get_view(), read_thread_name_job, writer);
   for (Count i = 0; i < requested_name.get_size(); i++) {
     requested_name[i] = 0;
@@ -196,7 +199,7 @@ VALIDATION_TEST(CoreThreadWorker, copies_thread_name) {
   EXPECT_EQ(worker_result.checksum, expected_checksum);
 }
 
-VALIDATION_TEST(CoreThreadWorker, unnamed_worker) {
+VALIDATION_TEST(SystemProcessWorker, unnamed_worker) {
   // A diagnostic name is optional. Omitting it must not change the worker's
   // identity or substitute the foreign thread's default name.
   WorkerNameResult worker_result;
@@ -204,7 +207,7 @@ VALIDATION_TEST(CoreThreadWorker, unnamed_worker) {
   Writer::Binary<Data::ByteOrder::Native> writer(storage.get_access());
   writer << reinterpret_cast<U64>(&worker_result) << U64(0);
 
-  auto worker = Thread::Worker::start(""_view, read_thread_name_job, writer);
+  auto worker = Process::Worker::start(""_view, read_thread_name_job, writer);
   worker.join();
 
   EXPECT(worker_result.read_successfully);
@@ -213,29 +216,29 @@ VALIDATION_TEST(CoreThreadWorker, unnamed_worker) {
   EXPECT_EQ(worker_result.name_size, Count(0));
 }
 
-VALIDATION_TEST(CoreThreadWorker, worker_count) {
+VALIDATION_TEST(SystemProcessWorker, worker_count) {
   WorkerCountResult worker_result;
-  const Count baseline_worker_count = Thread::Worker::get_worker_count();
+  const Count baseline_worker_count = Process::Worker::get_worker_count();
 
   Static::Bytes<sizeof(U64)> job_storage;
   Writer::Binary<Data::ByteOrder::Native> writer(job_storage.get_access());
   writer << reinterpret_cast<U64>(&worker_result);
   ASSERT(writer.is_valid());
 
-  Thread::Worker worker =
-      Thread::Worker::start("worker.count"_view, hold_worker_job, writer);
+  Process::Worker worker =
+      Process::Worker::start("worker.count"_view, hold_worker_job, writer);
   while (Bool(__atomic_load_n(
              &worker_result.started.value, __ATOMIC_ACQUIRE)) != True) {
     yield_thread();
   }
 
   EXPECT(worker_result.read_successfully);
-  EXPECT(worker_result.thread_id < Thread::Worker::max_workers());
+  EXPECT(worker_result.thread_id < Process::Worker::max_workers());
   EXPECT_EQ(worker_result.active_worker_count, baseline_worker_count + 1);
-  EXPECT_EQ(Thread::Worker::get_worker_count(), baseline_worker_count + 1);
+  EXPECT_EQ(Process::Worker::get_worker_count(), baseline_worker_count + 1);
 
   __atomic_store_n(&worker_result.release.value, True.value, __ATOMIC_RELEASE);
   worker.join();
 
-  EXPECT_EQ(Thread::Worker::get_worker_count(), baseline_worker_count);
+  EXPECT_EQ(Process::Worker::get_worker_count(), baseline_worker_count);
 }

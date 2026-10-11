@@ -94,7 +94,7 @@ class Binary {
     return __builtin_bit_cast(T, value);
   }
 
-  View::Bytes source;
+  View::Bytes source{};
   Count cursor = 0;
 };
 

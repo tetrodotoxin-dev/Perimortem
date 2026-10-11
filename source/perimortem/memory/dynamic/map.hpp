@@ -6,7 +6,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/option.hpp"
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Memory::Dynamic {
@@ -91,7 +91,7 @@ class Map {
     }
 
     destruct();
-    Core::Bibliotheca::remit(Core::Data::cast<U8>(buckets));
+    Allocator::Bibliotheca::remit(Core::Data::cast<U8>(buckets));
   }
 
   auto ensure_capacity(Count items) -> void {
@@ -392,15 +392,15 @@ class Map {
     }
 
     if (old_buckets != nullptr) {
-      Core::Bibliotheca::remit(Core::Data::cast<U8>(old_buckets));
+      Allocator::Bibliotheca::remit(Core::Data::cast<U8>(old_buckets));
     }
 
     size = old_size;
   }
 
   auto create_buffer(Count new_bucket_count) -> void {
-    Core::Bibliotheca::Allocation allocation =
-        Core::Bibliotheca::check_out(
+    Allocator::Bibliotheca::Allocation allocation =
+        Allocator::Bibliotheca::check_out(
             required_buffer_size(new_bucket_count));
     buckets = Core::Data::cast<U32>(allocation.ptr);
     entries = Core::Data::cast<Entry>(

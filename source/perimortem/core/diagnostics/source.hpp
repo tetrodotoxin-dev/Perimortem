@@ -16,8 +16,8 @@ class source_location {
     const char* _M_file_name;
     // Null terminated cstring
     const char* _M_function_name;
-    unsigned _M_line;
-    unsigned _M_column;
+    U32 _M_line;
+    U32 _M_column;
   };
 };
 
@@ -62,8 +62,8 @@ struct Source {
 
  private:
   const std::source_location::__impl* impl = nullptr;
-  Core::View::Bytes file;
-  Core::View::Bytes function;
+  Core::View::Bytes file{};
+  Core::View::Bytes function{};
   Count line = 0;
   Count column = 0;
 };

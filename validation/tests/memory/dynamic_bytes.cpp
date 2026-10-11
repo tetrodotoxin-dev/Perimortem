@@ -3,8 +3,8 @@
 
 #include "toolchain/validation/test.hpp"
 
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 using namespace Perimortem::Core;
@@ -57,14 +57,14 @@ VALIDATION_TEST(DynamicBytes, empty_copy) {
   EXPECT(reserved.is_empty());
 }
 
-VALIDATION_TEST(DynamicBytes, borrowed_slices) {
-  Dynamic::Bytes bytes("borrowed"_view);
+VALIDATION_TEST(DynamicBytes, view_slice) {
+  Dynamic::Bytes bytes("source"_view);
   const U8* allocation = bytes.get_view().get_data();
 
-  View::Bytes slice = bytes.slice(2, 4);
+  View::Bytes slice = bytes.slice(1, 4);
 
-  EXPECT_EQ(slice, "rrow"_view);
-  EXPECT(slice.get_data() == allocation + 2);
+  EXPECT_EQ(slice, "ourc"_view);
+  EXPECT(slice.get_data() == allocation + 1);
 }
 
 VALIDATION_TEST(DynamicBytes, reset) {
@@ -80,12 +80,12 @@ VALIDATION_TEST(DynamicBytes, reset) {
 }
 
 VALIDATION_TEST(DynamicBytes, move_assignment) {
-  Count initial = Bibliotheca::allocated_memory();
+  Count initial = Allocator::Bibliotheca::allocated_memory();
   {
     Dynamic::Bytes source("source"_view);
     Dynamic::Bytes target("target"_view);
     Count target_capacity = target.get_capacity();
-    Count allocated = Bibliotheca::allocated_memory();
+    Count allocated = Allocator::Bibliotheca::allocated_memory();
     const U8* source_allocation = source.get_view().get_data();
 
     target = static_cast<Dynamic::Bytes&&>(source);
@@ -95,7 +95,9 @@ VALIDATION_TEST(DynamicBytes, move_assignment) {
     EXPECT(source.is_empty());
     EXPECT_EQ(source.get_capacity(), Count(0));
     EXPECT(!source.get_view().get_data());
-    EXPECT_EQ(Bibliotheca::allocated_memory(), allocated - target_capacity);
+    EXPECT_EQ(
+        Allocator::Bibliotheca::allocated_memory(),
+        allocated - target_capacity);
 
     source.append(U8('r'));
     Dynamic::Bytes moved(static_cast<Dynamic::Bytes&&>(source));
@@ -104,7 +106,7 @@ VALIDATION_TEST(DynamicBytes, move_assignment) {
     EXPECT(!source.get_view().get_data());
   }
 
-  EXPECT_EQ(Bibliotheca::allocated_memory(), initial);
+  EXPECT_EQ(Allocator::Bibliotheca::allocated_memory(), initial);
 }
 
 VALIDATION_TEST(DynamicBytes, self_assignment) {
@@ -120,7 +122,7 @@ VALIDATION_TEST(DynamicBytes, self_assignment) {
 
 VALIDATION_TEST(DynamicBytes, aliased_input) {
   Dynamic::Bytes bytes("abcdef"_view);
-  bytes.proxy(bytes.slice(1, 4));
+  bytes.copy(bytes.slice(1, 4));
   EXPECT_EQ(bytes.get_view(), "bcde"_view);
   bytes.concat(bytes.get_view());
   EXPECT_EQ(bytes.get_view(), "bcdebcde"_view);

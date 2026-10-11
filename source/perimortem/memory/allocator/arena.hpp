@@ -105,7 +105,7 @@ class Arena {
 
   // Creates a duplicate of the target buffer in the current arena.
   // Useful for migrating data from one arena to another.
-  auto proxy(Core::View::Bytes source) -> Core::View::Bytes {
+  auto copy(Core::View::Bytes source) -> Core::View::Bytes {
     if (source.is_empty()) {
       return Perimortem::Core::View::Bytes();
     }

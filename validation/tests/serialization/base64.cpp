@@ -8,7 +8,7 @@
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/system/file.hpp"
+#include "perimortem/system/filesystem/file.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -16,6 +16,8 @@ using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
 
 using namespace Toolchain::Validation;
+
+using Filesystem::File;
 
 static Harness SerializationBase64 = {
   .name = "Serialization::Base64",
@@ -54,9 +56,9 @@ VALIDATION_TEST(SerializationBase64, padded_vector_tail) {
       const View::Bytes source(encoded, size);
       const auto decoded = Base64::decode(source);
       Allocator::Arena arena;
-      const auto borrowed = Base64::decode(arena, source);
+      const auto decoded_view = Base64::decode(arena, source);
       EXPECT(decoded.get_size() == size / 4 * 3 - padding);
-      EXPECT(borrowed == decoded.get_view());
+      EXPECT(decoded_view == decoded.get_view());
       for (Count index = 0; index < decoded.get_size(); ++index) {
         EXPECT(decoded.get_view()[index] == 0);
       }

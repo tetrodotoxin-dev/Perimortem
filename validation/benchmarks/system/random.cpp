@@ -3,9 +3,8 @@
 
 #include "perimortem/system/random.hpp"
 
-#include "toolchain/validation/benchmark.hpp"
-
 #include "toolchain/toolchain.hpp"
+#include "toolchain/validation/benchmark.hpp"
 
 using namespace Perimortem::System;
 using namespace Toolchain::Validation;

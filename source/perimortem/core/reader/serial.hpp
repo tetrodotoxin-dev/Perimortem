@@ -7,8 +7,7 @@
 
 namespace Perimortem::Core::Reader {
 
-// Reads self describing values from a serial bytes following the Perimortem
-// Serial format.
+// Reads values from bytes in the Perimortem Serial format.
 //
 // Values are encoded as 1 type byte along with there minimum byte form and are
 // always returned as 64 bit values regardless of how they were encoded.
@@ -98,7 +97,7 @@ class Serial {
   constexpr auto reset() -> void { cursor = 0; }
 
  private:
-  View::Bytes source;
+  View::Bytes source{};
   Count cursor = 0;
 };
 

@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/system/file.hpp"
+#include "perimortem/system/filesystem/file.hpp"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,13 +33,16 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/system/path.hpp"
+#include "perimortem/system/filesystem/path.hpp"
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Toolchain::Validation;
+
+using Filesystem::File;
+using Filesystem::Path;
 
 constexpr auto test_file = "system_file_test.json"_view;
 constexpr auto test_output = "system_file_test_out.json"_view;
@@ -190,7 +193,7 @@ static auto trace_read(
     return False;
   }
 
-  long option_result =
+  S64 option_result =
       ptrace(PTRACE_SETOPTIONS, child, nullptr, PTRACE_O_TRACESYSGOOD);
   if (option_result != 0) {
     kill(child, SIGKILL);
@@ -202,7 +205,7 @@ static auto trace_read(
   Bool opened = False;
   Bool mutated = False;
   while (true) {
-    long trace_result = ptrace(PTRACE_SYSCALL, child, nullptr, nullptr);
+    S64 trace_result = ptrace(PTRACE_SYSCALL, child, nullptr, nullptr);
     if (trace_result != 0) {
       kill(child, SIGKILL);
       waitpid(child, &status, 0);
@@ -223,7 +226,7 @@ static auto trace_read(
     }
 
     struct user_regs_struct registers;
-    long registers_result = ptrace(PTRACE_GETREGS, child, nullptr, &registers);
+    S64 registers_result = ptrace(PTRACE_GETREGS, child, nullptr, &registers);
     if (registers_result != 0) {
       kill(child, SIGKILL);
       waitpid(child, &status, 0);
@@ -289,7 +292,7 @@ static auto native_is_directory(const char* path) -> Bool {
          (attributes & FILE_ATTRIBUTE_DIRECTORY);
 }
 
-static auto native_create_link(const char* path, const char* target, int* error)
+static auto native_create_link(const char* path, const char* target, S32* error)
     -> Bool {
   U32 flags = native_is_directory(target) ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
 
@@ -373,7 +376,7 @@ static auto native_change_directory(const char* path) -> Bool {
   return chdir(path) == 0;
 }
 
-static auto native_create_link(const char* path, const char* target, int* error)
+static auto native_create_link(const char* path, const char* target, S32* error)
     -> Bool {
   if (symlink(target, path) == 0) {
     *error = 0;
@@ -589,10 +592,10 @@ class TemporaryRoot {
     return native_create_directory(root_path);
   }
 
-  auto get_link_error() const -> int { return link_error; }
+  auto get_link_error() const -> S32 { return link_error; }
 
  private:
-  int link_error = 0;
+  S32 link_error = 0;
   char root_path[temporary_path_capacity]{};
   char moved_path[temporary_path_capacity]{};
   char outside_path[temporary_path_capacity]{};
@@ -601,12 +604,12 @@ class TemporaryRoot {
 };
 
 // Independent filesystem operations arrange each fixture so assertions only
-// measure Perimortem's behavior. This also works in a native Windows checkout
-// without requiring a Unix temporary directory or directory descriptors.
+// measure Perimortem's behavior. Native filesystem operations provide the same
+// fixture setup and teardown in Windows and Unix checkouts.
 static char file_directory[temporary_path_capacity];
 static char original_directory[temporary_path_capacity];
 static Harness SystemFile = {
-  .name = "System::File",
+  .name = "System::Filesystem::File",
   .setup =
       [] {
         if (!native_current_directory(
@@ -691,7 +694,7 @@ VALIDATION_TEST(SystemFile, missing) {
   auto source = File::read(test_output);
   EXPECT_NOT(source);
   EXPECT(file_warning_contains(
-      "System::File read failed. "
+      "System::Filesystem::File read failed. "
       "path=system_file_test_out.json "
       "stage=open errno="_view));
 
@@ -705,7 +708,7 @@ VALIDATION_TEST(SystemFile, write_warning) {
   Bool written = File::write(test_contents, "."_view);
   EXPECT_NOT(written);
   EXPECT(file_warning_contains(
-      "System::File write failed. path=. "
+      "System::Filesystem::File write failed. path=. "
       "stage=open errno="_view));
 }
 
@@ -768,13 +771,13 @@ VALIDATION_TEST(SystemFile, oversized) {
 
 #else
 
-  S32 descriptor =
+  S32 file =
       open(test_output_path, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-  ASSERT(descriptor >= 0);
+  ASSERT(file >= 0);
 
   constexpr off_t oversized_file = (off_t(1) << 35) + 1;
-  S32 truncated = ftruncate(descriptor, oversized_file);
-  S32 closed = close(descriptor);
+  S32 truncated = ftruncate(file, oversized_file);
+  S32 closed = close(file);
   ASSERT_EQ(truncated, 0);
   ASSERT_EQ(closed, 0);
 
@@ -847,7 +850,7 @@ VALIDATION_TEST(SystemFile, remove) {
 }
 
 static Harness SystemFileRoot = {
-  .name = "System::File::Root",
+  .name = "System::Filesystem::File::Root",
 };
 
 VALIDATION_TEST(SystemFileRoot, open_directory) {
@@ -1216,7 +1219,7 @@ VALIDATION_TEST(SystemFileRoot, write_close_warning) {
   Bool written = (*root).write(test_contents, "full"_view);
   EXPECT_NOT(written);
   EXPECT(file_warning_contains(
-      "System::File write failed. path=/dev/full "
+      "System::Filesystem::File write failed. path=/dev/full "
       "stage=close errno="_view));
 }
 
@@ -1359,8 +1362,9 @@ VALIDATION_TEST(SystemFileRoot, parent_member) {
   EXPECT_TEXT(*source, test_contents);
 }
 
-// A retained fingerprint describes the same open object as its bytes. Replacing
-// the file at that location must produce a different observation.
+// A Snapshot's fingerprint and bytes come from the same open object. A file
+// replacement at that location produces distinct content and a distinct
+// fingerprint.
 VALIDATION_TEST(SystemFileRoot, snapshot_identity) {
   TemporaryRoot temporary;
   ASSERT(temporary);

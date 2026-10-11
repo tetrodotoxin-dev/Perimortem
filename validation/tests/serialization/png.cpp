@@ -8,7 +8,7 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
-#include "perimortem/system/file.hpp"
+#include "perimortem/system/filesystem/file.hpp"
 #include "validation/tests/log.hpp"
 
 using namespace Perimortem::Core;
@@ -18,6 +18,8 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Tests;
 using namespace Toolchain::Validation;
+
+using Filesystem::File;
 
 static Harness SerializationPng = {
   .name = "Serialization::Png",

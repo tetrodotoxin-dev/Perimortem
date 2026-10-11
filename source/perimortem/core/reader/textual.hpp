@@ -48,7 +48,7 @@ class Textual {
   constexpr auto reset() -> void { cursor = 0; }
 
  private:
-  View::Bytes source;
+  View::Bytes source{};
   Count cursor = 0;
 };
 

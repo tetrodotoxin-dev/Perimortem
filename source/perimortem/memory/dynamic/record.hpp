@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -20,18 +20,18 @@ class Record {
   template <typename... arg_types>
   Record(arg_types&&... args) {
     static_assert(
-        alignof(value_type) <= Core::Bibliotheca::allocation_alignment);
-    auto allocation = Core::Bibliotheca::check_out(sizeof(value_type));
+        alignof(value_type) <= Allocator::Bibliotheca::allocation_alignment);
+    auto allocation = Allocator::Bibliotheca::check_out(sizeof(value_type));
     value = &Toolchain::Memory::Lifetime::construct<value_type>(
         allocation.ptr,
         [&args...] { return value_type(static_cast<arg_types&&>(args)...); });
   }
 
   Record(Record& rhs) : value(rhs.value) {
-    Core::Bibliotheca::reserve(Core::Data::cast<U8>(value));
+    Allocator::Bibliotheca::reserve(Core::Data::cast<U8>(value));
   }
   Record(const Record& rhs) : value(rhs.value) {
-    Core::Bibliotheca::reserve(Core::Data::cast<U8>(value));
+    Allocator::Bibliotheca::reserve(Core::Data::cast<U8>(value));
   }
   Record(Record&& rhs) : Record(rhs) {}
 
@@ -56,11 +56,11 @@ class Record {
 
   ~Record() {
     auto allocation = Core::Data::cast<U8>(value);
-    if (Core::Bibliotheca::reservation_count(allocation) == 1) {
+    if (Allocator::Bibliotheca::reservation_count(allocation) == 1) {
       value->~value_type();
     }
 
-    Core::Bibliotheca::remit(allocation);
+    Allocator::Bibliotheca::remit(allocation);
   }
 
   constexpr auto operator->() -> value_type* { return value; }
@@ -70,7 +70,7 @@ class Record {
 
   // A retaining cache can retire its entry when only cache reservations remain.
   auto get_reservations() const -> Count {
-    return Core::Bibliotheca::reservation_count(
+    return Allocator::Bibliotheca::reservation_count(
         Core::Data::cast<U8>(value));
   }
 

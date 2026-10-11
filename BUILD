@@ -1,11 +1,15 @@
 # Copyright (c) 2023-present Matt Kaes and contributors
 
-load("@tetro_toolchain//:defs.bzl", "package", "vscode")
+load("@tetro_toolchain//:defs.bzl", "format", "package", "vscode")
 
 # ============                Useful commands                 ============
 # Build source using the local machines configuration:
 #
 #  bazel build //source/...
+#
+# Check formatting and source policy:
+#
+#   bazel run :format -- --check
 #
 # Build and run all tests using the local machines configuration:
 #
@@ -18,6 +22,9 @@ load("@tetro_toolchain//:defs.bzl", "package", "vscode")
 # One shot command to fully package SDK for all supported platforms:
 #
 #   bazel build :sdk --config=release
+#
+
+format()
 
 # The component interfaces share Perimortem's runtime. Keeping that dependency
 # private makes each component expose only its declared header dependencies.

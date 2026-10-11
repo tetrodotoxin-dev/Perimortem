@@ -8,6 +8,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/memory/allocator/compiler.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -22,9 +23,8 @@ static constexpr bool supports_forgetful_resize =
     requires(Dynamic::Vector<type>& values) { values.forgetful_resize(1); };
 
 // Ordinary resize can support owning values, while forgetful resize skips
-// their lifecycle entirely. Make sure the API rejects types that aren't
-// trivially constructable and destructable, including a deleted constructor,
-// without excluding the whole Vector type.
+// construction and destruction. The checks below cover a nontrivial
+// constructor, a nontrivial destructor and a deleted constructor.
 class ConstructedValue {
  public:
   ConstructedValue() : value(42) {}
@@ -291,11 +291,20 @@ VALIDATION_TEST(DynamicVector, move_only) {
 // behind and hide a read through the expired argument.
 class InsertedValue {
  public:
-  explicit InsertedValue(U32 value) : value(new U32(value)) {}
+  explicit InsertedValue(U32 value)
+      : value(Allocator::Compiler::allocate_object<U32>()) {
+    *this->value = value;
+  }
   InsertedValue(const InsertedValue& other)
-      : value(other.value ? new U32(*other.value) : nullptr) {}
+      : value(
+            other.value ? Allocator::Compiler::allocate_object<U32>()
+                        : nullptr) {
+    if (value) {
+      *value = *other.value;
+    }
+  }
   InsertedValue(InsertedValue&& other) { Data::swap(value, other.value); }
-  ~InsertedValue() { delete value; }
+  ~InsertedValue() { Allocator::Compiler::release_object(value); }
 
   U32* value = nullptr;
 };

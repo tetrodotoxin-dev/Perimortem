@@ -33,7 +33,7 @@ VALIDATION_TEST(CoreAccess, saturates_vector) {
 
 VALIDATION_TEST(CoreAccess, saturates_bytes) {
   U8 values[3] = {1, 2, 3};
-  Access::Bytes access(values);
+  Access::Bytes access{values, 3};
   auto selected = access[99];
   ASSERT(selected);
   *selected = 4;
@@ -43,7 +43,7 @@ VALIDATION_TEST(CoreAccess, saturates_bytes) {
   ASSERT(first);
   EXPECT_EQ(*first, 1);
 
-  Access::Bytes empty;
+  Access::Bytes empty{};
   EXPECT_NOT(empty[0]);
 
   Access::Bytes invalid(nullptr, 3);

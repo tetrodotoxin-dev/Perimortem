@@ -9,12 +9,15 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/scalar.hpp"
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
-// Owns a contiguous sequence for indexed access. Bibliotheca supplies capacity,
-// while Vector constructs and destroys the values when that storage changes.
+// Vector is a more or less drop in replacement for std::vector with the key
+// difference being it uses Perimortem's Bibliotheca as it's backing allocator.
+//
+// It provides most common vector operations with a few additional optimizations
+// used by Perimortem like `forgetful_resize`.
 template <typename type>
 class Vector {
  public:
@@ -85,7 +88,7 @@ class Vector {
   auto reset() -> void {
     if (source_block) {
       destruct();
-      Core::Bibliotheca::remit((U8*)source_block);
+      Allocator::Bibliotheca::remit((U8*)source_block);
     }
 
     size = 0;
@@ -245,11 +248,11 @@ class Vector {
     }
 
     if (source_block) {
-      Core::Bibliotheca::remit((U8*)source_block);
+      Allocator::Bibliotheca::remit((U8*)source_block);
     }
 
     auto alloc =
-        Core::Bibliotheca::check_out(allocation_size(required_size));
+        Allocator::Bibliotheca::check_out(allocation_size(required_size));
     source_block = Core::Data::cast<type>(alloc.ptr);
     capacity = alloc.capacity / sizeof(type);
   }
@@ -313,7 +316,7 @@ class Vector {
 
     // Fetch and transfer to new block.
     auto alloc =
-        Core::Bibliotheca::check_out(allocation_size(new_capacity));
+        Allocator::Bibliotheca::check_out(allocation_size(new_capacity));
     auto new_block = Core::Data::cast<type>(alloc.ptr);
     if constexpr (sizeof...(arguments) != 0) {
       Toolchain::Memory::Lifetime::construct<type>(
@@ -342,14 +345,16 @@ class Vector {
         destruct();
       }
 
-      Core::Bibliotheca::remit((U8*)source_block);
+      Allocator::Bibliotheca::remit((U8*)source_block);
     }
 
-    // Update block and get the new capacity.
+    // Update block and get the new capacity. Since the capacity returned by the
+    // Bibliotheca can be more than we asked for it is wasteful to use our
+    // requested capacity as the actual capacity. Since the reported capacity is
+    // in raw bytes but is guaranteed to already be aligned we can just divide
+    // the reported capcity to get the number of valid objects that can be
+    // stored in the new buffer.
     source_block = new_block;
-
-    // Get the actual capacity provided which is often more than we actual
-    // requested.
     capacity = alloc.capacity / sizeof(type);
     return True;
   }

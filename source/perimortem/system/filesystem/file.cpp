@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/system/file.hpp"
+#include "perimortem/system/filesystem/file.hpp"
 
 #include <errno.h>
 #include <stdio.h>
@@ -22,6 +22,8 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
+
+using Filesystem::File;
 
 // Paths and diagnostics stay bounded without allocating a temporary string
 // for every transaction. Windows converts this same UTF8 spelling at the host
@@ -224,12 +226,14 @@ static auto inspect_stream(FILE* file) -> Option<File::Fingerprint> {
 #endif
 }
 
-// Operation identities are part of the diagnostic contract. Every stage of
-// one filesystem transaction uses the same value so its messages cannot drift.
-static constexpr View::Bytes file_read_operation = "System::File read"_view;
-static constexpr View::Bytes file_write_operation = "System::File write"_view;
+// Every diagnostic stage in one filesystem transaction uses the same operation
+// name. This keeps its messages consistent from open through close.
+static constexpr View::Bytes file_read_operation =
+    "System::Filesystem::File read"_view;
+static constexpr View::Bytes file_write_operation =
+    "System::Filesystem::File write"_view;
 static constexpr View::Bytes file_replace_operation =
-    "System::File replace"_view;
+    "System::Filesystem::File replace"_view;
 
 enum class FailureReporting {
   Silent,
@@ -278,8 +282,8 @@ static auto report_file_warning(
 }
 
 // Classifies and sizes the same opened object that will provide the content.
-// Reading metadata through its descriptor prevents a pathname replacement from
-// changing which object the transaction observes.
+// Reading metadata from the open stream couples the fingerprint to that object
+// when pathname replacement occurs concurrently.
 static auto get_file_fingerprint(
     FILE* file,
     View::Bytes operation,
@@ -303,7 +307,8 @@ static auto get_file_fingerprint(
 }
 
 // Both byte owners receive content directly into their final allocation. The
-// Arena overload can then lend those bytes without copying a temporary buffer.
+// Arena overload returns a View over that allocation which remains valid until
+// its Arena resets or is destroyed.
 template <typename bytes_type>
 static auto read_file(
     FILE* file,
@@ -462,8 +467,8 @@ static auto read_file(
     return False;
   }
 
-  // Open the selected path exactly once. Metadata, content, and close
-  // below all describe this stream even if the pathname later changes.
+  // Open the selected path exactly once. Metadata, content, and close all use
+  // this stream when the pathname later changes.
   const char* native_path = Data::cast<const char>((*path).get_data());
   FILE* file = open_stream(native_path, "rb");
   if (!file) {

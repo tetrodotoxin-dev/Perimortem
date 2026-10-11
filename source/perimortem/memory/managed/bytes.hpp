@@ -36,9 +36,9 @@ class Bytes {
   EXPORTED(PERIMORTEM) auto append(U8 byte) -> void;
   EXPORTED(PERIMORTEM) auto append(U8 byte, Count amount) -> void;
   EXPORTED(PERIMORTEM) auto concat(Core::View::Bytes view) -> void;
-  // Copies a Core::View::Bytes which may be in a different allocator
-  // (dynamic or another arena) into the Arena used by this object.
-  EXPORTED(PERIMORTEM) auto proxy(Core::View::Bytes view) -> void;
+  // Replaces the current bytes with a copy in this object's Arena. The source
+  // View may use dynamic storage or another Arena.
+  EXPORTED(PERIMORTEM) auto copy(Core::View::Bytes view) -> void;
 
   EXPORTED(PERIMORTEM) auto convert(U8 source, U8 target) -> void;
 

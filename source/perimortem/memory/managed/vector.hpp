@@ -9,7 +9,15 @@
 
 namespace Perimortem::Memory::Managed {
 
-// A simple linear flat array of trivially constructable values.
+// A Managed::Vector stores a pointer to it's allocator rather than using the
+// default Bibliotheca allocator. It assumes that all objects it manages also
+// come out of the same allocator and that they do not need to be destructed.
+//
+// This provides a useful typed wrapper around Arena's slab allocation which is
+// a common temporary compute pattern used to optimize away allocator overhead.
+//
+// Any pointers to values in the Vector are guranteed stable, even if the Vector
+// grows, as long as the Arena used by this Vector isn't cleared.
 template <typename value_type>
 class Vector {
  public:

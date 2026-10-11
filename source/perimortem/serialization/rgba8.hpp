@@ -8,7 +8,7 @@
 namespace Perimortem::Serialization {
 
 // Rgba8 stores four sample bytes in red, green, blue, alpha order. PNG expands
-// other channel layouts to this value before publishing a decoded matrix. Color
+// other channel layouts to this value before returning a decoded matrix. Color
 // samples retain their decoded byte values, while missing alpha becomes fully
 // opaque. Storage alone does not establish a transfer function or a rendering
 // color. Public channels let the codec write a continuous buffer while the

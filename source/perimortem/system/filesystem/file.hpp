@@ -8,7 +8,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-namespace Perimortem::System {
+namespace Perimortem::System::Filesystem {
 
 // File owns native filesystem transactions. Root supplies a directory location
 // for relative operations. A host without filesystem access rejects these
@@ -101,16 +101,16 @@ class File {
 
     static EXPORTED(PERIMORTEM) auto open(Core::View::Bytes location)
         -> Core::Option<Root>;
-    // Member reads and fingerprints are probes. Absence and I/O failure use
-    // the optional result without publishing an ambient diagnostic. The owner
-    // that requested the path supplies its authored context.
+    // Member reads and fingerprints return None for absence and I/O failure.
+    // The caller that requested the path decides whether and how to log them.
     EXPORTED(PERIMORTEM) auto read(Core::View::Bytes relative_path) const
         -> Core::Option<Memory::Dynamic::Bytes>;
     EXPORTED(PERIMORTEM) auto read_snapshot(
         Core::View::Bytes relative_path) const -> Core::Option<Snapshot>;
     EXPORTED(PERIMORTEM) auto fingerprint(Core::View::Bytes relative_path) const
         -> Core::Option<Fingerprint>;
-    // Retains successful bytes in the caller Arena.
+    // Reads into the caller Arena and returns a View over that allocation. The
+    // View remains valid until the Arena resets or is destroyed.
     EXPORTED(PERIMORTEM) auto read(
         Memory::Allocator::Arena& arena,
         Core::View::Bytes relative_path) const
@@ -131,7 +131,8 @@ class File {
 
   static EXPORTED(PERIMORTEM) auto read(Core::View::Bytes location)
       -> Core::Option<Memory::Dynamic::Bytes>;
-  // Retains successful bytes in the caller Arena.
+  // Reads into the caller Arena and returns a View over that allocation. The
+  // View remains valid until the Arena resets or is destroyed.
   static EXPORTED(PERIMORTEM) auto read(
       Memory::Allocator::Arena& arena,
       Core::View::Bytes location) -> Core::Option<Core::View::Bytes>;
@@ -147,4 +148,4 @@ class File {
   static EXPORTED(PERIMORTEM) auto exists(Core::View::Bytes location) -> Bool;
 };
 
-}  // namespace Perimortem::System
+}  // namespace Perimortem::System::Filesystem

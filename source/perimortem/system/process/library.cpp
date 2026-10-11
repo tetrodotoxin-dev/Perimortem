@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/system/library.hpp"
+#include "perimortem/system/process/library.hpp"
 
 #ifdef TOOLCHAIN_WINDOWS
 #include <windows.h>
@@ -21,6 +21,8 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 
+using Process::Library;
+
 #ifdef TOOLCHAIN_WINDOWS
 
 static auto library_error(Allocator::Arena& errors) -> View::Bytes {
@@ -28,7 +30,7 @@ static auto library_error(Allocator::Arena& errors) -> View::Bytes {
   Static::Bytes<96> buffer;
   Writer::Textual message(buffer);
   message << "Windows library operation failed. error="_view << U32(code);
-  return errors.proxy(message);
+  return errors.copy(message);
 }
 
 #else
@@ -69,7 +71,7 @@ auto Library::open(View::Bytes path, Allocator::Arena& errors)
 #ifdef TOOLCHAIN_WINDOWS
 
   const char* utf8 = reinterpret_cast<const char*>(name.get_view().get_data());
-  const int size =
+  const S32 size =
       MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, nullptr, 0);
   if (!size) {
     return library_error(errors);
@@ -78,7 +80,7 @@ auto Library::open(View::Bytes path, Allocator::Arena& errors)
   Dynamic::Vector<wchar_t> wide;
   wide.resize(size);
 
-  const int written = MultiByteToWideChar(
+  const S32 written = MultiByteToWideChar(
       CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, wide.get_data(), size);
   if (!written) {
     return library_error(errors);
@@ -95,7 +97,7 @@ auto Library::open(View::Bytes path, Allocator::Arena& errors)
       reinterpret_cast<const char*>(name.get_view().get_data()),
       RTLD_NOW | RTLD_LOCAL);
   if (!handle) {
-    return errors.proxy(
+    return errors.copy(
         NullTerminated(dlerror(), max_loader_message_size).get_view());
   }
 
@@ -125,7 +127,7 @@ auto Library::symbol(View::Bytes name, Allocator::Arena& errors) const
   auto* address = dlsym(
       handle, reinterpret_cast<const char*>(terminated.get_view().get_data()));
   if (const auto* error = dlerror()) {
-    return errors.proxy(
+    return errors.copy(
         NullTerminated(error, max_loader_message_size).get_view());
   }
 

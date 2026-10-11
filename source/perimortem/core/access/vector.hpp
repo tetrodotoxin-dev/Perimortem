@@ -10,10 +10,11 @@
 
 namespace Perimortem::Core::Access {
 
-// A borrowed read and write view of continuous data with possible endianness
-// and structure. Indexed access selects the nearest endpoint when the index
-// lies outside a nonempty view. An empty view returns None, and get_data leaves
-// bounds to the caller.
+// Vector provides read and write Access to contiguous values with possible
+// endianness and structure. Indexed access selects the nearest endpoint when
+// the index lies outside nonempty storage. Empty storage returns None, and
+// get_data leaves bounds to the caller. The Access remains valid while the
+// caller keeps every value alive at the same address.
 //
 // Vector data can be converted to Bytes data in order to interperet it
 // at a byte level, however this is only valid in memory. To write and read

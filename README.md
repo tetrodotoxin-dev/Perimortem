@@ -11,10 +11,10 @@ declarations so independently built C and C++ code can exchange them.
 
 ## Memory and data
 
-Storage and access are separate concerns. A view lets an operation read
-existing data, while an access interface permits changes to that data. Both
-borrow storage whose lifetime is established by the caller. This lets the
-same operation work with data from different containers and allocators.
+Storage and access are separate concerns. A View lets an operation read
+existing data, while Access permits changes to that data. Both refer to storage
+whose lifetime is established by the caller. This lets the same operation work
+with data from different containers and allocators.
 
 Applications choose storage according to the lifetime of their data. Fixed
 storage belongs to its containing object, dynamic containers manage their
@@ -24,20 +24,20 @@ that memory when the document is finished.
 
 ## Components
 
-- [Core](source/perimortem/core) supplies scalar types, borrowed views,
-  algorithms, allocation, diagnostics and threading.
+- [Core](source/perimortem/core) supplies views, algorithms, diagnostics,
+  identifiers and fundamental data operations.
 - [Utility](source/perimortem/utility) provides result handling, ranges and
-  tables built on Core.
+  versions and tables built on Core.
 - [Math](source/perimortem/math) describes coordinates, dimensions and boundary
   behavior.
-- [Memory](source/perimortem/memory) provides containers, matrices and arenas
-  with different storage lifetimes.
+- [Memory](source/perimortem/memory) provides allocators, containers, matrices
+  and arenas with different storage lifetimes.
 - [Compression](source/perimortem/compression) implements compression and
   decompression over byte streams.
 - [Serialization](source/perimortem/serialization) reads and writes formats
   including JSON, PNG and Base64, alongside binary and textual streams.
-- [System](source/perimortem/system) provides file, path, shared-library and
-  other host services.
+- [System](source/perimortem/system) provides filesystem, process and random
+  services backed by the host.
 
 ## Building and testing
 
@@ -48,6 +48,7 @@ Toolchain dependency that supplies the compilers and shared build rules.
 Run these commands from the repository root:
 
 ```sh
+bazel run :format -- --check
 bazel build //source/...
 bazel run //validation:tests
 bazel run //validation:benchmarks --config=release

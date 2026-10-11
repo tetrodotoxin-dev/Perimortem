@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 
 #ifdef TOOLCHAIN_WASM
 #include <stdlib.h>
@@ -22,6 +22,7 @@
 #include "perimortem/core/scalar.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
 
 // Gives the number of bits to shift to get the minimum containing size.
 constexpr auto log2_pre_shift(U64 value) -> U64 {
@@ -51,14 +52,12 @@ class alignas(64) Slab {
 
 #ifdef TOOLCHAIN_WASM
 
-    // Browser linear memory has no page mapping contract. Retain the slab
-    // allocator above an aligned allocation so its chunk ownership is shared
-    // with the native path without emulating virtual memory operations.
+    // Browser linear memory uses aligned allocations rather than mapped pages.
+    // The slab allocator keeps the same chunk ownership as the native path.
     size = Data::align<64>(
         block_size > allocator_size ? block_size : allocator_size);
-    // Count still describes 64 bit quantities on Wasm32. Reject an allocation
-    // that would narrow at the allocator boundary instead of renting a smaller
-    // block and recording the original capacity.
+    // Count remains a 64 bit quantity on Wasm32. The allocator boundary accepts
+    // a CppSize so every Slab records the exact size passed to aligned_alloc.
     if (size > Count(CppSize(-1))) [[unlikely]] {
       Diagnostics::Log::fatal("Requested slab exceeds the address space."_view);
     }
@@ -97,11 +96,18 @@ class alignas(64) Slab {
     auto constexpr huge_page = MAP_HUGETLB | MAP_HUGE_2MB;
     mapped_memory =
         mmap(nullptr, size, page_access, page_flags | huge_page, -1, 0);
+
+    // We can fail to allocate a huge page if the kernel ran out of allocated
+    // huge pages or if the user has failed to reserve any pages or enable
+    // transparent huge pages. While huge pages are our preference, we perform
+    // just fine with regular 4KB pages.
+    //
+    // If that mmap request also fails then there is really nothing we can do.
+    // We could fall back to another memory strategy but at that point we are
+    // just recreating a `malloc` wrapper.
     if (mapped_memory == MAP_FAILED) {
-      // Fall back to 4kb pages if the huge tlb failed.
       mapped_memory = mmap(nullptr, size, page_access, page_flags, -1, 0);
 
-      // Check if a regular mmap also failed with regular 4kb pages.
       if (mapped_memory == MAP_FAILED) [[unlikely]] {
         Diagnostics::Log::fatal(
             "Unable to map a new slab of memory for the runtime."_view);
@@ -192,10 +198,10 @@ class alignas(64) Slab {
 // Slab header should fill a single cache line.
 static_assert(sizeof(Slab) == 64);
 
-// Make sure Preface is always aligned so that the pointer returned is
-// aligned.
+// Filling one cache line preserves the slab's 64 byte alignment for the corpus
+// stored immediately after each Preface.
 class Preface {
-  friend Bibliotheca;
+  friend Allocator::Bibliotheca;
 
  public:
   auto get_usable_bytes() const -> Count { return block_size; }
@@ -214,23 +220,17 @@ class Preface {
 #if PERI_DEBUG
 
   U64 block_stamp;
-  [[maybe_unused]] U64 reserved[1];
+  [[maybe_unused]] U64 reserved[3];
 
 #else
 
-  [[maybe_unused]] U64 reserved[2];
+  [[maybe_unused]] U64 reserved[4];
 
 #endif
-
-  // Bibliotheca allocations reserve 16 bytes of "under_write" buffer.
-  // This underwrite buffer is useful for optimizing certain system algorithms
-  // that require a bit of underwriting (typically AVX).
-  [[maybe_unused]] U8 __under_write_buffer[Bibliotheca::legal_underwrite_size];
 };
 
-// Blocks are always cached aligned by having the preface small allows us to be
 static_assert(sizeof(Preface) == 64);
-static_assert(sizeof(Preface) == Bibliotheca::allocation_alignment);
+static_assert(sizeof(Preface) == Allocator::Bibliotheca::allocation_alignment);
 
 class Archive {
  public:
@@ -355,12 +355,11 @@ auto corpus_to_preface(U8* entry) -> Preface* {
   return Data::cast<Preface>(entry) - 1;
 }
 
-// The final 16 bytes of the preface remain available for legal underwriting.
 auto preface_to_corpus(Preface* entry) -> U8* {
   return Data::cast<U8>(entry + 1);
 }
 
-auto Bibliotheca::check_out(Count requested_bytes) -> Allocation {
+auto Allocator::Bibliotheca::check_out(Count requested_bytes) -> Allocation {
   secret_archive.check_out_requests++;
 
   // Caculate the archive information for the request.
@@ -416,17 +415,17 @@ auto Bibliotheca::check_out(Count requested_bytes) -> Allocation {
     .ptr = preface_to_corpus(entry), .capacity = entry->get_usable_bytes()};
 }
 
-auto Bibliotheca::reserve(U8* data) -> Count {
+auto Allocator::Bibliotheca::reserve(U8* data) -> Count {
   auto entry = corpus_to_preface(data);
   return entry->reservations++;
 }
 
-auto Bibliotheca::reservation_count(U8* data) -> Count {
+auto Allocator::Bibliotheca::reservation_count(U8* data) -> Count {
   auto entry = corpus_to_preface(data);
   return entry->reservations;
 }
 
-auto Bibliotheca::capacity(U8* data) -> Count {
+auto Allocator::Bibliotheca::capacity(U8* data) -> Count {
   if (!data) {
     return 0;
   }
@@ -434,7 +433,7 @@ auto Bibliotheca::capacity(U8* data) -> Count {
   return corpus_to_preface(data)->get_usable_bytes();
 }
 
-auto Bibliotheca::remit(U8* data) -> Count {
+auto Allocator::Bibliotheca::remit(U8* data) -> Count {
   auto entry = corpus_to_preface(data);
   entry->reservations--;
 
@@ -467,9 +466,9 @@ auto Bibliotheca::remit(U8* data) -> Count {
   return entry->reservations;
 }
 
-auto Bibliotheca::reserved_memory() -> Count {
+auto Allocator::Bibliotheca::reserved_memory() -> Count {
   Count total_size = 0;
-  for (int i = 0; i < radix_range; i++) {
+  for (Count i = 0; i < radix_range; i++) {
     auto archive = secret_archive.collections[i];
     total_size += (Count(1) << (min_radix + i)) * archive.reserved_blocks;
   }
@@ -477,9 +476,9 @@ auto Bibliotheca::reserved_memory() -> Count {
   return total_size;
 }
 
-auto Bibliotheca::free_memory() -> Count {
+auto Allocator::Bibliotheca::free_memory() -> Count {
   Count total_size = 0;
-  for (int i = 0; i < radix_range; i++) {
+  for (Count i = 0; i < radix_range; i++) {
     auto archive = secret_archive.collections[i];
     total_size += (Count(1) << (min_radix + i)) * archive.free_blocks;
   }
@@ -487,20 +486,20 @@ auto Bibliotheca::free_memory() -> Count {
   return total_size;
 }
 
-auto Bibliotheca::allocated_memory() -> Count {
+auto Allocator::Bibliotheca::allocated_memory() -> Count {
   auto reserved = reserved_memory();
   auto free = free_memory();
   return reserved - free;
 }
 
-auto Bibliotheca::check_out_requests() -> Count {
+auto Allocator::Bibliotheca::check_out_requests() -> Count {
   return secret_archive.check_out_requests;
 }
 
-auto Bibliotheca::allocation_requests() -> Count {
+auto Allocator::Bibliotheca::allocation_requests() -> Count {
   return secret_archive.allocation_requests;
 }
 
-auto Bibliotheca::slab_requests() -> Count {
+auto Allocator::Bibliotheca::slab_requests() -> Count {
   return secret_archive.slab_requests;
 }

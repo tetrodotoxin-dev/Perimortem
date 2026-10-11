@@ -174,7 +174,7 @@ class Binary {
     return *this;
   }
 
-  Access::Bytes source;
+  Access::Bytes source{};
   Count cursor = 0;
   Bool valid_state = True;
 };

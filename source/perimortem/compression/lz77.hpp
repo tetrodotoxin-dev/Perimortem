@@ -29,18 +29,15 @@ class Lz77 {
     Count distance;
   };
 
-  EXPORTED(PERIMORTEM) Lz77();
+  Lz77();
 
-  EXPORTED(PERIMORTEM) auto reset() -> void;
-  EXPORTED(PERIMORTEM) auto find_match(
-      Core::View::Bytes source,
-      Count position,
-      Count depth) const -> Match;
-  EXPORTED(PERIMORTEM) auto insert(Core::View::Bytes source, Count position)
-      -> void;
+  auto reset() -> void;
+  auto find_match(Core::View::Bytes source, Count position, Count depth) const
+      -> Match;
+  auto insert(Core::View::Bytes source, Count position) -> void;
   // Specialized merged find + insert which inserts position into the hash chain
   // then searches for the best match which avoids reading the hash table twice.
-  EXPORTED(PERIMORTEM) auto find_match_and_insert(
+  auto find_match_and_insert(
       Core::View::Bytes source,
       Count position,
       Count depth) -> Match;

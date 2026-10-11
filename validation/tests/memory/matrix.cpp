@@ -17,9 +17,9 @@ using namespace Toolchain::Validation;
 static Harness MemoryMatrix = {.name = "Memory::Matrix"};
 
 VALIDATION_TEST(MemoryMatrix, empty_value) {
-  const Count requests = Bibliotheca::check_out_requests();
+  const Count requests = Allocator::Bibliotheca::check_out_requests();
   Matrix<Rgba8> matrix;
-  EXPECT_EQ(Bibliotheca::check_out_requests(), requests);
+  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), requests);
   EXPECT(matrix.is_empty());
   EXPECT(matrix.get_values().is_empty());
 }
@@ -31,7 +31,7 @@ VALIDATION_TEST(MemoryMatrix, projects_owned_values) {
   values.emplace(Rgba8::from_rgba(17, 34, 51, 68));
 
   const auto* data = values.get_data();
-  const Count requests = Bibliotheca::check_out_requests();
+  const Count requests = Allocator::Bibliotheca::check_out_requests();
   auto projected = Matrix<Rgba8>::project(
       Domain<2, Boundary::Clip, Boundary::Clip>(Size<U32, 2>({{1, 1}})),
       Data::take(values));
@@ -43,7 +43,7 @@ VALIDATION_TEST(MemoryMatrix, projects_owned_values) {
       },
       [](Matrix<Rgba8>::Failure) { return Matrix<Rgba8>(); });
   ASSERT(succeeded);
-  EXPECT_EQ(Bibliotheca::check_out_requests(), requests);
+  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), requests);
   EXPECT_EQ(moved.get_values().get_data(), data);
   EXPECT(values.get_view().is_empty());
 

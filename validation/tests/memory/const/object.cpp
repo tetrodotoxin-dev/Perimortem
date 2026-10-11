@@ -9,9 +9,9 @@ using namespace Perimortem::Memory;
 // makes a leak, dangling access or repeated destruction a compiler error.
 static_assert(
     [] {
-      Const::Object<int> empty;
-      Const::Object<int> copy(empty);
-      Const::Object<int> replaced(7);
+      Const::Object<S32> empty;
+      Const::Object<S32> copy(empty);
+      Const::Object<S32> replaced(7);
       replaced = empty;
       return !copy.get_data() && !replaced.get_data();
     }(),
@@ -19,13 +19,13 @@ static_assert(
 
 static_assert(
     [] {
-      Const::Object<int> source(42);
-      Const::Object<int> copy(source);
+      Const::Object<S32> source(42);
+      Const::Object<S32> copy(source);
       *copy.get_data() = 7;
 
       auto& self = source;
       source = self;
-      source = static_cast<Const::Object<int>&&>(self);
+      source = static_cast<Const::Object<S32>&&>(self);
       return *source.get_data() == 42 && *copy.get_data() == 7;
     }(),
     "Copies are independent and self assignment preserves ownership");
@@ -34,13 +34,13 @@ static_assert(
 // transfer that allocation, rather than copy its value into a new one.
 static_assert(
     [] {
-      Const::Object<int> source(42);
-      const int* retained = source.get_data();
-      Const::Object<int> moved(static_cast<Const::Object<int>&&>(source));
-      Const::Object<int> destination(7);
-      destination = static_cast<Const::Object<int>&&>(moved);
-      moved = Const::Object<int>(9);
-      source = Const::Object<int>(3);
+      Const::Object<S32> source(42);
+      const S32* retained = source.get_data();
+      Const::Object<S32> moved(static_cast<Const::Object<S32>&&>(source));
+      Const::Object<S32> destination(7);
+      destination = static_cast<Const::Object<S32>&&>(moved);
+      moved = Const::Object<S32>(9);
+      source = Const::Object<S32>(3);
       return destination.get_data() == retained && *retained == 42 &&
              *moved.get_data() == 9 && *source.get_data() == 3;
     }(),

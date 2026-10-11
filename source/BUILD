@@ -4,7 +4,7 @@ load("@tetro_toolchain//:defs.bzl", "LINUX", "WEB", "WINDOWS", "library")
 
 package(default_visibility = ["//visibility:public"])
 
-# Defines all ot he modules and cross module dependencies used for SDK generation.
+# Defines each module and its dependencies for SDK generation.
 _COMPONENTS = {
     "core": [],
     "utility": ["core"],

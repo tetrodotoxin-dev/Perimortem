@@ -247,7 +247,7 @@ auto Json::Node::get_number() const -> S64 {
   return 0;
 }
 
-auto Json::Node::get_real() const -> double {
+auto Json::Node::get_real() const -> R64 {
   if (data.state == (U32)NodeState::Real) {
     return data.real;
   }

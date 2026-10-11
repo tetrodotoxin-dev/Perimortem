@@ -7,13 +7,13 @@
 #include <immintrin.h>
 #endif
 
-#include "perimortem/core/bibliotheca.hpp"
-
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 
-// Make it a bit easier to read which locations are invalid.
+// The AVX lookup tables and shuffles don't use every slot in the array. Zero is
+// useful but causes noise as zero is an actual valid value in some cases.
+// Instead define the commonly used `_` to signal that a slot shouldn't be used.
 #define _ 0
 
 // We truly can't have nice things... Still no proper support for c99
@@ -50,14 +50,11 @@ static_assert(decode_lookup['='] == _);
 
 #ifdef PERI_AVX2
 
-constexpr Count decode_underwrite_bytes = sizeof(__m128i) / 2;
-constexpr Count decode_extra_bytes =
-    sizeof(__m256i) / 4 + decode_underwrite_bytes;
+constexpr Count decode_extra_bytes = sizeof(__m256i) / 4;
 
 #else
 
 // A scalar quartet can write the two bytes hidden by trailing '=' padding.
-constexpr Count decode_underwrite_bytes = 0;
 constexpr Count decode_extra_bytes = 2;
 
 #endif
@@ -78,7 +75,6 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
   constexpr auto fused_channels = 3;
   constexpr auto avx2_channel_width = sizeof(__m256i);
   constexpr auto full_channel_width = avx2_channel_width * fused_channels;
-  constexpr auto upper_lane_underwrite_buffer = decode_underwrite_bytes;
 
 #endif
 
@@ -109,17 +105,11 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
 
 #ifdef PERI_AVX2
 
-  // Make sure we start at the end of the buffer space for vectorization.
   // Keep a padded final quartet in the scalar tail. Including it in a full
   // vector batch would consume more bytes than remain after removing '='.
   const auto vectorized_chunks = source_bytes / full_channel_width;
-  const auto output_vectorized_bytes =
-      vectorized_chunks * full_channel_width * output_stride / source_stride;
   const auto source_vectorized_bytes = vectorized_chunks * full_channel_width;
-
-  // Set the end location that we will write backwards from.
-  auto output_stream = text + output_vectorized_bytes;
-  source_data = source_data + source_vectorized_bytes;
+  auto output_stream = text;
 
   // AVX2 offers broad host support with less throttling than AVX512, so this
   // path accepts its smaller shuffle lanes in exchange for predictable use.
@@ -147,7 +137,8 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
       /* digits */ +4,
       /* + */ +19, _, _,
 
-      // Lane 2 (same as Lane 1)
+      // Lane 2 required to be the same as lane 1 since the shuffles work at 128
+      // bit lanes rather than the full 256 bit AVX2 register size.
       /* 0 */ _,
       /* 'o' */ -71, 0,
       /* 'O' */ -65, 0,
@@ -164,28 +155,24 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
       0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
       0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b0111,
 
-      // Lane 2 (same as Lane 1)
+      // Lane 2 required to be the same as lane 1 since the shuffles work at 128
+      // bit lanes rather than the full 256 bit AVX2 register size.
       0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
       0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b0111);
+  // Each lane packs twelve decoded bytes behind one unused dword. The dword
+  // permutation joins both payloads before they are written.
   const auto repack_shuffle = _mm256_setr_epi8(
-      // Lane 1 is properly packed with left alignment.
+      // Lane 1
       0xFF, 0xFF, 0xFF, 0xFF, 0x02, 0x01, 0x00, 0x06, 0x05, 0x04, 0x0A, 0x09,
       0x08, 0x0E, 0x0D, 0x0C,
 
-      // Lane 2 is packed to the right to allow for underwriting with no extra
-      // space left at the end.
+      // Lane 2
       0xFF, 0xFF, 0xFF, 0xFF, 0x02, 0x01, 0x00, 0x06, 0x05, 0x04, 0x0A, 0x09,
       0x08, 0x0E, 0x0D, 0x0C);
+  const auto stream_order = _mm256_setr_epi32(1, 2, 3, 5, 6, 7, 0, 4);
 
-  // Write both the chunks and the pipelined ymm groups in reverse order to
-  // support the underwriting process.
-  for (auto inverse_chunk = vectorized_chunks; inverse_chunk > 0;
-       inverse_chunk--) {
-    // Linear accounting
-    output_stream -=
-        (avx2_channel_width - avx2_channel_width / 4) * fused_channels;
-    source_data -= full_channel_width;
-    for (auto ymm = fused_channels - 1; ymm >= 0; ymm--) {
+  for (Count chunk = 0; chunk < vectorized_chunks; chunk++) {
+    for (Count ymm = 0; ymm < fused_channels; ymm++) {
       // Load
       const auto channel_value = _mm256_loadu_si256(
           Data::cast<const __m256i_u>(source_data + sizeof(__m256i) * ymm));
@@ -224,40 +211,28 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
       const auto merged_i32 = _mm256_madd_epi16(half_merged, multiply_by_4096);
       const auto lane_repack = _mm256_shuffle_epi8(merged_i32, repack_shuffle);
 
-      // Rather than premuteevar8x32_epi32 and a store we can just do double
-      // lane store. This saves the lane_shuffle and ymm_repack taking up
-      // registers.
-      //
-      // As an additional optimization we can then also store the upper lane
-      // by under writing the lower lane by 8 bytes, filling the gap created
-      // by the lane repack shuffle.
-      //
-      // This aligns the upper bytes without needing _mm256_extractf128_si256,
-      // which is super slow.
+      // Compact the lane payloads so the eight unused bytes follow the decoded
+      // output. The next store replaces that working space, while allocation
+      // slack contains it after the final store.
+      const auto stream_repack =
+          _mm256_permutevar8x32_epi32(lane_repack, stream_order);
       _mm256_storeu_si256(
-          (__m256i_u*)(output_stream + 24 * ymm - upper_lane_underwrite_buffer),
-          lane_repack);
+          (__m256i_u*)(output_stream + 24 * ymm), stream_repack);
+    }
 
-      // Store lower lane directly at the correct position.
-      const auto lower_lane = _mm256_castsi256_si128(lane_repack);
-      _mm_storeu_si128(
-          (__m128i*)(output_stream + 24 * ymm -
-                     upper_lane_underwrite_buffer / 2),
-          lower_lane);
-    };
+    output_stream +=
+        (avx2_channel_width - avx2_channel_width / 4) * fused_channels;
+    source_data += full_channel_width;
   }
 
 #else
 
-  constexpr Count output_vectorized_bytes = 0;
   constexpr Count source_vectorized_bytes = 0;
   auto output_stream = text;
 
 #endif
 
   // The same quartet loop handles the vector tail and the complete scalar path.
-  output_stream = text + output_vectorized_bytes;
-  source_data = source_data + source_vectorized_bytes;
   source_bytes -= source_vectorized_bytes;
   for (Count i = 0, j = 0; j < source_bytes;
        i += output_stride, j += source_stride) {
@@ -498,13 +473,6 @@ auto Base64::decode(View::Bytes source) -> Dynamic::Bytes {
   Memory::Dynamic::Bytes bytes;
   bytes.forgetful_resize(size + decode_extra_bytes);
 
-  // The algorithm uses decode_underwrite_bytes of the Bibliotheca's guaranteed
-  // underwrite region before the allocation pointer.
-  static_assert(
-      decode_underwrite_bytes <= Bibliotheca::legal_underwrite_size,
-      "Base64 decode requires more underwrite bytes than are guaranteed by the "
-      "Bibliotheca, ensure Perimortem is configured correctly");
-
   U8* text = bytes.get_access().get_data();
   Count actual_size = vectorized_decode(text, source);
   bytes.resize(actual_size);
@@ -519,10 +487,8 @@ auto Base64::decode(Allocator::Arena& arena, View::Bytes source)
 
   Count size = (source.get_size() / 4) * 3;
 
-  // Prefix padding gives the vectorized loop its documented underwrite region.
-  auto storage =
-      arena.allocate(decode_underwrite_bytes + size + decode_extra_bytes);
-  U8* text = storage.get_data() + decode_underwrite_bytes;
+  auto storage = arena.allocate(size + decode_extra_bytes);
+  U8* text = storage.get_data();
   Count actual_size = vectorized_decode(text, source);
   return View::Bytes(text, actual_size);
 }

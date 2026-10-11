@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/thread/worker.hpp"
+#include "perimortem/system/process/worker.hpp"
 
 #ifdef TOOLCHAIN_WINDOWS
 #include <process.h>
@@ -12,12 +12,12 @@
 #endif
 
 #include "perimortem/core/algorithm/search.hpp"
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 
 #ifndef TOOLCHAIN_WINDOWS
 
@@ -28,6 +28,10 @@ static_assert(
 #endif
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
+using namespace Perimortem::System;
+
+using Process::Worker;
 
 // Stores the logical thread id.
 // A thread created outside Perimortem uses the negative one id and represents
@@ -35,7 +39,7 @@ using namespace Perimortem::Core;
 static thread_local U64 this_thread_id = Count(-1);
 static thread_local View::Bytes this_thread_name = ""_view;
 
-using WorkerJobFunction = Thread::Worker::JobFunction;
+using WorkerJobFunction = Process::Worker::JobFunction;
 
 #ifdef TOOLCHAIN_WINDOWS
 
@@ -71,9 +75,8 @@ static auto yield_worker() -> void {
 
 // ThreadInitializer owns the full worker startup transaction.
 // Constructing it blocks the host thread long enough for the spawned thread to
-// copy every caller owned view into its own thread local storage. That keeps
-// the safe handoff automatic instead of making every caller remember the
-// lifetime rules.
+// copy every caller owned view into its own thread local storage. The
+// constructor establishes that lifetime rule for every job.
 class ThreadInitializer {
  public:
   ThreadInitializer(
@@ -88,19 +91,18 @@ class ThreadInitializer {
         disable_log_header(Diagnostics::Log::get_disable_header()) {
     if (!job_function) {
       Diagnostics::Log::fatal(
-          "Thread::Worker requested to start without a job function."_view);
+          "Process::Worker requested to start without a job function."_view);
     }
 
-    // Try to create a thread with the appropriate job data.
-    // If for some reason the system fails to create the thread then emit fatal
-    // log and exit since we are most likely in a broken state.
+    // Reserve the logical identity before creating its native thread. A native
+    // creation failure releases both parts of that transaction.
     thread_id = reserve_thread();
 
 #ifdef TOOLCHAIN_WINDOWS
 
     handle = _beginthreadex(
         nullptr, 0,
-        [](void* initializer) -> unsigned {
+        [](void* initializer) -> U32 {
           dispatch(initializer);
           return 0;
         },
@@ -123,7 +125,7 @@ class ThreadInitializer {
     if (failed) {
       release_thread(thread_id);
       Diagnostics::Log::fatal(
-          "Thread::Worker failed to create a native thread."_view);
+          "Process::Worker failed to create a native thread."_view);
     }
 
     // Block until the spawned thread marks itself as initialized.
@@ -134,7 +136,7 @@ class ThreadInitializer {
     }
   };
 
-  // Prevent dumb bugs from accidentally copying a thread initializer.
+  // The spawning frame uniquely owns its initialization transaction.
   ThreadInitializer(const ThreadInitializer&) = delete;
   auto operator=(const ThreadInitializer&) -> ThreadInitializer& = delete;
 
@@ -151,8 +153,9 @@ class ThreadInitializer {
   }
 
  private:
-  // Releases the host thread and lets it clean up any data that was loaned to
-  // the worker thread.
+  // Signals that the worker copied every source View into its thread local
+  // storage. The spawning constructor can then release the initializer, while
+  // the copied name and job data remain valid through the worker job.
   auto mark_initialized() -> void {
     __atomic_store_n(&initialized.value, True.value, __ATOMIC_RELEASE);
   }
@@ -166,7 +169,7 @@ class ThreadInitializer {
     if (thread_occupancy[worker_index] != 0) {
       unlock_workers();
       Diagnostics::Log::fatal(
-          "Program requested to create a Thread::Worker but all 64 Workers "
+          "Program requested to create a Process::Worker but all 64 Workers "
           "were already occupied."_view);
     }
 
@@ -183,19 +186,20 @@ class ThreadInitializer {
   }
 
   static auto copy_thread_bytes(View::Bytes source_bytes) -> View::Bytes {
-    // Avoid allocations if no thread data was provided.
+    // An empty view has stable representation and requires no reservation.
     if (source_bytes.is_empty()) {
       return View::Bytes();
     }
 
-    const auto allocation = Bibliotheca::check_out(source_bytes.get_size());
+    const auto allocation =
+        Allocator::Bibliotheca::check_out(source_bytes.get_size());
     Data::copy(
         allocation.ptr, source_bytes.get_data(), source_bytes.get_size());
     return View::Bytes(allocation.ptr, source_bytes.get_size());
   }
 
   static auto set_system_thread_name(View::Bytes thread_name) -> void {
-    // Don't bother with setting the thread name if it's empty
+    // An unnamed worker retains the platform supplied thread name.
     if (thread_name.is_empty()) {
       return;
     }
@@ -205,9 +209,9 @@ class ThreadInitializer {
     // The full name remains in our thread storage. The debugger name uses a
     // bounded native buffer so naming never needs another allocation.
     wchar_t name[256];
-    const int size =
-        thread_name.get_size() < 256 ? int(thread_name.get_size()) : 255;
-    const int written = MultiByteToWideChar(
+    const S32 size =
+        thread_name.get_size() < 256 ? S32(thread_name.get_size()) : 255;
+    const S32 written = MultiByteToWideChar(
         CP_UTF8, MB_ERR_INVALID_CHARS, Data::cast<char>(thread_name.get_data()),
         size, name, 255);
     if (written) {
@@ -231,19 +235,19 @@ class ThreadInitializer {
   }
 
   static auto dispatch(void* initializer_address) -> void* {
-    // To avoid race condidtions the spawning thread has already reserved a
-    // valid thread id ahead of time.
+    // The spawning thread reserves this identity before native dispatch.
     auto& initializer = *Data::cast<ThreadInitializer>(initializer_address);
     this_thread_id = initializer.thread_id;
 
     // Set the thread name both in engine and at the OS level to aid in
     // debugging and tracing.
     this_thread_name = copy_thread_bytes(initializer.requested_name);
+    Diagnostics::Log::set_thread_name(this_thread_name);
     set_system_thread_name(this_thread_name);
 
-    // Configure the thread logger based on the spawned state.
-    // The thread can override this later but it's useful to at least inherit
-    // the spawning threads log state by default.
+    // By default the worker inherits its spawning thread's diagnostic logging.
+    // This allows for unified logging by default, but a job can later select
+    // for alternative logging for subsequent messages.
     Diagnostics::Log::set_sink(initializer.sink);
     Diagnostics::Log::set_disable_header(initializer.disable_log_header);
 
@@ -251,11 +255,13 @@ class ThreadInitializer {
     WorkerJobFunction job_function = initializer.job_function;
     View::Bytes job_data = copy_thread_bytes(initializer.job_data);
 
-    // Log the thread start.
+    // Log the thread start as a debug message using the inherited logger before
+    // we hand off any execution to the job. This way the spawning thread will
+    // always contain a spawn message when it successfully creates a thread.
     {
       Diagnostics::Log::Message<128> start_message(
           Diagnostics::Log::Level::Debug);
-      start_message << "Thread::Worker spawned worker_index="_view
+      start_message << "Process::Worker spawned worker_index="_view
                     << this_thread_id << " job_bytes="_view
                     << job_data.get_size();
     }
@@ -264,43 +270,57 @@ class ThreadInitializer {
     initializer.mark_initialized();
     job_function(job_data);
 
-    // Log the thread exit before we go to release the thread.
-    // If for some reason we hit a hang this can be helpful in debugging.
+    // To improve observability the worker posts a completion message to the
+    // spawning threads diagnostics to signal start / finished pairs. Since the
+    // job might have changed the logger during execution we reset the sink to
+    // the initalized logger.
+    //
+    // TODO: Two design considerations for the future:
+    //
+    // 1. We can also log a message to the worker's diagnostics but to avoid
+    // repeat messages we would want to detect if that's safe somehow.
+    //
+    // 2. There is no guarantee that the spawning thread's logger hasn't
+    // driffted since this worker was spawned. We might be reviving a stale
+    // logger.
     {
+      Diagnostics::Log::set_sink(initializer.sink);
+      Diagnostics::Log::set_disable_header(initializer.disable_log_header);
       Diagnostics::Log::Message<128> exit_message(
           Diagnostics::Log::Level::Debug);
-      exit_message << "Thread::Worker completed worker_index="_view
+      exit_message << "Process::Worker completed worker_index="_view
                    << this_thread_id;
     }
 
-    // The job data lives in this thread's Bibliotheca. Thread exit owns
-    // cleanup.
+    // The job data lives in this thread's Bibliotheca so thread and will be
+    // closed on clean up so we need to mark the thread as free before closing
+    // out.
     release_thread(this_thread_id);
     return nullptr;
   }
 
   Count thread_id = 0;
-  View::Bytes requested_name;
+  View::Bytes requested_name{};
   WorkerJobFunction job_function;
-  View::Bytes job_data;
+  View::Bytes job_data{};
   Diagnostics::Log::Sink sink;
   Bool disable_log_header;
   Bool initialized = False;
 
-  static inline Static::Vector<U8, Thread::Worker::max_workers()>
+  static inline Static::Vector<U8, Process::Worker::max_workers()>
       thread_occupancy;
 };
 
-Thread::Worker::Worker(Worker&& other_worker) : handle(other_worker.handle) {
+Process::Worker::Worker(Worker&& other_worker) : handle(other_worker.handle) {
   other_worker.handle = 0;
 }
 
-Thread::Worker::~Worker() {
-  // Avoid C++'s mistakes and make sure Workers actually `join` on exit.
+Process::Worker::~Worker() {
+  // Destruction joins the owned thread before releasing its native token.
   join();
 }
 
-auto Thread::Worker::operator=(Worker&& other_worker) -> Worker& {
+auto Process::Worker::operator=(Worker&& other_worker) -> Worker& {
   if (this == &other_worker) {
     return *this;
   }
@@ -311,7 +331,7 @@ auto Thread::Worker::operator=(Worker&& other_worker) -> Worker& {
   return *this;
 }
 
-auto Thread::Worker::join() -> void {
+auto Process::Worker::join() -> void {
   if (handle) {
 
 #ifdef TOOLCHAIN_WINDOWS
@@ -319,7 +339,8 @@ auto Thread::Worker::join() -> void {
     HANDLE thread = reinterpret_cast<HANDLE>(handle);
     const auto waited = WaitForSingleObject(thread, INFINITE);
     if (waited != WAIT_OBJECT_0) {
-      Diagnostics::Log::fatal("Thread::Worker failed to join its thread."_view);
+      Diagnostics::Log::fatal(
+          "Process::Worker failed to join its thread."_view);
     }
 
     CloseHandle(thread);
@@ -338,24 +359,24 @@ auto Thread::Worker::join() -> void {
   }
 }
 
-auto Thread::Worker::start(
+auto Process::Worker::start(
     View::Bytes name,
     JobFunction job_function,
-    View::Bytes job_data) -> Thread::Worker {
-  Thread::Worker worker;
+    View::Bytes job_data) -> Process::Worker {
+  Process::Worker worker;
   ThreadInitializer initializer(name, job_function, job_data, worker.handle);
   return worker;
 }
 
-auto Thread::Worker::on_main_thread() -> Bool {
+auto Process::Worker::on_main_thread() -> Bool {
   return this_thread_id == Count(-1);
 }
 
-auto Thread::Worker::get_thread_id() -> Count {
+auto Process::Worker::get_thread_id() -> Count {
   return Count(this_thread_id);
 }
 
-auto Thread::Worker::get_thread_name() -> View::Bytes {
+auto Process::Worker::get_thread_name() -> View::Bytes {
   if (on_main_thread()) {
     return "main"_view;
   }
@@ -363,6 +384,6 @@ auto Thread::Worker::get_thread_name() -> View::Bytes {
   return this_thread_name;
 }
 
-auto Thread::Worker::get_worker_count() -> Count {
+auto Process::Worker::get_worker_count() -> Count {
   return ThreadInitializer::get_worker_count();
 }

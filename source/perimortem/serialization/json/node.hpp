@@ -19,7 +19,7 @@ class Node {
     constexpr Member(Core::View::Bytes name, const Node& node)
         : name(name), node(node) {}
 
-    const Core::View::Bytes name;
+    const Core::View::Bytes name{};
     const Node& node;
   };
 
@@ -71,7 +71,7 @@ class Node {
 
   EXPORTED(PERIMORTEM) auto get_flag() const -> Bool;
   EXPORTED(PERIMORTEM) auto get_number() const -> S64;
-  EXPORTED(PERIMORTEM) auto get_real() const -> double;
+  EXPORTED(PERIMORTEM) auto get_real() const -> R64;
   EXPORTED(PERIMORTEM) auto get_string() const -> const Core::View::Bytes;
   EXPORTED(PERIMORTEM) auto decode_string(Memory::Allocator::Arena& arena) const
       -> Core::View::Bytes;

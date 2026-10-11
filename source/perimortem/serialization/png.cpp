@@ -93,7 +93,7 @@ class Chunk {
   constexpr auto get_valid() const -> Bool { return valid; }
 
  private:
-  View::Bytes data;
+  View::Bytes data{};
   Static::Bytes<4> type;
   U32 length = 0;
   Bool valid = False;
@@ -264,7 +264,7 @@ constexpr auto paeth_predictor(U8 left, U8 up, U8 upper_left) -> U8 {
 }
 
 // Smaller residuals _generally_ compress better under DEFLATE.
-// We treat each byte as a signed value and sum the magnitudes as a cheap proxy
+// We treat each byte as a signed value and sum the magnitudes as a cheap
 // estimate for compressibility.
 template <Bool first_row>
 auto score_row(View::Bytes current_row, View::Bytes previous_row)
@@ -808,9 +808,9 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
   // For PNGs with a single IDAT chunk (the common case) we hold a view to avoid
   // copying the entire compressed stream, but if any additional IDAT chunks are
   // found we switch to merging them into a dynamic buffer.
-  View::Bytes binary_data;
+  View::Bytes binary_data{};
   Dynamic::Bytes merged_data;
-  View::Bytes palette;
+  View::Bytes palette{};
 
   // Walk the chunk sequence collecting all IDAT payloads plus the optional
   // PLTE (palette) chunk needed for indexed color images.
@@ -833,7 +833,7 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
       } else {
         // Need to to merge in the current binary data from the last read.
         if (merged_data.is_empty()) {
-          merged_data.proxy(binary_data);
+          merged_data.copy(binary_data);
         }
 
         // Add the chunk to the merged binary and update the binary view.

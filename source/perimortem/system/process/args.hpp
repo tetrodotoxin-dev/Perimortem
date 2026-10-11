@@ -9,22 +9,19 @@
 #include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-namespace Perimortem::System {
+namespace Perimortem::System::Process {
 
-// Parses typical CLI arguments into a Perimortem friendly data structure.
-// Supports named keys, positionals (in a sense), and repeat keys.
+// Args parses one process invocation into named, positional and repeated
+// values retained by the caller's Arena.
 //
-// Only valid keys are let through with `help` being a canonical key that is
-// always valid. Further input validation is left up to the caller to allow
-// for flexability.
-//
-// `log_help` can be used to output structured help text based on a given config
-// to `Diagnostics` using `Level::Info`.
+// The configuration declares the accepted names and their help text. An empty
+// name accepts positional values, while `help` is always available. Parsing
+// establishes membership and leaves interpretation of each value with the
+// application that declared its argument.
 class Args {
  public:
-  // Values are parsed as a map of valid keys with a vector of their results.
-  // It's up to the calling program to decide if missing keys are an issue or
-  // if multiple keys cause an error.
+  // Each accepted name maps to its values in authored order. The application
+  // decides which names are required and how many values each accepts.
   using Values = Memory::Managed::
       Map<Core::View::Bytes, Memory::Managed::Vector<Core::View::Bytes>*>;
 
@@ -35,6 +32,7 @@ class Args {
       const Memory::Managed::Map<Core::View::Bytes, Core::View::Bytes>& config,
       Core::View::Vector<Core::View::Bytes> arguments) -> Values;
 
+  // Writes help for the same configuration through Diagnostics at Info.
   static EXPORTED(PERIMORTEM) auto log_help(
       Memory::Allocator::Arena& arena,
       Core::View::Bytes tool_summary,
@@ -42,4 +40,4 @@ class Args {
       Core::View::Vector<Core::View::Bytes> arguments) -> void;
 };
 
-}  // namespace Perimortem::System
+}  // namespace Perimortem::System::Process

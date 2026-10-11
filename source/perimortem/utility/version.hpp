@@ -4,9 +4,10 @@
 #pragma once
 
 #include "toolchain/toolchain.hpp"
+
 #include "perimortem/core/view/bytes.h"
 
-namespace Perimortem::System {
+namespace Perimortem::Utility {
 
 // A compact `Major.Minor` version representation optimized for fast comparison
 // and storage.
@@ -111,4 +112,4 @@ class Version {
 
 static_assert(sizeof(Version) == 4);
 
-}  // namespace Perimortem::System
+}  // namespace Perimortem::Utility

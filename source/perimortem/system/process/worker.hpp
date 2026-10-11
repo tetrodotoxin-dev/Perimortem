@@ -5,13 +5,16 @@
 
 #include "perimortem/core/view/bytes.h"
 
-namespace Perimortem::Core::Thread {
+namespace Perimortem::System::Process {
 
+// Worker owns one native thread and joins it before the handle leaves scope.
+// Startup copies the name and job data into the destination thread before the
+// spawning call returns, giving the job a stable thread local view.
 class Worker {
  public:
-  // The job function is called with a stable copy of the provided job data that
-  // is valid for as long as the worker is alive, even if the original view is
-  // invalidated by the spawning thread.
+  // The job function receives a stable copy of the provided job data for the
+  // worker lifetime. The caller may release its original storage after start
+  // returns.
   using JobFunction = void (*)(Core::View::Bytes);
 
   Worker() = default;
@@ -19,7 +22,7 @@ class Worker {
   EXPORTED(PERIMORTEM) Worker(Worker&&);
   EXPORTED(PERIMORTEM) auto operator=(Worker&&) -> Worker&;
 
-  // Delete copy constructors
+  // Moving transfers the unique native thread token.
   Worker(const Worker&) = delete;
   auto operator=(const Worker&) -> Worker& = delete;
 
@@ -28,21 +31,19 @@ class Worker {
   EXPORTED(PERIMORTEM) auto join() -> void;
 
   // Starts a worker on a separate thread with a copy of the provided job data.
-  // Each worker / thread has it's own working memory space.
+  // Each worker receives its own thread local Bibliotheca storage.
   static EXPORTED(PERIMORTEM) auto start(
       Core::View::Bytes name,
       JobFunction job_function,
       Core::View::Bytes job_data = Core::View::Bytes()) -> Worker;
 
-  // Checks if the thread is a main thread spawned by a non Perimortem system.
-  // Unless a Foreign system creates threads Perimortem only provides one main
-  // thread.
-  //
-  // The negative one id distinguishes the main thread from owned workers.
+  // Reports whether the current thread has the foreign identity. Workers use
+  // their reserved slot as an identity while independently created native
+  // threads begin with the all bits set identity.
   static EXPORTED(PERIMORTEM) auto on_main_thread() -> Bool;
 
   static EXPORTED(PERIMORTEM) auto get_thread_id() -> Count;
-  static EXPORTED(PERIMORTEM) auto get_thread_name() -> View::Bytes;
+  static EXPORTED(PERIMORTEM) auto get_thread_name() -> Core::View::Bytes;
 
   // Returns the number of currently occupied worker slots.
   static EXPORTED(PERIMORTEM) auto get_worker_count() -> Count;
@@ -55,4 +56,4 @@ class Worker {
   U64 handle = 0;
 };
 
-}  // namespace Perimortem::Core::Thread
+}  // namespace Perimortem::System::Process

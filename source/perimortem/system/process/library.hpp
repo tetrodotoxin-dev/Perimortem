@@ -7,14 +7,15 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/utility/result.hpp"
 
-namespace Perimortem::System {
+namespace Perimortem::System::Process {
 
-// Library wraps the systems native dynamic library system and manages the
-// lifetime of the underlying object. Symbols can be fetched from the library
-// by name but the actual symbol needs to be unsafely casted in order to call.
+// Library owns one native loader handle in the current process. Each successful
+// open owns an independent handle, and destruction releases that handle.
 //
-// The lifetime of any symbols are kept alive for as long as the library and
-// duplicate entries get their own handle.
+// A symbol address remains valid while its Library lives. The caller converts
+// that address to the function or data type declared by the loaded interface.
+// Failure text is retained by the caller's Arena so it remains available after
+// the platform loader returns.
 class Library {
  public:
   static EXPORTED(PERIMORTEM) auto open(
@@ -37,4 +38,4 @@ class Library {
   void* handle;
 };
 
-}  // namespace Perimortem::System
+}  // namespace Perimortem::System::Process

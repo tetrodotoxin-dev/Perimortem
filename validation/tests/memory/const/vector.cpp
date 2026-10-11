@@ -11,10 +11,10 @@ using namespace Perimortem::Memory;
 // pointees intact. Schema compilation retains exactly this kind of reference.
 static_assert(
     [] {
-      Const::Vector<Const::Object<int>> values;
+      Const::Vector<Const::Object<S32>> values;
 
-      const int* retained = values.insert(42).get_data();
-      for (int i = 0; i < 16; ++i) {
+      const S32* retained = values.insert(42).get_data();
+      for (S32 i = 0; i < 16; ++i) {
         values.insert(i);
       }
 
@@ -26,11 +26,11 @@ static_assert(
 // destroy every capacity slot, including those outside the logical size.
 static_assert(
     [] {
-      Const::Vector<Const::Object<int>> values;
+      Const::Vector<Const::Object<S32>> values;
       values.insert(10);
       values.insert(20);
 
-      const int* retained = values.insert(30).get_data();
+      const S32* retained = values.insert(30).get_data();
       if (!values.remove(1) || values[1].get_data() != retained) {
         return false;
       }
@@ -51,13 +51,13 @@ static_assert(
 // retained capacity must release old values and expose default new slots.
 static_assert(
     [] {
-      Const::Vector<Const::Object<int>> values;
+      Const::Vector<Const::Object<S32>> values;
       values.insert(42);
 
       const auto* retained = values[0].get_data();
       values.resize(100);
 
-      values[99] = Const::Object<int>(7);
+      values[99] = Const::Object<S32>(7);
 
       auto* storage = values.get_data();
       values.resize(1);
@@ -70,18 +70,18 @@ static_assert(
 
 static_assert(
     [] {
-      Const::Vector<Const::Object<int>> source;
+      Const::Vector<Const::Object<S32>> source;
       source.insert(42);
 
       auto* retained = source.get_data();
-      Const::Vector<Const::Object<int>> moved(
-          static_cast<Const::Vector<Const::Object<int>>&&>(source));
+      Const::Vector<Const::Object<S32>> moved(
+          static_cast<Const::Vector<Const::Object<S32>>&&>(source));
 
       auto& self = moved;
-      moved = static_cast<Const::Vector<Const::Object<int>>&&>(self);
-      Const::Vector<Const::Object<int>> destination;
+      moved = static_cast<Const::Vector<Const::Object<S32>>&&>(self);
+      Const::Vector<Const::Object<S32>> destination;
       destination.insert(7);
-      destination = static_cast<Const::Vector<Const::Object<int>>&&>(moved);
+      destination = static_cast<Const::Vector<Const::Object<S32>>&&>(moved);
       source.insert(3);
 
       return destination.get_data() == retained &&

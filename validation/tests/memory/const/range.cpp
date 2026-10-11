@@ -11,7 +11,7 @@ using namespace Perimortem::Memory;
 // indexing, without making the owner itself mutable to read an element.
 static_assert(
     [] {
-      Const::Range<int> source(2);
+      Const::Range<S32> source(2);
       source[1] = 42;
 
       const auto& view = source;
@@ -21,17 +21,17 @@ static_assert(
 
 static_assert(
     [] {
-      Const::Range<int> source(2);
+      Const::Range<S32> source(2);
       source.get_data()[0] = 42;
 
-      Const::Range<int> copy(source);
+      Const::Range<S32> copy(source);
       copy.get_data()[0] = 7;
 
       auto& self = source;
       source = self;
-      source = static_cast<Const::Range<int>&&>(self);
+      source = static_cast<Const::Range<S32>&&>(self);
 
-      Const::Range<int> destination(8);
+      Const::Range<S32> destination(8);
       destination = copy;
       return destination.get_size() == 2 && destination.get_data()[0] == 7 &&
              source.get_size() == 2 && source.get_data()[0] == 42;
@@ -42,18 +42,18 @@ static_assert(
 // those pointers, and replacing it with an empty Range must release ownership.
 static_assert(
     [] {
-      Const::Range<Const::Object<int>> source(2);
-      source.get_data()[1] = Const::Object<int>(42);
+      Const::Range<Const::Object<S32>> source(2);
+      source.get_data()[1] = Const::Object<S32>(42);
 
       const auto* retained = source.get_data();
-      Const::Range<Const::Object<int>> moved(
-          static_cast<Const::Range<Const::Object<int>>&&>(source));
-      Const::Range<Const::Object<int>> destination;
-      destination = static_cast<Const::Range<Const::Object<int>>&&>(moved);
+      Const::Range<Const::Object<S32>> moved(
+          static_cast<Const::Range<Const::Object<S32>>&&>(source));
+      Const::Range<Const::Object<S32>> destination;
+      destination = static_cast<Const::Range<Const::Object<S32>>&&>(moved);
 
       const bool preserved =
           destination.get_data() == retained && *retained[1].get_data() == 42;
-      destination = Const::Range<Const::Object<int>>();
+      destination = Const::Range<Const::Object<S32>>();
       return preserved && !source.get_size() && !source.get_data() &&
              !moved.get_size() && !moved.get_data() && !destination.get_size();
     }(),

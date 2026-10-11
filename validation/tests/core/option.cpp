@@ -28,8 +28,8 @@ static_assert([] {
   return Bool(Option<U64&>(value)) == True && Bool(Option<U64&>()) == False;
 }());
 
-class BorrowedBase {};
-class BorrowedDerived final : public BorrowedBase {};
+class ReferenceBase {};
+class ReferenceDerived final : public ReferenceBase {};
 
 class StackValue {
  public:
@@ -81,7 +81,7 @@ VALIDATION_TEST(CoreOption, visits_reference) {
   EXPECT_EQ(value, 42);
 }
 
-VALIDATION_TEST(CoreOption, copies_borrow) {
+VALIDATION_TEST(CoreOption, copies_reference) {
   const S32 value = 42;
   Option<const S32&> first(value);
   Option<const S32&> second(first);
@@ -135,13 +135,13 @@ VALIDATION_TEST(CoreOption, arrow_access) {
   const Option<StackValue>& const_owned = owned;
   EXPECT_EQ(const_owned->get(), 42);
 
-  Count borrowed_destructions = 0;
-  StackValue value(40, borrowed_destructions);
-  Option<StackValue&> borrowed(value);
-  borrowed->increment();
+  Count reference_destructions = 0;
+  StackValue value(40, reference_destructions);
+  Option<StackValue&> reference(value);
+  reference->increment();
 
-  const Option<StackValue&>& const_borrowed = borrowed;
-  const_borrowed->increment();
+  const Option<StackValue&>& const_reference = reference;
+  const_reference->increment();
   EXPECT_EQ(value.get(), 42);
 }
 
@@ -161,6 +161,6 @@ static_assert(__is_trivially_copyable(Option<const S32&>));
 static_assert(__is_constructible(Option<const S32&>, const S32&));
 static_assert(!__is_constructible(Option<const S32&>, S32&&));
 static_assert(
-    !__is_constructible(Option<const BorrowedBase&>, BorrowedDerived&&));
+    !__is_constructible(Option<const ReferenceBase&>, ReferenceDerived&&));
 static_assert(__is_constructible(Option<StackValue>, StackValue&&));
 static_assert(__is_constructible(Option<StackValue>, Option<StackValue>&&));

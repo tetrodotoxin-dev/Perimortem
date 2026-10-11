@@ -8,12 +8,13 @@
 
 namespace Perimortem::Core {
 
-// A bounded C string calculates its borrowed byte extent once. The resulting
-// view excludes the first null byte while retaining the source lifetime.
+// NullTerminated calculates the byte extent of a bounded C string once. The
+// resulting View uses the source storage and excludes the first null byte. It
+// remains valid while the caller keeps that storage alive at the same address.
 class NullTerminated {
  public:
   constexpr NullTerminated(const char* source, Count capacity)
-      : source(source) {
+      : source(static_cast<const U8*>(static_cast<const void*>(source))) {
     if (source) {
       while (size < capacity && source[size] != 0) {
         size++;
@@ -45,7 +46,7 @@ class NullTerminated {
   };
 
  private:
-  const char* source = nullptr;
+  const U8* source = nullptr;
   Count size = 0;
 };
 

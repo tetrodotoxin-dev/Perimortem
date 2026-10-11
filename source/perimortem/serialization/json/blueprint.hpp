@@ -10,8 +10,8 @@
 
 namespace Perimortem::Serialization::Json {
 
-// Describes a temporary JSON tree which materializes its values as managed
-// Nodes in an Arena with a single owning lifetime.
+// Blueprint collects a temporary JSON tree and materializes its values as
+// managed Nodes in an Arena with a single owning lifetime.
 //
 // Stack provided scalars, objects, arrays, and existing Nodes are supported.
 // The value Union keeps each payload paired with its type without exposing a
@@ -86,7 +86,7 @@ class Blueprint {
       : name(member_name),
         value(Core::View::Vector<Blueprint>(children, child_count)) {}
 
-  Core::View::Bytes name;
+  Core::View::Bytes name{};
   Value value;
 };
 

@@ -19,8 +19,8 @@ namespace Perimortem::Memory {
 // rule acts on the intended axis rather than on the entire allocation.
 //
 // A Matrix has exactly row_count * column_count live values. An empty
-// axis leaves no addressable values. Flat views expose storage order directly
-// and borrow their values from the Matrix.
+// axis leaves no addressable values. get_values exposes storage order through
+// a View that remains valid until Matrix storage changes.
 //
 // Clip is the default boundary behavior on both axes, but you can explicitly
 // provide different boundary behavior for row and columns separately.
@@ -51,9 +51,9 @@ class Matrix {
     return *this;
   }
 
-  // Creation copies from a borrowed flat view. Values beyond the Domain's
-  // extent are ignored, and missing positions receive the type's default
-  // value. The published Matrix has one value for every coordinate.
+  // Creation copies from the source View. Values beyond the Domain's extent
+  // are ignored, and missing positions receive the type's default value. The
+  // resulting Matrix has one value for every coordinate.
   static auto create(
       Math::Domain<2, column_boundary, row_boundary> source_domain,
       Core::View::Vector<type> source) -> Matrix
@@ -119,7 +119,8 @@ class Matrix {
   constexpr auto is_empty() const -> Bool { return domain.is_empty(); }
 
   // Clip can reject a coordinate, and no policy can select a value from an
-  // empty axis. A successful lookup borrows its value until storage changes.
+  // empty axis. A successful lookup returns a reference that remains valid
+  // until Matrix storage changes.
   constexpr auto get(Math::Point<S64, 2> point) const
       -> Core::Option<const type&> {
     auto mapped = domain.resolve(point);

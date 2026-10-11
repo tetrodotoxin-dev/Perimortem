@@ -98,7 +98,9 @@ class Huffman {
     }
   }
 
-  // Simple generator for creating all the fixed literal lengths.
+  // DEFLATE assigns codes to all 288 fixed literal and length symbols. The two
+  // reserved symbols still participate in the canonical code assignment even
+  // though a valid stream never emits them.
   static constexpr auto make_fixed_literal() -> Huffman {
     Core::Static::Vector<U8, 288> code_lengths([](Count i) -> U8 {
       switch (i) {
@@ -113,7 +115,7 @@ class Huffman {
     return Huffman(code_lengths.get_view());
   }
 
-  static EXPORTED(PERIMORTEM) auto compute_lengths(
+  static auto compute_lengths(
       Core::View::Vector<U32> frequencies,
       Core::Access::Vector<U8> lengths) -> void;
 

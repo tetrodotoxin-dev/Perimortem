@@ -186,7 +186,8 @@ VALIDATION_TEST(CoreBinaryReader, multiple_readers) {
 // distinction during constant evaluation as well as through the runtime API.
 static constexpr auto optional_reads() -> Bool {
   const U8 bytes[] = {0, 0, 0, 0};
-  auto reader = Reader::Binary<Data::ByteOrder::Little>(View::Bytes(bytes));
+  auto reader = Reader::Binary<Data::ByteOrder::Little>(
+      View::Bytes{bytes, sizeof(bytes)});
   const auto zero = reader.read_u32();
   const auto empty = reader.read_bytes(0);
   if (!zero || *zero != 0 || !empty || !empty->is_empty()) {

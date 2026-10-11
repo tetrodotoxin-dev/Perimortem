@@ -45,7 +45,9 @@ class Bytes {
   EXPORTED(PERIMORTEM) auto append(U8 byte) -> void;
   EXPORTED(PERIMORTEM) auto append(U8 byte, Count amount) -> void;
   EXPORTED(PERIMORTEM) auto concat(Core::View::Bytes view) -> void;
-  EXPORTED(PERIMORTEM) auto proxy(Core::View::Bytes view) -> void;
+  // Replaces the current bytes with a copy of a View. A View into this value is
+  // supported, including ranges that overlap their destination.
+  EXPORTED(PERIMORTEM) auto copy(Core::View::Bytes view) -> void;
 
   // Resizes the container but attempts to preserve as much of the original
   // buffer as will fit in the new size.

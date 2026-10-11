@@ -7,7 +7,7 @@
 #include "perimortem/serialization/json/blueprint.hpp"
 #include "perimortem/serialization/json/node.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
-#include "perimortem/system/file.hpp"
+#include "perimortem/system/filesystem/file.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -15,6 +15,8 @@ using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
 
 using namespace Toolchain::Validation;
+
+using Filesystem::File;
 
 static Harness SerializationJson = {
   .name = "Serialization::Json",

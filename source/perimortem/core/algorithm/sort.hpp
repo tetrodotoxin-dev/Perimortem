@@ -29,7 +29,7 @@ class Sort {
     }
 
     // Not a fan of polluting namespaces, so inline with the Perimortem coding
-    // standards all of the helper functions are internal lambdas.
+    // standards the complete sort is built from internal lambdas.
     //
     // Don't convert the lambdas to constexpr, that will cause clang to slowdown
     // by upwards of ~40% for larger arrays.
@@ -69,7 +69,6 @@ class Sort {
         // Start with the left index.
         auto largest = left;
 
-        // Check if the right value exists and if it's larger than left.
         if (left + 1 < size && partition[left + 1] > partition[left]) {
           largest += 1;
         }
@@ -86,7 +85,9 @@ class Sort {
       }
     };
 
-    // Simple insertion sort for fixing the left over chunks from intro sort.
+    // Introsort switches a partition to heapsort when its depth budget is
+    // exhausted. Heapsort is used since it guarantees O(n log n) work even
+    // after pathological pivot choices and only requires stack memory.
     auto heap_sort = [&heapify_max](type* partition, Count size) -> void {
       // Heapify the partition.
       for (Count i = size / 2; i > 0; i--) {
@@ -100,7 +101,9 @@ class Sort {
       }
     };
 
-    // Simple insertion sort for fixing the left over chunks from intro sort.
+    // Introsort stops partitioning ranges at `insertion_sort_cutoff` to avoid
+    // more partition and recursive call overhead. A single insertion pass over
+    // the complete, nearly ordered array finishes every deferred range.
     auto insertion_sort = [](type* data, Count size) -> void {
       for (Count i = 1; i < size; i++) {
         // Bit odd but Perimortem sort only requires the greater than operator

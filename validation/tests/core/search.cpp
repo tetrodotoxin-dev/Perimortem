@@ -74,7 +74,10 @@ VALIDATION_TEST(AlgoSearch, find) {
       Algorithm::Search::find(populate_test<70>(test_word, 65), test_word),
       Count(65));
 
-  // Create a sparsely filled array with junk data and a few near misses.
+  // Create a sparsely filled array with junk data and a few near misses to
+  // check if the search breaks down when switching to AVX mode, if the word
+  // exists between AVX register sized blocks, and if the start and end are
+  // valid but a single character in the middle is bad to ensure masking works.
   constexpr Count location = 982;
   auto test_text = populate_test<1240>(test_word, location);
   constexpr auto almost_word = "woold"_view;

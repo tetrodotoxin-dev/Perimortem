@@ -8,13 +8,13 @@
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/memory/allocator/arena.hpp"
 
-namespace Perimortem::System {
+namespace Perimortem::System::Filesystem {
 
 // Stores one lexical path with normalized separators.
 //
 // Filesystem canonicalization requires an opened root and can race with later
 // path use. Path stays lexical so callers can normalize stable cache keys
-// before a capability owner performs any physical lookup.
+// before a filesystem operation opens the location.
 class Path {
  public:
   static constexpr Count max_size = 510;
@@ -25,10 +25,10 @@ class Path {
       Core::View::Bytes base_file_path,
       Core::View::Bytes relative_path);
 
-  // The Arena overload writes the accepted spelling directly into its final
-  // lifetime domain so retaining owners do not proxy a temporary Path. It uses
-  // `/` for one platform independent cache identity and rejects input whose
-  // lexical meaning cannot be preserved exactly.
+  // The Arena overload writes the accepted spelling directly into Arena
+  // storage. The returned View remains valid until the Arena resets or is
+  // destroyed. It uses `/` for one platform independent cache identity and
+  // rejects input whose lexical meaning cannot be preserved exactly.
   static EXPORTED(PERIMORTEM) auto normalize(
       Memory::Allocator::Arena& arena,
       Core::View::Bytes path) -> Core::Option<Core::View::Bytes>;
@@ -87,4 +87,4 @@ class Path {
   Count size = 0;
 };
 
-}  // namespace Perimortem::System
+}  // namespace Perimortem::System::Filesystem

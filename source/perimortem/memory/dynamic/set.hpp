@@ -6,7 +6,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/option.hpp"
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -76,7 +76,7 @@ class Set {
     }
 
     destruct();
-    Core::Bibliotheca::remit(
+    Allocator::Bibliotheca::remit(
         Core::Data::cast<U8>(buffer_data.bucket_buffer));
     buffer_data = BufferData();
   }
@@ -309,7 +309,7 @@ class Set {
     }
 
     if (current_buffer.bucket_buffer != nullptr) {
-      Core::Bibliotheca::remit(
+      Allocator::Bibliotheca::remit(
           Core::Data::cast<U8>(current_buffer.bucket_buffer));
     }
 
@@ -320,8 +320,8 @@ class Set {
     BufferData new_buffer;
     new_buffer.bucket_count = buckets;
 
-    Core::Bibliotheca::Allocation allocation =
-        Core::Bibliotheca::check_out(required_buffer_size(buckets));
+    Allocator::Bibliotheca::Allocation allocation =
+        Allocator::Bibliotheca::check_out(required_buffer_size(buckets));
     new_buffer.bucket_buffer = Core::Data::cast<U32>(allocation.ptr);
     new_buffer.slots_buffer =
         Core::Data::cast<key_type>(allocation.ptr + slot_offset(buckets));

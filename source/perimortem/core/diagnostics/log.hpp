@@ -25,10 +25,9 @@ class Log {
     Fatal,
   };
 
-  // Debug logs often come from deep in the framework while the actual context
-  // that the message is useful in is some higher caller on the stack.
-  // Attribution points allow for overriding source attribution for all callee
-  // logs.
+  // A diagnostic can start in a nested call while its useful source location
+  // belongs to a higher caller. Attribution points let that caller supply its
+  // location to every nested log.
   class Attribution {
     friend Log;
 
@@ -154,6 +153,12 @@ class Log {
   static EXPORTED(PERIMORTEM) auto set_disable_header(Bool disable_header)
       -> void;
   static EXPORTED(PERIMORTEM) auto get_disable_header() -> Bool;
+
+  // Sets the name written by diagnostics on the current thread. The caller
+  // keeps the supplied View storage valid until the name is replaced or the
+  // thread exits.
+  static EXPORTED(PERIMORTEM) auto set_thread_name(Core::View::Bytes name)
+      -> void;
 
   // Sets the minimum level that will be forwarded to the sink on this thread.
   // Messages below this level are dropped before formatting.

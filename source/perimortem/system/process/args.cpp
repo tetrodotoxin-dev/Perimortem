@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/system/args.hpp"
+#include "perimortem/system/process/args.hpp"
 
 #ifdef TOOLCHAIN_LINUX
 #include <unistd.h>
@@ -18,6 +18,8 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Utility;
+
+using Process::Args;
 
 static auto basename(View::Bytes path) -> View::Bytes {
   for (Count i = path.get_size(); i > 0; i--) {
@@ -137,7 +139,7 @@ auto Args::log_help(
     View::Bytes summary,
     const Managed::Map<View::Bytes, View::Bytes>& variables,
     View::Vector<View::Bytes> arguments) -> void {
-  View::Bytes command;
+  View::Bytes command{};
   if (!arguments.is_empty() && !arguments.get_data()[0].is_empty()) {
     command = basename(arguments.get_data()[0]);
   } else {

@@ -10,8 +10,7 @@
 
 namespace Perimortem::Core::Writer {
 
-// Reads self describing values from a serial bytes following the Perimortem
-// Serial format.
+// Writes values into bytes in the Perimortem Serial format.
 //
 // Values are encoded as 1 type byte along with there minimum byte form and are
 // always returned as 64 bit values regardless of how they were encoded.
@@ -23,7 +22,7 @@ namespace Perimortem::Core::Writer {
 // with their type byte marked with the negate flag.
 //
 // On overflow the writer enters an invalid state and subsequent writes are safe
-// but treated as undefined behavior.
+// but the resulting `cursor` location is treated as undefined behavior.
 class Serial {
  public:
   constexpr Serial(Access::Bytes source) : source(source) {};
@@ -42,7 +41,7 @@ class Serial {
   }
 
  private:
-  Access::Bytes source;
+  Access::Bytes source{};
   Count cursor = 0;
   Bool valid_state = True;
 };

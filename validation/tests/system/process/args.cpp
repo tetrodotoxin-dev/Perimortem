@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/system/args.hpp"
+#include "perimortem/system/process/args.hpp"
 
 #include "toolchain/validation/test.hpp"
 
@@ -18,8 +18,10 @@ using namespace Perimortem::System;
 using namespace Perimortem::Tests;
 using namespace Toolchain::Validation;
 
+using Process::Args;
+
 static Harness SystemArgs = {
-  .name = "System::Args",
+  .name = "System::Process::Args",
   .setup =
       []() {
         Log::begin();

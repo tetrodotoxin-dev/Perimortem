@@ -106,8 +106,8 @@ VALIDATION_TEST(CoreUnion, reference_case) {
   EXPECT(original != distinct);
 }
 
-static_assert(__is_constructible(Static::Union<U64>, int));
-static_assert(!__is_constructible(Static::Union<U64, S64>, int));
+static_assert(__is_constructible(Static::Union<U64>, S32));
+static_assert(!__is_constructible(Static::Union<U64, S64>, S32));
 static_assert(__is_constructible(
     Static::Union<ReferencedValue&, U64, Bool>,
     ReferencedValue&));

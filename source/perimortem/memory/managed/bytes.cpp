@@ -11,7 +11,7 @@ using namespace Perimortem::Memory;
 Managed::Bytes::Bytes(const Bytes& rhs, Count reserved_capacity)
     : arena(rhs.arena) {
   reset(Scalar::max(rhs.get_size(), reserved_capacity));
-  proxy(rhs);
+  copy(rhs);
 };
 
 Managed::Bytes::Bytes(Bytes&& rhs) : arena(rhs.arena) {
@@ -28,7 +28,7 @@ Managed::Bytes::Bytes(Allocator::Arena& arena) : arena(arena) {
 Managed::Bytes::Bytes(Allocator::Arena& arena, View::Bytes view)
     : arena(arena) {
   reset();
-  proxy(view);
+  copy(view);
 }
 
 auto Managed::Bytes::reset(Count reserved_capacity) -> void {
@@ -61,13 +61,13 @@ auto Managed::Bytes::concat(View::Bytes view) -> void {
   size += view.get_size();
 }
 
-auto Managed::Bytes::proxy(View::Bytes view) -> void {
+auto Managed::Bytes::copy(View::Bytes view) -> void {
   resize(view.get_size());
   memcpy(source_block, view.get_data(), view.get_size());
 }
 
 auto Managed::Bytes::convert(U8 source, U8 target) -> void {
-  for (int i = 0; i < size; i++) {
+  for (Count i = 0; i < size; i++) {
     if (source_block[i] == source) {
       source_block[i] = target;
     }

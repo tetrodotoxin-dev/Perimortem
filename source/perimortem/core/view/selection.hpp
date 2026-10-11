@@ -7,10 +7,9 @@
 
 namespace Perimortem::Core::View {
 
-// Selection is a read only iterator over the values in any View admitted by
-// one predicate. The same value is the range returned to range iteration and
-// the iterator returned by begin() and end(). It retains no parallel indices or
-// selected storage.
+// Selection iterates over values selected from a View by one predicate. It
+// stores the source View, predicate and current position. The same type serves
+// as the range and its begin and end iterators.
 template <
     typename view_type,
     typename predicate_type = Bool (*)(const typename view_type::data_type&)>

@@ -17,7 +17,8 @@ namespace Perimortem::Serialization {
 class Png {
  public:
   // Decodes a PNG byte stream into a row major matrix of Rgba8 samples. Other
-  // supported source channel layouts are expanded before publication.
+  // supported source channel layouts are expanded before the Matrix is
+  // returned.
   //
   // Returns an empty matrix on malformed or unsupported input.
   //
