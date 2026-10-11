@@ -36,3 +36,13 @@ VALIDATION_BENCHMARK(SystemRandom, read_entropy_1024) {
 
   Benchmark::prevent_optimization(accumulator);
 }
+
+VALIDATION_BENCHMARK(SystemRandom, generate_uuid_v4_x1024) {
+  Count value = 0;
+  for (Count i = 0; i < random_batch; i++) {
+    auto uuid = Random::generate_uuid_v4();
+    value ^= uuid.get_value().high;
+  }
+
+  Benchmark::prevent_optimization(value);
+}

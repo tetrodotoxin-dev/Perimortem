@@ -28,6 +28,8 @@ class Serial {
   constexpr Serial(Access::Bytes source) : source(source) {};
   constexpr Serial(const Serial& rhs) : source(rhs.source) {};
 
+  // Sets the cursor to the requested location or the end of the buffer when the
+  // requested location lies beyond its writable storage.
   EXPORTED(PERIMORTEM) auto set_pointer(Count location) -> void;
 
   EXPORTED(PERIMORTEM) auto operator<<(const U64 value) -> Serial&;

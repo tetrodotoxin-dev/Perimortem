@@ -348,12 +348,10 @@ class Vector {
       Allocator::Bibliotheca::remit((U8*)source_block);
     }
 
-    // Update block and get the new capacity. Since the capacity returned by the
-    // Bibliotheca can be more than we asked for it is wasteful to use our
-    // requested capacity as the actual capacity. Since the reported capacity is
-    // in raw bytes but is guaranteed to already be aligned we can just divide
-    // the reported capcity to get the number of valid objects that can be
-    // stored in the new buffer.
+    // Bibliotheca may return a block from a larger size class. Capacity
+    // includes every complete object in the usable byte extent so later growth
+    // can use the extra storage. Bytes that cannot hold another `type` remain
+    // unused.
     source_block = new_block;
     capacity = alloc.capacity / sizeof(type);
     return True;

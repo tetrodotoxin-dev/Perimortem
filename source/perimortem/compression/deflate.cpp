@@ -301,8 +301,9 @@ constexpr auto inflate_symbols(
       return False;
     }
 
-    // Set up the copy and write locations and make room to copy the earlier
-    // part of the stream.
+    // Keep offsets across resize because growing output may relocate its
+    // storage. The match source begins `match_offset` bytes before the newly
+    // appended range and remains available after that relocation.
     Count write_start = output.get_size();
     Count copy_start = write_start - match_offset;
     output.resize(output.get_size() + match_length);
@@ -839,7 +840,6 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
     distance_lengths[0] = 1;
   }
 
-  // Create huffman tables for translation.
   const Huffman literal_len_table(literal_len_lengths.get_view());
   const Huffman distance_table(distance_lengths.get_view());
 

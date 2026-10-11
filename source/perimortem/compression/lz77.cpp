@@ -131,7 +131,8 @@ auto Lz77::insert(View::Bytes source, Count position) -> void {
     return;
   }
 
-  const Count hash = compute_hash(Static::Bytes<3>(source.get_data()));
+  const Count hash =
+      compute_hash(Static::Bytes<3>(source.get_data() + position));
   chain_table.get_data()[position & window_mask] = hash_table.get_data()[hash];
   hash_table.get_data()[hash] = U32(position);
 }

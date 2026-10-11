@@ -148,7 +148,6 @@ class Vector {
   // Ensures there is _at least_ enough room for the requested number of
   // objects.
   constexpr auto ensure_capacity(Count required_size) -> void {
-    // Check if we can already fit required buffer.
     if (required_size <= get_capacity()) {
       return;
     }

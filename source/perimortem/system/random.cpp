@@ -14,6 +14,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/time.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::System;
@@ -219,4 +220,60 @@ auto Random::generate() -> U64 {
   }
 
   return engine.output[engine.index++];
+}
+
+auto Random::generate_uuid_v4() -> Uuid {
+
+#ifdef PERI_AVX2
+
+  const auto value = _mm_set_epi64x(generate(), generate());
+  const auto v4_mask =
+      _mm_set_epi64x(0xFFFFFFFFFFFF0FFFull, 0x3FFFFFFFFFFFFFFFull);
+  const auto v4_set =
+      _mm_set_epi64x(0x0000000000004000ull, 0x8000000000000000ull);
+  const auto identified = _mm_or_si128(_mm_and_si128(value, v4_mask), v4_set);
+
+  U64 values[2];
+  _mm_storeu_si128(Data::cast<__m128i>(values), identified);
+  return Uuid(values[1], values[0]);
+
+#else
+
+  const U64 high = generate();
+  const U64 low = generate();
+  return Uuid(
+      (high & 0xFFFFFFFFFFFF0FFFULL) | 0x4000,
+      (low & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL);
+
+#endif
+}
+
+auto Random::generate_uuid_v7() -> Uuid {
+  // Time::clock supplies Unix wall time so version 7 timestamps remain
+  // comparable across application restarts.
+  const U64 timestamp = Time::clock().get_stamp() / 1'000'000;
+
+#ifdef PERI_AVX2
+
+  const U64 time_and_random =
+      ((timestamp & 0xFFFFFFFFFFFF) << 16) | (generate() & 0xFFFF);
+  const auto value = _mm_set_epi64x(time_and_random, generate());
+  const auto v7_mask =
+      _mm_set_epi64x(0xFFFFFFFFFFFF0FFFull, 0x3FFFFFFFFFFFFFFFull);
+  const auto v7_set =
+      _mm_set_epi64x(0x0000000000007000ull, 0x8000000000000000ull);
+  const auto identified = _mm_or_si128(_mm_and_si128(value, v7_mask), v7_set);
+
+  U64 values[2];
+  _mm_storeu_si128(Data::cast<__m128i>(values), identified);
+  return Uuid(values[1], values[0]);
+
+#else
+
+  const U64 high =
+      ((timestamp & 0xFFFFFFFFFFFF) << 16) | (generate() & 0xFFF) | 0x7000;
+  const U64 low = (generate() & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL;
+  return Uuid(high, low);
+
+#endif
 }

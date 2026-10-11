@@ -33,7 +33,10 @@ constexpr auto
     encoding_size = 4;
   }
 
-  if (cursor + 1 + encoding_size > target.get_size()) [[unlikely]] {
+  constexpr Count type_size = 1;
+  if (cursor > target.get_size() ||
+      encoding_size > target.get_size() - cursor ||
+      type_size > target.get_size() - cursor - encoding_size) [[unlikely]] {
     return False;
   }
 
@@ -72,7 +75,8 @@ constexpr auto write_blob(
     return False;
   }
 
-  if (cursor + source.get_size() > target.get_size()) {
+  if (cursor > target.get_size() ||
+      source.get_size() > target.get_size() - cursor) {
     return False;
   }
 
@@ -83,7 +87,7 @@ constexpr auto write_blob(
 }
 
 auto Writer::Serial::set_pointer(Count location) -> void {
-  cursor = location;
+  cursor = location < source.get_size() ? location : source.get_size();
 }
 
 auto Writer::Serial::operator<<(const U64 value) -> Writer::Serial& {

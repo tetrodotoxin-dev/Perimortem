@@ -4,6 +4,7 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/compression/deflate.hpp"
+#include "perimortem/compression/lz77.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
 #include "validation/tests/log.hpp"
@@ -265,6 +266,27 @@ VALIDATION_TEST(CompressionTests, repeating_value) {
   auto recovered = Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), source_size);
   EXPECT_HEX(recovered.get_view(), source.get_view());
+}
+
+VALIDATION_TEST(CompressionTests, inserted_match) {
+  Static::Bytes<64> source;
+  for (Count index = 0; index < source.get_size(); index++) {
+    source[index] = U8(index);
+  }
+
+  constexpr U8 repeated[] = {'x', 'y', 'z', 'x', 'y', 'z', 'x', 'y'};
+  for (Count index = 0; index < Data::array_size(repeated); index++) {
+    source[8 + index] = repeated[index];
+    source[24 + index] = repeated[index];
+  }
+
+  Lz77 lz77;
+  lz77.insert(source, 8);
+
+  const auto match = lz77.find_match(source, 24, 128);
+
+  EXPECT_EQ(match.get_length(), Data::array_size(repeated));
+  EXPECT_EQ(match.get_distance(), Count(16));
 }
 
 VALIDATION_TEST(CompressionTests, roundtrip_large) {

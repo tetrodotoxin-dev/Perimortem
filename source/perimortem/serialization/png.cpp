@@ -441,7 +441,6 @@ constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
 
   // The rest of the rows after the first are scored against all filters.
   for (Count row = 1; row < image.get_row_count(); row++) {
-    // Update the previous and current rows.
     View::Bytes previous_row = current_row;
     current_row = View::Bytes(raw_bytes + row * row_stride, row_stride);
 
@@ -665,7 +664,8 @@ constexpr auto convert_to_pixels(
 }
 
 constexpr auto read_header(const View::Bytes source) -> ImageInfo {
-  // Check if the header is smaller than the png signiture + header chunk.
+  // Require the signature and complete IHDR chunk before taking any source
+  // slices. This bound includes the chunk length, type, payload, and CRC32.
   constexpr Count required_size =
       png_signature.get_size() + chunk_metadata_size + ImageInfo::size;
   if (source.get_size() < required_size) [[unlikely]] {
@@ -679,7 +679,8 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
     return ImageInfo();
   }
 
-  // Check that the first tag is IHDR
+  // PNG requires IHDR to be the first chunk. Reading any other payload as
+  // ImageInfo would assign dimensions and encoding from unrelated bytes.
   constexpr auto header_tag = "IHDR"_view;
   auto chunk_tag = source.slice(
       png_signature.get_size() + sizeof(U32), header_tag.get_size());
@@ -715,7 +716,6 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
     return ImageInfo();
   }
 
-  // Check the rest of the data is set correctly.
   if (!image_info.uses_standard_methods()) [[unlikely]] {
     Diagnostics::Log::error(
         "Png: Non-standard compression, filter, or interlace method in IHDR"_view);
@@ -826,17 +826,18 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
     }
 
     if (chunk.get_type() == "IDAT"_view) {
-      // If we don't have any binary data we can just use a view.
-      // Otherwise start building up the merged view.
       if (binary_data.is_empty()) {
         binary_data = chunk.get_data();
       } else {
-        // Need to to merge in the current binary data from the last read.
+        // The second IDAT copies the first payload from source into owned
+        // storage.
+        // Each following `concat` may relocate that storage, so refresh the
+        // decoding view after every append rather than retaining its previous
+        // address.
         if (merged_data.is_empty()) {
           merged_data.copy(binary_data);
         }
 
-        // Add the chunk to the merged binary and update the binary view.
         merged_data.concat(chunk.get_data());
         binary_data = merged_data.get_view();
       }

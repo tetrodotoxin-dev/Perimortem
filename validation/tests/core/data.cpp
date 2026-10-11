@@ -31,6 +31,24 @@ static Harness CoreData = {
   .name = "Core::Data",
 };
 
+VALIDATION_TEST(CoreData, copy) {
+  const U32 source = 0x12345678;
+  U32 direct = 0;
+  Data::copy(Data::cast<U8>(&direct), &source);
+
+  const U8 bytes[] = {1, 2, 3};
+  U8 sized[] = {0, 0, 0};
+  Data::copy(sized, bytes, Data::array_size(bytes));
+
+  auto* empty = Data::copy(nullptr, static_cast<const U8*>(nullptr), Count(0));
+
+  EXPECT_EQ(direct, source);
+  EXPECT_EQ(sized[0], U8(1));
+  EXPECT_EQ(sized[1], U8(2));
+  EXPECT_EQ(sized[2], U8(3));
+  EXPECT_EQ(empty, nullptr);
+}
+
 VALIDATION_TEST(CoreData, packed_integers) {
   const U8 byte[] = {0xD6};
   alignas(8) const U8 little_bytes[] = {0, 0x18, 0xFC};

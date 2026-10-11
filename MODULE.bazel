@@ -9,7 +9,7 @@ bazel_dep(name = "rules_pkg", version = "1.3.0")
 bazel_dep(name = "tetro_toolchain", version = "0.3.1")
 archive_override(
     module_name = "tetro_toolchain",
-    sha256 = "e5c1f6f3f91adbc9f45c78f2f39165079471983d4e27ed2b013ca8c34db03d57",
+    sha256 = "615495cf13f73732c979988a0fa8149a038375361f2ddffee0615c2e6c4a30dc",
     urls = ["https://github.com/tetrodotoxin-dev/Toolchain/releases/download/v0.3.1/tetro_toolchain-0.3.1-source.tar.gz"],
 )
 

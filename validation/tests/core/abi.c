@@ -11,3 +11,7 @@ C_LINKAGE perimortem_view_bytes
 C_LINKAGE perimortem_access_bytes perimortem_test_access(U8* data, Count size) {
   return (perimortem_access_bytes){data, size};
 }
+
+C_LINKAGE perimortem_uuid perimortem_test_uuid(U64 high, U64 low) {
+  return (perimortem_uuid){high, low};
+}

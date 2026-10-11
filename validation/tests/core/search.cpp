@@ -16,25 +16,26 @@ static Harness AlgoSearch = {
 };
 
 template <Count size>
-auto populate_test(View::Bytes text, Count location) -> Static::Bytes<size> {
-  Static::Bytes<size> test_data;
-  // Create junk data to make sure filtering works.
-  for (Count i = 0; i < test_data.get_size(); i++) {
-    test_data[i] = U8(i);
-  }
-
-  Data::copy(test_data.get_data() + location, text.get_data(), text.get_size());
-  return test_data;
+auto place_text(Static::Bytes<size>& source, View::Bytes text, Count location)
+    -> void {
+  Data::copy(source.get_data() + location, text.get_data(), text.get_size());
 }
 
 template <Count size>
-auto load_text(Static::Bytes<size>& test_data, View::Bytes text, Count location)
-    -> void {
-  Data::copy(test_data.get_data() + location, text.get_data(), text.get_size());
+auto make_search_source(View::Bytes text, Count location)
+    -> Static::Bytes<size> {
+  Static::Bytes<size> source;
+  for (Count index = 0; index < source.get_size(); index++) {
+    source[index] = U8('x');
+  }
+
+  place_text(source, text, location);
+  return source;
 }
 
 VALIDATION_TEST(AlgoSearch, boundaries) {
   EXPECT_EQ(Algorithm::Search::find(""_view, ""_view), Count(0));
+  EXPECT_EQ(Algorithm::Search::find("abc"_view, ""_view), Count(0));
   EXPECT_EQ(Algorithm::Search::find(""_view, "abc"_view), Count(-1));
   EXPECT_EQ(Algorithm::Search::find("a"_view, "a"_view), Count(0));
   EXPECT_EQ(Algorithm::Search::find("a"_view, "b"_view), Count(-1));
@@ -62,36 +63,41 @@ VALIDATION_TEST(AlgoSearch, extrema) {
 VALIDATION_TEST(AlgoSearch, find) {
   constexpr auto test_word = "world"_view;
   EXPECT_EQ(
-      Algorithm::Search::find(populate_test<5>(test_word, 0), test_word),
+      Algorithm::Search::find(make_search_source<5>(test_word, 0), test_word),
       Count(0));
   EXPECT_EQ(
-      Algorithm::Search::find(populate_test<70>(test_word, 0), test_word),
+      Algorithm::Search::find(make_search_source<70>(test_word, 0), test_word),
       Count(0));
   EXPECT_EQ(
-      Algorithm::Search::find(populate_test<70>(test_word, 40), test_word),
+      Algorithm::Search::find(make_search_source<70>(test_word, 40), test_word),
       Count(40));
   EXPECT_EQ(
-      Algorithm::Search::find(populate_test<70>(test_word, 65), test_word),
+      Algorithm::Search::find(make_search_source<70>(test_word, 65), test_word),
       Count(65));
+}
 
-  // Create a sparsely filled array with junk data and a few near misses to
-  // check if the search breaks down when switching to AVX mode, if the word
-  // exists between AVX register sized blocks, and if the start and end are
-  // valid but a single character in the middle is bad to ensure masking works.
-  constexpr Count location = 982;
-  auto test_text = populate_test<1240>(test_word, location);
-  constexpr auto almost_word = "woold"_view;
-  load_text(test_text, almost_word, 120);
-  load_text(test_text, almost_word, 723);
-  load_text(test_text, almost_word, 600);
-  load_text(test_text, almost_word, 620);
-  load_text(test_text, almost_word, 12);
-  load_text(test_text, almost_word, 800);
-  EXPECT_EQ(Algorithm::Search::find(test_text, test_word), location);
+VALIDATION_TEST(AlgoSearch, vectorized_find) {
+  constexpr auto test_word = "world"_view;
+  constexpr auto near_match = "woold"_view;
+  constexpr Count avx2_width = 32;
+  constexpr Count match_location = avx2_width * 30 - 2;
+  constexpr Count near_match_locations[] = {
+    avx2_width - 2,  avx2_width * 5,      avx2_width * 11 - 2,
+    avx2_width * 17, avx2_width * 23 - 2,
+  };
 
-  // Write over the only correct instance.
-  load_text(test_text, almost_word, location);
-  EXPECT_EQ(Algorithm::Search::find(test_text, test_word), Count(-1));
+  auto source = make_search_source<1240>(test_word, match_location);
+  for (Count location : near_match_locations) {
+    place_text(source, near_match, location);
+  }
+
+  // False candidates share the first and last bytes used by the AVX2 filter.
+  // The valid match crosses a 32 byte boundary, forcing its verification load
+  // to span two vector regions.
+  EXPECT_EQ(Algorithm::Search::find(source, test_word), match_location);
+
+  place_text(source, near_match, match_location);
+  EXPECT_EQ(Algorithm::Search::find(source, test_word), Count(-1));
 }
 
 VALIDATION_TEST(AlgoSearch, multiple_matches) {
@@ -115,12 +121,12 @@ VALIDATION_TEST(AlgoSearch, multiple_matches) {
       word_locations[word_locations.get_size() - 1] + test_word.get_size() + 1>
       test_text;
   for (Count i = 0; i < word_locations.get_size(); i++) {
-    load_text(test_text, test_word, word_locations[i]);
+    place_text(test_text, test_word, word_locations[i]);
   }
 
   for (Count i = 0; i < word_locations.get_size(); i++) {
     EXPECT_EQ(Algorithm::Search::find(test_text, test_word), word_locations[i]);
-    load_text(test_text, "deleted"_view, word_locations[i]);
+    place_text(test_text, "deleted"_view, word_locations[i]);
   }
 }
 
@@ -144,11 +150,11 @@ VALIDATION_TEST(AlgoSearch, very_large_key) {
       word_locations[word_locations.get_size() - 1] + test_word.get_size() + 1>
       test_text;
   for (Count i = 0; i < word_locations.get_size(); i++) {
-    load_text(test_text, test_word, word_locations[i]);
+    place_text(test_text, test_word, word_locations[i]);
   }
 
   for (Count i = 0; i < word_locations.get_size(); i++) {
     EXPECT_EQ(Algorithm::Search::find(test_text, test_word), word_locations[i]);
-    load_text(test_text, "deleted"_view, word_locations[i]);
+    place_text(test_text, "deleted"_view, word_locations[i]);
   }
 }

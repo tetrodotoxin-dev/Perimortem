@@ -12,6 +12,10 @@ using namespace Perimortem::Core;
 #endif
 
 auto Algorithm::Search::find(View::Bytes src, View::Bytes value) -> Count {
+  if (value.is_empty()) {
+    return 0;
+  }
+
   // Fall back to the more optimized value check if the View::Bytes is only a
   // single byte long. This avoids all of the extra tail checks.
   if (value.get_size() == 1) {

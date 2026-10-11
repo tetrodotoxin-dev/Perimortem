@@ -11,7 +11,8 @@ template <typename text_buffer>
 constexpr auto
     write_text(Access::Bytes& target, Count& cursor, const text_buffer& text)
         -> Bool {
-  if (cursor + text.get_size() > target.get_size()) {
+  if (cursor > target.get_size() ||
+      text.get_size() > target.get_size() - cursor) {
     return false;
   }
 
@@ -45,7 +46,8 @@ static constexpr auto decimal_length(storage_type value) -> Count {
   if constexpr (storage_type(0) > storage_type(-1)) {
     if (value < storage_type(0)) {
       sign = 1;
-      abs_value = unsigned_type(-value);
+      abs_value = unsigned_type(-(value + 1));
+      abs_value++;
     } else {
       abs_value = unsigned_type(value);
     }
@@ -106,7 +108,8 @@ constexpr auto write_decimal(
     Count& cursor,
     value_type value,
     Count length) -> Bool {
-  if (cursor + length > target.get_size()) [[unlikely]] {
+  if (cursor > target.get_size() || length > target.get_size() - cursor)
+      [[unlikely]] {
     return false;
   }
 
@@ -150,7 +153,7 @@ constexpr auto write_decimal(
 }
 
 auto Writer::Textual::set_pointer(Count location) -> void {
-  cursor = location;
+  cursor = location < source.get_size() ? location : source.get_size();
 }
 
 auto Writer::Textual::operator<<(char character) -> Writer::Textual& {

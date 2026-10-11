@@ -70,23 +70,29 @@ class Vector {
     size++;
   }
 
-  constexpr auto emplace(const value_type&& data) -> value_type& {
+  constexpr auto emplace(value_type&& data) -> value_type& {
     ensure_capacity(size + 1);
 
     // Construct using the move constructor.
     return Toolchain::Memory::Lifetime::construct<value_type>(
-        rented_block + (size++), [&data] { return value_type(data); });
+        rented_block + (size++),
+        [&data] { return value_type(Core::Data::take(data)); });
   }
 
   constexpr auto contains(const value_type& data) const -> Bool {
     return get_view().contains(data);
   }
 
-  constexpr auto at(Count index) const -> value_type& {
+  constexpr auto at(Count index) -> value_type& { return rented_block[index]; }
+
+  constexpr auto at(Count index) const -> const value_type& {
     return rented_block[index];
   }
 
   constexpr auto operator[](Count index) -> value_type& { return at(index); }
+  constexpr auto operator[](Count index) const -> const value_type& {
+    return at(index);
+  }
 
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto is_empty() const -> Bool { return size == 0; }

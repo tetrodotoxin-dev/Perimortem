@@ -1,43 +1,39 @@
 # Perimortem
 
-Perimortem is a C++ runtime and utility library for systems programming. It
-provides common data types, memory management and operating system services
-with control over data layout, allocation and dependencies.
+Perimortem is the common C++26 runtime infrastructure for the Tetrodotoxin
+family of projects. It supplies shared primitives that belong below individual
+products, and Tetrodotoxin's requirements define its primary direction.
 
-The library uses C++ language features with a small set of C runtime
-dependencies. It provides its own containers and algorithms to keep memory
-behavior and header dependencies under its control. Basic data types have C
-declarations so independently built C and C++ code can exchange them.
+As the family grows, a runtime primitive required by multiple projects can move
+into Perimortem with one implementation and one contract. Domain runtimes build
+on that foundation at their own boundaries. [Photophore](https://github.com/tetrodotoxin-dev/Photophore)
+extends Perimortem with windowing and graphical rendering for Tetrodotoxin
+applications.
 
-## Memory and data
+Perimortem is separated into modules with explicit dependencies and SDK
+packages. Tetrodotoxin projects can select the modules they require, while
+independent projects can use the same slices outside the Tetrodotoxin family.
 
-Storage and access are separate concerns. A View lets an operation read
-existing data, while Access permits changes to that data. Both refer to storage
-whose lifetime is established by the caller. This lets the same operation work
-with data from different containers and allocators.
-
-Applications choose storage according to the lifetime of their data. Fixed
-storage belongs to its containing object, dynamic containers manage their
-allocations, and arenas hold data that can be released together. For example,
-a parsed document can keep its nodes and strings in one arena and release
-that memory when the document is finished.
+The C++ runtime is built on lightweight C headers and project owned types. This
+keeps the transitive include graph controlled and preserves fast build times as
+the runtime grows.
 
 ## Components
 
-- [Core](source/perimortem/core) supplies views, algorithms, diagnostics,
-  identifiers and fundamental data operations.
-- [Utility](source/perimortem/utility) provides result handling, ranges and
-  versions and tables built on Core.
-- [Math](source/perimortem/math) describes coordinates, dimensions and boundary
-  behavior.
-- [Memory](source/perimortem/memory) provides allocators, containers, matrices
-  and arenas with different storage lifetimes.
-- [Compression](source/perimortem/compression) implements compression and
-  decompression over byte streams.
-- [Serialization](source/perimortem/serialization) reads and writes formats
-  including JSON, PNG and Base64, alongside binary and textual streams.
-- [System](source/perimortem/system) provides filesystem, process and random
-  services backed by the host.
+- [Core](source/perimortem/core) supplies fundamental data operations,
+  algorithms, readers, writers, diagnostics, time, hashes and identifiers.
+- [Utility](source/perimortem/utility) supplies results, ranges, versions and
+  tables built on Core.
+- [Math](source/perimortem/math) describes coordinates, dimensions, volumes and
+  boundary behavior.
+- [Memory](source/perimortem/memory) supplies the runtime allocator, arenas,
+  containers and matrices for fixed, dynamic and transaction lifetimes.
+- [Compression](source/perimortem/compression) implements Deflate with Huffman
+  and LZ77 codecs.
+- [Serialization](source/perimortem/serialization) reads and writes binary,
+  textual, JSON, PNG and Base64 data.
+- [System](source/perimortem/system) integrates files, paths, processes, shared
+  libraries, worker threads and random generation with the host.
 
 ## Building and testing
 
@@ -56,8 +52,8 @@ bazel build :sdk --config=release
 ```
 
 Tests and benchmarks are standalone executables. Run them from the repository
-root so their test data is available. The SDK includes headers, source, and
-static and shared libraries.
+root so their test data is available. The SDK packages the component headers,
+source and static and shared libraries for independently built consumers.
 
 For VS Code tasks, debugging and header navigation, run `bazel run :vscode`.
 

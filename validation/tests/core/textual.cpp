@@ -264,6 +264,27 @@ VALIDATION_TEST(CoreTextual, characters) {
   EXPECT_TEXT(buffer, "-128:255"_view);
 }
 
+VALIDATION_TEST(CoreTextual, integer_limits) {
+  Static::Bytes<32> buffer;
+  Writer::Textual writer(buffer.get_access());
+
+  writer << S32(-2147483647 - 1) << ':' << S64(-9223372036854775807LL - 1);
+
+  EXPECT(writer.is_valid());
+  EXPECT_TEXT(buffer, "-2147483648:-9223372036854775808"_view);
+}
+
+VALIDATION_TEST(CoreTextual, pointer_bounds) {
+  Static::Bytes<4> buffer;
+  Writer::Textual writer(buffer.get_access());
+
+  writer.set_pointer(Count(-1));
+  writer << 'x';
+
+  EXPECT_EQ(writer.get_location(), writer.get_size());
+  EXPECT_NOT(writer.is_valid());
+}
+
 VALIDATION_TEST(CoreTextual, integers_and_text) {
   Static::Bytes<24> buffer;
   Writer::Textual writer(buffer.get_access());

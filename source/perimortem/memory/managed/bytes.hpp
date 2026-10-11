@@ -10,8 +10,11 @@
 
 namespace Perimortem::Memory::Managed {
 
-// A simple linear string which supports historical views on old data
-// as long as the associated Arena is still alive.
+// Managed::Bytes stores contiguous bytes in an Arena supplied by its caller.
+// Growth and reset select a new block without reclaiming the previous one, so
+// views into an old block remain readable until the Arena resets or is
+// destroyed. Those views do not follow writes after Bytes switches blocks, and
+// Bytes does not extend the Arena's lifetime.
 class Bytes {
  public:
   static constexpr Count start_capacity = 32;

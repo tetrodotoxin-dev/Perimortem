@@ -70,14 +70,29 @@ class Data {
     return reinterpret_cast<target_type*>(source);
   }
 
+  // Copies one complete object representation into caller supplied storage.
   template <typename storage_type>
-  static auto copy(U8* dest, const storage_type* src, Count count = 1)
+  static auto copy(U8* dest, const storage_type* src) -> storage_type* {
+    return reinterpret_cast<storage_type*>(
+        memcpy(dest, src, U64(sizeof(storage_type))));
+  }
+
+  // Copies `count` consecutive object representations. A zero count performs
+  // no memory access and returns `dest` unchanged.
+  template <typename storage_type>
+  static auto copy(U8* dest, const storage_type* src, Count count)
       -> storage_type* {
+    if (count == 0) {
+      return reinterpret_cast<storage_type*>(dest);
+    }
+
     return reinterpret_cast<storage_type*>(
         memcpy(dest, src, U64(sizeof(storage_type)) * count));
   }
 
+  // Copies one value's object representation into caller supplied storage.
   template <typename storage_type>
+    requires(!__is_pointer(storage_type))
   static auto copy(U8* dest, storage_type src) -> storage_type* {
     return reinterpret_cast<storage_type*>(
         memcpy(dest, &src, U64(sizeof(storage_type))));
@@ -169,13 +184,17 @@ class Data {
   template <ByteOrder target, typename storage_type>
   static constexpr auto write(storage_type* dest, storage_type value) -> void {
     value = Data::ensure_endian<Data::ByteOrder::Native, target>(value);
-    Data::copy(reinterpret_cast<U8*>(dest), &value, 1);
+    Data::copy(reinterpret_cast<U8*>(dest), &value);
   }
 
-  // Swaps two objects using laundering mechanics to avoid intermediary objects.
-  // For consteval move constructors are used.
-  // For non consteval a forgetful stack buffer is used to avoid constructing
-  // and destructing a temporary or calling any move constructors.
+  // Exchanges complete object representations while preserving both lifetimes
+  // at their original addresses. Each value must remain valid after receiving
+  // the other value's representation, and each destructor later releases the
+  // representation held at its address. Runtime performs the exchange through
+  // one aligned byte buffer and three byte copies.
+  //
+  // Constant evaluation expresses the same exchange through value assignment,
+  // which is the representation C++ exposes during compilation.
   template <typename type>
   static constexpr auto swap(type& a, type& b) -> void {
     if !consteval {

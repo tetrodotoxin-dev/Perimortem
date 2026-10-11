@@ -80,10 +80,10 @@ class alignas(64) Slab {
 
 #elifdef TOOLCHAIN_LINUX
 
-    // If we need a specificly large slab then grab one but make sure it falls
-    // on a 2MB boundary. Don't worry about fragmentation, as part of demotion
-    // the left over bytes in the 2MB will be chunked eventually by smaller
-    // allocs.
+    // Large requests round the slab size up to a multiple of 2MB. The resulting
+    // extent is divisible by either 2MB huge pages or 4KB fallback pages.
+    // Demotion eventually makes the unused tail available to smaller
+    // allocations.
     if (size < block_size) {
       size = Data::align<megabytes_2>(block_size);
     }
@@ -97,14 +97,13 @@ class alignas(64) Slab {
     mapped_memory =
         mmap(nullptr, size, page_access, page_flags | huge_page, -1, 0);
 
-    // We can fail to allocate a huge page if the kernel ran out of allocated
-    // huge pages or if the user has failed to reserve any pages or enable
-    // transparent huge pages. While huge pages are our preference, we perform
-    // just fine with regular 4KB pages.
+    // `MAP_HUGETLB` draws from the reserved hugetlb pool and is independent of
+    // transparent huge pages. A missing 2MB pool, exhausted pool, or lacking
+    // permission rejects this request, so fall back to ordinary anonymous
+    // pages.
     //
-    // If that mmap request also fails then there is really nothing we can do.
-    // We could fall back to another memory strategy but at that point we are
-    // just recreating a `malloc` wrapper.
+    // Failure of the ordinary mapping leaves no lower allocation mechanism to
+    // delegate to without replacing the slab allocator with a `malloc` wrapper.
     if (mapped_memory == MAP_FAILED) {
       mapped_memory = mmap(nullptr, size, page_access, page_flags, -1, 0);
 
@@ -112,6 +111,12 @@ class alignas(64) Slab {
         Diagnostics::Log::fatal(
             "Unable to map a new slab of memory for the runtime."_view);
       }
+
+      // Mark the fallback as eligible on hosts that restrict transparent huge
+      // pages to advised ranges. Failed advice leaves the ordinary mapping
+      // valid, so it does not turn an optional optimization into allocation
+      // failure.
+      (void)madvise(mapped_memory, size, MADV_HUGEPAGE);
     }
 
 #else
@@ -315,7 +320,6 @@ class Librarian {
   auto order_inventory(Count bytes) -> Preface* {
     secret_archive.allocation_requests++;
 
-    // Check if our active inventory has space.
     if (bytes > inventory->get_free_space()) [[unlikely]] {
       manage_inventory(bytes);
     }

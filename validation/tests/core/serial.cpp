@@ -260,3 +260,14 @@ VALIDATION_TEST(CoreSerialWriter, overflow) {
 
   EXPECT_NOT(writer.is_valid());
 }
+
+VALIDATION_TEST(CoreSerialWriter, pointer_bounds) {
+  Static::Bytes<4> buffer;
+  Writer::Serial writer(buffer);
+
+  writer.set_pointer(Count(-1));
+  writer << U64(1);
+
+  EXPECT_EQ(writer.get_location(), writer.get_size());
+  EXPECT_NOT(writer.is_valid());
+}
