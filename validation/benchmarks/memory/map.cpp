@@ -102,8 +102,8 @@ static auto pointer_lookup_test() -> void {
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
     const S32* key = pointer_key(i, misses);
-    auto entry = map.find(key);
-    accumulator += entry ? (*entry).value : 1;
+    auto value = map.find(key);
+    accumulator += value ? *value : 1;
   }
 
   Benchmark::end_time();
@@ -230,7 +230,8 @@ static auto keyword_test() -> void {
 
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
-    accumulator += local_map.find_or_default(*lookup_scramble[i], -1);
+    auto value = local_map.find(*lookup_scramble[i]);
+    accumulator += value ? *value : -1;
   }
 
   Benchmark::prevent_optimization(accumulator);
@@ -245,7 +246,8 @@ static auto keyword_table() -> void {
 
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
-    accumulator += KeywordTable::find_or_default(*lookup_scramble[i], -1);
+    auto value = KeywordTable::find(*lookup_scramble[i]);
+    accumulator += value ? *value : -1;
   }
 
   Benchmark::prevent_optimization(accumulator);

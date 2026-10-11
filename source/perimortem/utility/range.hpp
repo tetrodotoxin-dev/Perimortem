@@ -3,36 +3,56 @@
 
 #pragma once
 
-#include "toolchain/toolchain.hpp"
+#include "perimortem/core/option.hpp"
 
 namespace Perimortem::Utility {
 
-// A half open interval stores its first index and element count.
+// A half open interval stores its first index and element count. Its exclusive
+// end must fit in `Count`, so its greatest value cannot be included in the
+// interval.
 struct Range {
   Count start = 0;
   Count size = 0;
 
-  constexpr auto get_end() const -> Count { return start + size; }
+  constexpr auto get_end() const -> Core::Option<Count> {
+    if (size > Count(-1) - start) {
+      return Core::Option<Count>();
+    }
 
-  constexpr auto is_empty() const -> Bool { return size == 0; }
-  constexpr auto has_overlap(Range other) const -> Bool {
-    return !is_empty() && !other.is_empty() && start < other.get_end() &&
-           other.start < get_end();
+    return start + size;
   }
 
-  // Expands the range interval to include an index if it's not already covered
-  // by the range.
-  // If the range is empty then it creates a single element range at the index.
-  constexpr auto extend(Count index) -> void {
+  constexpr auto is_empty() const -> Bool { return size == 0; }
+  constexpr auto is_valid() const -> Bool { return Bool(get_end()); }
+  constexpr auto has_overlap(Range other) const -> Bool {
+    if (is_empty() || other.is_empty()) {
+      return False;
+    }
+
+    const auto end = get_end();
+    const auto other_end = other.get_end();
+    return end && other_end && start < *other_end && other.start < *end;
+  }
+
+  // Adds an index when the resulting exclusive end remains representable.
+  // False leaves the interval unchanged.
+  constexpr auto extend(Count index) -> Bool {
+    const auto end = get_end();
+    if (!end || index == Count(-1)) {
+      return False;
+    }
+
     if (is_empty()) {
       start = index;
       size = 1;
     } else if (index < start) {
-      size += start - index;
+      size = *end - index;
       start = index;
-    } else if (index >= get_end()) {
+    } else if (index >= *end) {
       size = index - start + 1;
     }
+
+    return True;
   }
 };
 

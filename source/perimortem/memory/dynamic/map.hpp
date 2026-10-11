@@ -164,28 +164,28 @@ class Map {
       -> decltype(auto) {
     auto element = find(key);
     if (element) {
-      return found((*element).value);
+      return found(*element);
     } else {
       return missing();
     }
   }
 
-  auto find(const key_type& key) -> Core::Option<Entry&> {
+  auto find(const key_type& key) -> Core::Option<value_type&> {
     auto* found = find_hashed(key, get_hash(key));
     if (found == nullptr) {
       return {};
     }
 
-    return *found;
+    return found->value;
   }
 
-  auto find(const key_type& key) const -> Core::Option<const Entry&> {
+  auto find(const key_type& key) const -> Core::Option<const value_type&> {
     const auto* found = find_hashed(key, get_hash(key));
     if (found == nullptr) {
       return {};
     }
 
-    return *found;
+    return found->value;
   }
 
   auto contains(const key_type& key) const -> Bool { return bool(find(key)); }
@@ -281,12 +281,6 @@ class Map {
   }
 
   auto operator[](const key_type& key) -> value_type& { return at(key); }
-
-  auto find_or_default(const key_type& key, const value_type& value) const
-      -> const value_type& {
-    auto entry = find(key);
-    return entry ? (*entry).value : value;
-  }
 
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_capacity() const -> Count { return bucket_count; }

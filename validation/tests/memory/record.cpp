@@ -134,7 +134,7 @@ VALIDATION_TEST(DynamicRecord, map_owner) {
 
   auto found = values.find(0);
   ASSERT(found);
-  EXPECT_EQ((*found).value->get_value(), Count(7));
+  EXPECT_EQ((*found)->get_value(), Count(7));
 
   values.remove(0);
   EXPECT_EQ(destructor_count, Count(1));
@@ -152,7 +152,7 @@ VALIDATION_TEST(DynamicRecord, map_rehash) {
   for (Count i = 0; i < 16; i++) {
     auto found = values.find(i);
     ASSERT(found);
-    EXPECT_EQ((*found).value->get_value(), i);
+    EXPECT_EQ((*found)->get_value(), i);
   }
 
   values.clear();

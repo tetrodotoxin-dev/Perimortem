@@ -27,18 +27,20 @@ VALIDATION_TEST(ManagedMap, empty) {
 VALIDATION_TEST(ManagedMap, find) {
   Allocator::Arena arena;
   Managed::Map<S32, S32> values(arena);
+  static_assert(__is_same(decltype(values.find(4)), Option<S32&>));
 
   values.insert(4, 5);
 
   auto found = values.find(4);
   ASSERT(found);
-  EXPECT_EQ((*found).value, 5);
+  EXPECT_EQ(*found, 5);
   EXPECT(!values.find(8));
 
   const auto& const_values = values;
+  static_assert(__is_same(decltype(const_values.find(4)), Option<const S32&>));
   auto const_found = const_values.find(4);
   ASSERT(const_found);
-  EXPECT_EQ((*const_found).value, 5);
+  EXPECT_EQ(*const_found, 5);
   EXPECT(!const_values.find(8));
 }
 

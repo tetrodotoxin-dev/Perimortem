@@ -68,10 +68,10 @@ class Map {
   }
 
   auto insert(const key_type& key, const value_type& value) -> Entry* {
-    auto entry = find(key);
-    if (entry) {
-      (*entry).value = value;
-      return &*entry;
+    auto* slot = find_slot(key);
+    if (slot != nullptr) {
+      slot->entry.value = value;
+      return &slot->entry;
     }
 
     ensure_capacity(buffer.size + 1);
@@ -84,28 +84,28 @@ class Map {
       -> decltype(auto) {
     auto element = find(key);
     if (element) {
-      return found((*element).value);
+      return found(*element);
     } else {
       return missing();
     }
   }
 
-  auto find(const key_type& key) -> Core::Option<Entry&> {
+  auto find(const key_type& key) -> Core::Option<value_type&> {
     Slot* slot = find_slot(key);
     if (slot == nullptr) {
       return {};
     }
 
-    return slot->entry;
+    return slot->entry.value;
   }
 
-  auto find(const key_type& key) const -> Core::Option<const Entry&> {
+  auto find(const key_type& key) const -> Core::Option<const value_type&> {
     const Slot* slot = find_slot(key);
     if (slot == nullptr) {
       return {};
     }
 
-    return slot->entry;
+    return slot->entry.value;
   }
 
   auto contains(const key_type& key) const -> Bool { return bool(find(key)); }
@@ -151,9 +151,9 @@ class Map {
   }
 
   auto at(const key_type& key) -> value_type& {
-    auto entry = find(key);
-    if (entry) {
-      return (*entry).value;
+    auto value = find(key);
+    if (value) {
+      return *value;
     }
 
     return insert(key, value_type())->value;

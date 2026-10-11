@@ -91,6 +91,23 @@ VALIDATION_TEST(DynamicVector, forgetful_scalars) {
   EXPECT_EQ(values[99], U32(42));
 }
 
+VALIDATION_TEST(DynamicVector, self_move_assignment) {
+  Dynamic::Vector<U32> values;
+  values.insert(4);
+  values.insert(8);
+
+  auto* allocation = values.get_data();
+  const auto capacity = values.get_capacity();
+  auto& self = values;
+  values = static_cast<Dynamic::Vector<U32>&&>(self);
+
+  EXPECT(values.get_data() == allocation);
+  EXPECT_EQ(values.get_capacity(), capacity);
+  EXPECT_EQ(values.get_size(), Count(2));
+  EXPECT_EQ(values[0], U32(4));
+  EXPECT_EQ(values[1], U32(8));
+}
+
 VALIDATION_TEST(DynamicVector, remove) {
   Dynamic::Vector<S32> values;
   values.insert(1);

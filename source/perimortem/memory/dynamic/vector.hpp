@@ -46,6 +46,10 @@ class Vector {
   }
 
   auto operator=(Vector&& rhs) -> Vector& {
+    if (this == &rhs) {
+      return *this;
+    }
+
     // Swap source blocks. Since move is not destructive, the donor destructor
     // releases the old block this vector used to own.
     Core::Data::swap(size, rhs.size);

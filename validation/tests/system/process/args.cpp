@@ -58,7 +58,7 @@ static auto values_for(const Args::Values& args, View::Bytes name)
     return View::Vector<View::Bytes>();
   }
 
-  return (*entry).value->get_view();
+  return (*entry)->get_view();
 }
 
 static auto value_count(const Args::Values& args, View::Bytes name) -> Count {

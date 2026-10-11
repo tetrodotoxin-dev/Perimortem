@@ -27,16 +27,18 @@ static Harness DynamicMap = {
 
 VALIDATION_TEST(DynamicMap, find_and_get_entry) {
   Dynamic::Map<S32, S32> int_map = {{{1, 2}, {2, 3}, {4, 5}}};
+  static_assert(__is_same(decltype(int_map.find(2)), Option<S32&>));
 
   auto found = int_map.find(2);
   ASSERT(found);
-  EXPECT_EQ((*found).value, 3);
+  EXPECT_EQ(*found, 3);
   EXPECT(!int_map.find(8));
 
   const auto& const_map = int_map;
+  static_assert(__is_same(decltype(const_map.find(4)), Option<const S32&>));
   auto const_found = const_map.find(4);
   ASSERT(const_found);
-  EXPECT_EQ((*const_found).value, 5);
+  EXPECT_EQ(*const_found, 5);
   EXPECT(!const_map.find(8));
 
   Count count = 0;

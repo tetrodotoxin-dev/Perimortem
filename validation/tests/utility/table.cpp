@@ -41,6 +41,8 @@ constexpr Static::Vector<KeywordEntry, 23> keyword_source = {{
 }};
 
 using keyword_table = Table<U32, keyword_source>;
+static_assert(
+    __is_same(decltype(keyword_table::find("as"_view)), Option<const U32&>));
 
 using WordEntry = Pair<View::Bytes, View::Bytes>;
 constexpr Static::Vector<WordEntry, 8> word_source = {{
@@ -90,35 +92,33 @@ static Harness StaticTable = {
 };
 
 VALIDATION_TEST(StaticTable, keyword_table) {
-  constexpr auto invalid = -1;
   for (Count i = 0; i < keyword_source.get_size(); i++) {
-    EXPECT_EQ(
-        keyword_table::find_or_default(keyword_source[i].key, invalid),
-        keyword_source[i].value);
+    auto value = keyword_table::find(keyword_source[i].key);
+    ASSERT(value);
+    EXPECT_EQ(*value, keyword_source[i].value);
   }
 
-  EXPECT_EQ(keyword_table::find_or_default("unknown"_view, invalid), invalid);
-  EXPECT_EQ(keyword_table::find_or_default("a"_view, invalid), invalid);
-  EXPECT_EQ(keyword_table::find_or_default("As"_view, invalid), invalid);
-  EXPECT_EQ(keyword_table::find_or_default(""_view, invalid), invalid);
-  EXPECT_EQ(keyword_table::find_or_default("rutern"_view, invalid), invalid);
-  EXPECT_EQ(keyword_table::find_or_default("errrr"_view, invalid), invalid);
+  EXPECT_NOT(keyword_table::find("unknown"_view));
+  EXPECT_NOT(keyword_table::find("a"_view));
+  EXPECT_NOT(keyword_table::find("As"_view));
+  EXPECT_NOT(keyword_table::find(""_view));
+  EXPECT_NOT(keyword_table::find("rutern"_view));
+  EXPECT_NOT(keyword_table::find("errrr"_view));
 }
 
 VALIDATION_TEST(StaticTable, word_table) {
-  constexpr auto invalid = "nope"_view;
   for (Count i = 0; i < word_source.get_size(); i++) {
-    EXPECT_TEXT(
-        word_table::find_or_default(word_source[i].key, invalid),
-        word_source[i].value);
+    auto value = word_table::find(word_source[i].key);
+    ASSERT(value);
+    EXPECT_TEXT(*value, word_source[i].value);
   }
 
-  EXPECT_TEXT(word_table::find_or_default("unknown"_view, invalid), invalid);
-  EXPECT_TEXT(word_table::find_or_default("c"_view, invalid), invalid);
-  EXPECT_TEXT(word_table::find_or_default("As"_view, invalid), invalid);
-  EXPECT_TEXT(word_table::find_or_default(""_view, invalid), invalid);
-  EXPECT_TEXT(word_table::find_or_default("rutern"_view, invalid), invalid);
-  EXPECT_TEXT(word_table::find_or_default("errrr"_view, invalid), invalid);
+  EXPECT_NOT(word_table::find("unknown"_view));
+  EXPECT_NOT(word_table::find("c"_view));
+  EXPECT_NOT(word_table::find("As"_view));
+  EXPECT_NOT(word_table::find(""_view));
+  EXPECT_NOT(word_table::find("rutern"_view));
+  EXPECT_NOT(word_table::find("errrr"_view));
 }
 
 VALIDATION_TEST(StaticTable, find) {
@@ -138,6 +138,8 @@ VALIDATION_TEST(StaticTable, find) {
 
 VALIDATION_TEST(StaticTable, entry_limit) {
   for (Count i = 0; i < limit_source.get_size(); i++) {
-    EXPECT_EQ(limit_table::find_or_default(limit_source[i].key, U8(-1)), U8(i));
+    auto value = limit_table::find(limit_source[i].key);
+    ASSERT(value);
+    EXPECT_EQ(*value, U8(i));
   }
 }

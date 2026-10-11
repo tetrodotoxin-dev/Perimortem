@@ -184,17 +184,10 @@ class Table {
   }
 
  public:
-  static constexpr auto find_or_default(
-      const Core::View::Bytes key,
-      const value_type default_value) -> value_type {
-    auto value = find_or_null(key);
-    return value == nullptr ? default_value : *value;
-  }
-
   static constexpr auto find(const Core::View::Bytes key)
-      -> Core::Option<value_type> {
+      -> Core::Option<const value_type&> {
     auto value = find_or_null(key);
-    return value == nullptr ? Core::Option<value_type>() : *value;
+    return value == nullptr ? Core::Option<const value_type&>() : *value;
   }
 
   static consteval auto get_values() -> Core::View::Vector<value_type> {
