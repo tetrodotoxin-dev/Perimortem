@@ -8,6 +8,10 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Compression;
 
+constexpr auto code_mask(Count count) -> U32 {
+  return count == 32 ? U32(-1) : (U32(1) << count) - U32(1);
+}
+
 // Loads bytes from the stream into buffer until it buffers at least 57 bits or
 // the stream is exhausted. 57 bits guarantees a 9 bit peek after consuming up
 // to a 48 bit code + extra bits pair without a second fill.
@@ -18,7 +22,7 @@ auto BitStream::Reader::fill() -> void {
   // Fast path: enough bytes remain for one packed 64 bit read. DEFLATE stores
   // the least significant stream byte first, so the declared byte order keeps
   // the accumulator identical on every host.
-  if (byte_position + Count(sizeof(U64)) <= size) {
+  if (byte_position <= size && sizeof(U64) <= size - byte_position) {
     U64 word = Data::read<Data::ByteOrder::Little, U64>(
         source_pointer + byte_position);
     Count consumed = (64 - buffered_bits) >> 3;
@@ -44,13 +48,17 @@ auto BitStream::Reader::read_bit() -> Bool {
     }
   }
 
-  // Load the lowest bit of the buffer.
   const Bool bit = buffer & U64(1);
   advance_bits(1);
   return bit;
 }
 
 auto BitStream::Reader::read_code(Count count) -> U32 {
+  if (count > 32) [[unlikely]] {
+    invalid_stream = True;
+    return 0;
+  }
+
   if (buffered_bits < count) {
     fill();
     if (buffered_bits < count) [[unlikely]] {
@@ -59,8 +67,7 @@ auto BitStream::Reader::read_code(Count count) -> U32 {
     }
   }
 
-  const U32 mask = ((U32(1) << count) - U32(1));
-  const U32 result = U32(buffer) & mask;
+  const U32 result = U32(buffer) & code_mask(count);
   advance_bits(count);
   return result;
 }
@@ -71,10 +78,17 @@ auto BitStream::Reader::read_raw_bytes(Count count) -> View::Bytes {
   advance_bits(fractional_bits);
 
   // Rewind any whole bytes preloaded into buffer but not yet used.
-  byte_position -= buffered_bits >> 3;
+  const Count buffered_bytes = buffered_bits >> 3;
+  if (buffered_bytes > byte_position) [[unlikely]] {
+    invalid_stream = True;
+    return View::Bytes();
+  }
+
+  byte_position -= buffered_bytes;
   buffer = 0;
   buffered_bits = 0;
-  if (byte_position + count > data.get_size()) [[unlikely]] {
+  if (byte_position > data.get_size() ||
+      count > data.get_size() - byte_position) [[unlikely]] {
     invalid_stream = True;
     return View::Bytes();
   }
@@ -85,9 +99,14 @@ auto BitStream::Reader::read_raw_bytes(Count count) -> View::Bytes {
 }
 
 auto BitStream::Reader::peek_code(Count count) -> U32 {
+  if (count > 32) [[unlikely]] {
+    invalid_stream = True;
+    return 0;
+  }
+
   if (buffered_bits < count) {
     fill();
   }
 
-  return U32(buffer) & ((U32(1) << count) - U32(1));
+  return U32(buffer) & code_mask(count);
 }

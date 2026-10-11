@@ -129,7 +129,10 @@ class Huffman {
     const auto fast_key = reader.peek_code(fast_bits);
     const FastEntry& fast_entry = fast_table[fast_key];
     if (fast_entry.length > 0) {
-      reader.advance_bits(fast_entry.length);
+      if (!reader.advance_bits(fast_entry.length)) [[unlikely]] {
+        return invalid_symbol;
+      }
+
       return fast_entry.symbol;
     }
 

@@ -391,6 +391,9 @@ constexpr auto inflate_dynamic(
   Count decode_index = 0;
   while (decode_index < total_codes && reader.is_valid()) {
     U16 symbol = dynamic_table.decode_symbol(reader);
+    if (symbol == Huffman::invalid_symbol) [[unlikely]] {
+      return False;
+    }
 
     U8 value = 0;
     Count element_count = Count(-1);
@@ -400,8 +403,13 @@ constexpr auto inflate_dynamic(
       element_count = 1;
       break;
     case U16(Encodings::Repeat):
-      value =
-          decode_index > 0 ? actual_literal_len_lengths[decode_index - 1] : 0;
+      if (decode_index == 0) [[unlikely]] {
+        Diagnostics::Log::error(
+            "Compression: dynamic block repeats a code length before defining one"_view);
+        return False;
+      }
+
+      value = actual_literal_len_lengths[decode_index - 1];
       element_count = reader.read_code(2) + 3;
       break;
     case U16(Encodings::ShortZeros):
@@ -412,9 +420,16 @@ constexpr auto inflate_dynamic(
       value = 0;
       element_count = reader.read_code(7) + 11;
       break;
+    default:
+      return False;
     }
 
-    if (decode_index + element_count > total_codes) {
+    if (!reader.is_valid()) [[unlikely]] {
+      return False;
+    }
+
+    if (decode_index > total_codes ||
+        element_count > total_codes - decode_index) [[unlikely]] {
       Diagnostics::Log::error(
           "Compression: dynamic block code-length sequence overruns total code count"_view);
       return False;
@@ -886,8 +901,10 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
   return output;
 }
 
-auto Deflate::inflate(const View::Bytes source, Count capacity_hint)
-    -> Dynamic::Bytes {
+static auto inflate_stream(
+    const View::Bytes source,
+    Count capacity_hint,
+    Bool checksum_required) -> Dynamic::Bytes {
   if (!validate_header(source)) {
     return Dynamic::Bytes();
   }
@@ -938,15 +955,22 @@ auto Deflate::inflate(const View::Bytes source, Count capacity_hint)
     return Dynamic::Bytes();
   }
 
-#if PERI_DEBUG
-
-  if (!test_checksum(output, source)) {
+  if (checksum_required && !test_checksum(output, source)) {
     return Dynamic::Bytes();
   }
 
-#endif
-
   return output;
+}
+
+auto Deflate::inflate(const View::Bytes source, Count capacity_hint)
+    -> Dynamic::Bytes {
+  return inflate_stream(source, capacity_hint, True);
+}
+
+auto Deflate::inflate_without_checksum(
+    const View::Bytes source,
+    Count capacity_hint) -> Dynamic::Bytes {
+  return inflate_stream(source, capacity_hint, False);
 }
 
 auto Deflate::deflate(View::Bytes source, Level level) -> Dynamic::Bytes {

@@ -25,9 +25,17 @@ class Reader {
   auto read_raw_bytes(Count count) -> Core::View::Bytes;
   auto peek_code(Count count) -> U32;
 
-  constexpr auto advance_bits(Count count) -> void {
-    buffer >>= count;
+  // Advances only through bits already loaded into the buffer. A request past
+  // that boundary invalidates the stream without underflowing `buffered_bits`.
+  constexpr auto advance_bits(Count count) -> Bool {
+    if (count > buffered_bits) [[unlikely]] {
+      invalid_stream = True;
+      return False;
+    }
+
+    buffer = count == 64 ? 0 : buffer >> count;
     buffered_bits -= count;
+    return True;
   }
 
   constexpr auto is_valid() const -> Bool { return !invalid_stream; }

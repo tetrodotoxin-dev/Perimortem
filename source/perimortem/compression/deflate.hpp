@@ -15,12 +15,19 @@ class Deflate {
     Best = 2,     // Large compute cost, but moderate improvements
   };
 
-  // Decompresses a deflate stream (RFC 1950 + RFC 1951).
-  // Returns empty bytes on malformed input or checksum failure.
-  // capacity_hint reserves in advance the output buffer when the decompressed
+  // Decompresses a zlib wrapped Deflate stream and validates its Adler32
+  // trailer. Returns empty bytes on malformed input or checksum failure.
+  // `capacity_hint` reserves in advance the output buffer when the decompressed
   // size is known ahead of time, eliminating reallocation cascades on large
   // inputs.
   static EXPORTED(PERIMORTEM) auto inflate(
+      Core::View::Bytes source,
+      Count capacity_hint = 0) -> Memory::Dynamic::Bytes;
+
+  // Applies the same structural validation as `inflate` without computing
+  // Adler32 over the decompressed payload. Callers explicitly accept undetected
+  // payload corruption in exchange for avoiding that additional pass.
+  static EXPORTED(PERIMORTEM) auto inflate_without_checksum(
       Core::View::Bytes source,
       Count capacity_hint = 0) -> Memory::Dynamic::Bytes;
 

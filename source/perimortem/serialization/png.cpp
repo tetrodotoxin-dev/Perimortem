@@ -755,8 +755,22 @@ constexpr auto process_data(
 
   const Count decompressed_capacity =
       *pixel_count * bytes_per_pixel + info.get_height();
+
+  // Debug validates both the PNG chunk CRC and the zlib Adler32 trailer.
+  // Release omits both full payload checksum passes to preserve decode
+  // throughput.
+#if PERI_DEBUG
+
   Dynamic::Bytes filtered_rows =
       Deflate::inflate(source, decompressed_capacity);
+
+#else
+
+  Dynamic::Bytes filtered_rows =
+      Deflate::inflate_without_checksum(source, decompressed_capacity);
+
+#endif
+
   if (filtered_rows.is_empty()) [[unlikely]] {
     return Option<Matrix<Rgba8>>();
   }

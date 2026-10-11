@@ -3,7 +3,9 @@
 
 #include "toolchain/validation/test.hpp"
 
+#include "perimortem/compression/bit_stream/reader.hpp"
 #include "perimortem/compression/deflate.hpp"
+#include "perimortem/compression/huffman.hpp"
 #include "perimortem/compression/lz77.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
@@ -107,15 +109,40 @@ static constexpr Static::Bytes<9> single_compressed = {{
 
 // Corrupt only the Adler32 trailer so inflation reaches checksum validation
 // after decoding an otherwise valid payload.
-
-#if PERI_DEBUG
-
 static constexpr Static::Bytes<26> bad_adler_compressed = {{
   0x78, 0xDA, 0xF3, 0x48, 0xCD, 0xC9, 0xC9, 0xD7, 0x51, 0x08, 0x48, 0x2D, 0xCA,
   0xCC, 0xCD, 0x2F, 0x2A, 0x49, 0xCD, 0x55, 0x04, 0x00, 0x3D, 0x2E, 0x06, 0x79,
 }};
 
-#endif
+// Repeat requires an earlier code length. This dynamic header emits it first so
+// inflation must reject the sequence before reading its repeat count.
+static constexpr Static::Bytes<10> repeat_without_previous = {{
+  0x78,
+  0x9C,
+  0x05,
+  0x00,
+  0x02,
+  0x24,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+}};
+
+// One zero length is accepted before an undefined code invalidates the bit
+// reader. The rejected symbol must not become an unbounded fill count.
+static constexpr Static::Bytes<10> invalid_dynamic_symbol = {{
+  0x78,
+  0x9C,
+  0x05,
+  0x00,
+  0x00,
+  0x44,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+}};
 
 VALIDATION_TEST(CompressionTests, dynamic_huffman) {
   auto out = Deflate::inflate(hello_compressed);
@@ -188,15 +215,61 @@ VALIDATION_TEST(CompressionTests, bad_method) {
           "Compression: Unsupported compression method in deflate header"_view));
 }
 
-#if PERI_DEBUG
-
 VALIDATION_TEST(CompressionTests, inflate_bad_checksum) {
   auto out = Deflate::inflate(bad_adler_compressed);
   EXPECT_EQ(out.get_size(), 0);
   EXPECT(Log::error_contains("Compression: Adler-32 checksum mismatch."_view));
 }
 
-#endif
+VALIDATION_TEST(CompressionTests, inflate_without_checksum) {
+  auto out = Deflate::inflate_without_checksum(bad_adler_compressed);
+
+  ASSERT_EQ(out.get_size(), hello_raw.get_size());
+  EXPECT_HEX(out.get_view(), hello_raw.get_view());
+}
+
+VALIDATION_TEST(CompressionTests, reject_repeat_without_previous) {
+  auto out = Deflate::inflate(repeat_without_previous);
+
+  EXPECT(out.is_empty());
+  EXPECT(
+      Log::error_contains(
+          "Compression: dynamic Huffman block decompression failed"_view));
+}
+
+VALIDATION_TEST(CompressionTests, reject_invalid_dynamic_symbol) {
+  auto out = Deflate::inflate(invalid_dynamic_symbol);
+
+  EXPECT(out.is_empty());
+  EXPECT(
+      Log::error_contains(
+          "Compression: dynamic Huffman block decompression failed"_view));
+}
+
+VALIDATION_TEST(CompressionTests, truncated_fast_huffman_code) {
+  Static::Vector<U8, 1> lengths;
+  lengths[0] = 9;
+
+  const Huffman table(lengths.get_view());
+  BitStream::Reader reader("\x00"_view);
+
+  EXPECT_EQ(table.decode_symbol(reader), Huffman::invalid_symbol);
+  EXPECT_NOT(reader.is_valid());
+}
+
+VALIDATION_TEST(CompressionTests, bit_reader_bounds) {
+  BitStream::Reader complete("\x01\x02\x03\x04"_view);
+  EXPECT_EQ(complete.read_code(32), U32(0x04030201));
+  EXPECT(complete.is_valid());
+
+  BitStream::Reader wide("\xFF"_view);
+  EXPECT_EQ(wide.read_code(33), U32(0));
+  EXPECT_NOT(wide.is_valid());
+
+  BitStream::Reader raw("\xFF"_view);
+  EXPECT(raw.read_raw_bytes(Count(-1)).is_empty());
+  EXPECT_NOT(raw.is_valid());
+}
 
 VALIDATION_TEST(CompressionTests, deflate_empty_input) {
   auto compressed = Deflate::deflate(""_view);
