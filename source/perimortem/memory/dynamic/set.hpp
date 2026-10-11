@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/option.hpp"
+#include "perimortem/core/bibliotheca.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -76,7 +76,8 @@ class Set {
     }
 
     destruct();
-    Core::Bibliotheca::remit(Core::Data::cast<U8>(buffer_data.bucket_buffer));
+    Core::Bibliotheca::remit(
+        Core::Data::cast<U8>(buffer_data.bucket_buffer));
     buffer_data = BufferData();
   }
 
@@ -105,7 +106,8 @@ class Set {
 
     key_type* empty_slot = get_empty(hash);
     buffer_data.size += 1;
-    new (empty_slot, Core::Placement::Construct) key_type(key);
+    Toolchain::Memory::Lifetime::construct<key_type>(
+        empty_slot, [&key] { return key_type(key); });
     return True;
   }
 

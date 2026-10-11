@@ -3,7 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
+#include <string.h>
+
+#include "perimortem/core/view/bytes.h"
 
 namespace Perimortem::Core {
 

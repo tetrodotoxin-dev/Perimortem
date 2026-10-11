@@ -4,11 +4,12 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/perimortem.hpp"
+#include "perimortem/memory/allocator/compiler.hpp"
 
 namespace Perimortem::Memory::Const {
 
-// Supplies a consteval lifetime managed wrapper around an allocated buffer.
+// Owns contiguous values allocated through Compiler during constant evaluation.
+// Copies create independent values and moves transfer the allocation.
 template <typename type>
 class Range {
  public:
@@ -68,13 +69,13 @@ class Range {
  private:
   constexpr auto construct(Count new_size) -> void {
     destruct();
-    source_block = new type[new_size]{};
+    source_block = Allocator::Compiler::allocate_range<type>(new_size);
     size = new_size;
   }
 
   constexpr auto destruct() -> void {
     if (source_block) {
-      delete[] source_block;
+      Allocator::Compiler::release_range(source_block);
     }
 
     source_block = nullptr;

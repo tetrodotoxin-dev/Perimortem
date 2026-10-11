@@ -6,11 +6,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef PERI_LINUX
+#ifdef TOOLCHAIN_LINUX
 #include <execinfo.h>
 #endif
 
-#include "perimortem/core/access/bytes.hpp"
+#include "perimortem/core/access/bytes.h"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
@@ -318,7 +318,7 @@ auto Diagnostics::Log::fatal(View::Bytes message, const Source& location)
   log(Level::Fatal, message, location);
   flush();
 
-#ifdef PERI_LINUX
+#ifdef TOOLCHAIN_LINUX
 
   Static::Vector<void*, 64> frames;
   int frame_count = backtrace(frames.get_data(), frames.get_size());

@@ -6,10 +6,10 @@
 
 #pragma once
 
-#include "perimortem/core/access/bytes.hpp"
+#include "perimortem/core/access/bytes.h"
 #include "perimortem/core/diagnostics/source.hpp"
 #include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/bytes.h"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/writer/textual.hpp"
 

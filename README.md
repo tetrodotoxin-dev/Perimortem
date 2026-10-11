@@ -49,8 +49,8 @@ Run these commands from the repository root:
 
 ```sh
 bazel build //source/...
-bazel run :tests
-bazel run :benchmarks --config=release
+bazel run //validation:tests
+bazel run //validation:benchmarks --config=release
 bazel build :sdk --config=release
 ```
 

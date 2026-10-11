@@ -11,9 +11,10 @@ namespace Perimortem::Utility {
 // and private state leave no empty outcome for a caller to interpret.
 //
 // Result owns its storage because a successful value may require destruction.
-// Errors remain owned trivially destructible values in the first contract, so
-// only one alternative needs active cleanup. Borrowed values store one pointer
-// and retain the reference identity established by the caller.
+// Error values are required to be trivially destructible, so only one
+// alternative needs active cleanup. Reference values store one
+// pointer and preserve the identity established by the caller. The caller
+// keeps that object alive while visiting the reference result.
 //
 // Two case visitation makes error handling visible at the call site without an
 // unchecked value shortcut that could discard the error branch.
@@ -111,10 +112,13 @@ class Result {
   constexpr auto construct_value(candidate_type&& candidate) -> void {
     if constexpr (__is_lvalue_reference(value_type)) {
       auto& reference = static_cast<value_type>(candidate);
-      new (&value, Core::Placement::Construct) ValueStorage(&reference);
+      Toolchain::Memory::Lifetime::construct<ValueStorage>(
+          &value, [&reference] { return ValueStorage(&reference); });
     } else {
-      new (&value, Core::Placement::Construct)
-          ValueStorage(static_cast<candidate_type&&>(candidate));
+      Toolchain::Memory::Lifetime::construct<ValueStorage>(
+          &value, [&candidate] {
+            return ValueStorage(static_cast<candidate_type&&>(candidate));
+          });
     }
 
     value_selected = True;
@@ -122,8 +126,9 @@ class Result {
 
   template <typename candidate_type>
   constexpr auto construct_error(candidate_type&& candidate) -> void {
-    new (&error, Core::Placement::Construct)
-        error_type(static_cast<candidate_type&&>(candidate));
+    Toolchain::Memory::Lifetime::construct<error_type>(&error, [&candidate] {
+      return error_type(static_cast<candidate_type&&>(candidate));
+    });
     value_selected = False;
   }
 

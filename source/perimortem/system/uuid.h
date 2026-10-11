@@ -4,7 +4,7 @@
 #ifndef PERIMORTEM_SYSTEM_UUID_H
 #define PERIMORTEM_SYSTEM_UUID_H
 
-#include "perimortem/core/perimortem.h"
+#include "toolchain/toolchain.h"
 
 // UUID provides enough bits that collisions are extremely unlikely. The ABI
 // uses Perimortem's dual U64 format as the wire format since it's compact and

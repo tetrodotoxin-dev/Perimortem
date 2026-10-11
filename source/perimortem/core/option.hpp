@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/perimortem.hpp"
+#include "toolchain/toolchain.hpp"
 
 namespace Perimortem::Core {
 
@@ -20,8 +20,9 @@ class Option {
  private:
   template <typename candidate_type>
   constexpr auto construct(candidate_type&& candidate) -> void {
-    new (&value, Placement::Construct)
-        value_type(static_cast<candidate_type&&>(candidate));
+    Toolchain::Memory::Lifetime::construct<value_type>(&value, [&candidate] {
+      return value_type(static_cast<candidate_type&&>(candidate));
+    });
     set = true;
   }
 
@@ -127,18 +128,18 @@ class Option {
   }
 };
 
-// A reference Option borrows its selected object and remains pointer sized. A
-// const Option does not change the referent's type because constness belongs to
-// the reference declared at the API boundary.
+// A reference Option stores the address of its selected object and remains
+// pointer sized. A const Option does not change the referent's type because
+// constness belongs to the reference declared at the API boundary. The caller
+// keeps the selected object alive while accessing it through the Option.
 template <typename value_type>
 class Option<value_type&> {
  public:
   constexpr Option() = default;
   constexpr Option(value_type& value) : value(&value) {}
 
-  // A const reference can otherwise bind a temporary and leave Option holding
-  // a dangling borrow. Requiring an lvalue makes the lifetime decision visible
-  // at construction.
+  // Requiring an lvalue ties the stored address to an object selected by the
+  // caller with a lifetime that can cover every use of the Option.
   Option(value_type&&) = delete;
 
   constexpr explicit operator bool() const { return value != nullptr; }

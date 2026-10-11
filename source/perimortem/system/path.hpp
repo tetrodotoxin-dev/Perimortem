@@ -5,7 +5,7 @@
 
 #include "perimortem/core/option.hpp"
 #include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/bytes.h"
 #include "perimortem/memory/allocator/arena.hpp"
 
 namespace Perimortem::System {

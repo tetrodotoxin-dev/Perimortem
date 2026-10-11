@@ -6,7 +6,7 @@
 #include "toolchain/validation/benchmark.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/perimortem.hpp"
+#include "toolchain/toolchain.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Serialization;

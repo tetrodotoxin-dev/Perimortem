@@ -6,7 +6,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/option.hpp"
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/bytes.h"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/utility/pair.hpp"
 

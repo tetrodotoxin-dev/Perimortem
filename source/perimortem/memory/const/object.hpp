@@ -4,10 +4,12 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
+#include "perimortem/memory/allocator/compiler.hpp"
 
 namespace Perimortem::Memory::Const {
 
-// Provides a compile time wrapper for a dynamic object.
+// Owns one value allocated through Compiler during constant evaluation. Copies
+// create independent values and moves transfer the allocation.
 template <typename type>
 class Object {
  public:
@@ -59,13 +61,13 @@ class Object {
  private:
   consteval auto construct() -> void {
     if (!source_block) {
-      source_block = new type{};
+      source_block = Allocator::Compiler::allocate_object<type>();
     }
   }
 
   constexpr auto destruct() -> void {
     if (source_block) {
-      delete source_block;
+      Allocator::Compiler::release_object(source_block);
       source_block = nullptr;
     }
   }

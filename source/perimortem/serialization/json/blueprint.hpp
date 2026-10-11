@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/static/union.hpp"
-#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/bytes.h"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/serialization/json/node.hpp"
 

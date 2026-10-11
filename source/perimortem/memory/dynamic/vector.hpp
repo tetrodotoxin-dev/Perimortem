@@ -3,12 +3,13 @@
 
 #pragma once
 
+#include "toolchain/toolchain.hpp"
+
 #include "perimortem/core/access/vector.hpp"
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/perimortem.hpp"
 #include "perimortem/core/scalar.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/bibliotheca.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -25,8 +26,8 @@ class Vector {
     ensure_capacity(rhs.get_size());
     size = rhs.get_size();
     for (Count i = 0; i < size; i++) {
-      new (source_block + i, Core::Placement::Construct)
-          type(rhs.source_block[i]);
+      Toolchain::Memory::Lifetime::construct<type>(
+          source_block + i, [&rhs, i] { return type(rhs.source_block[i]); });
     }
   }
 
@@ -59,8 +60,8 @@ class Vector {
     ensure_capacity(rhs.get_size());
     size = rhs.get_size();
     for (Count i = 0; i < size; i++) {
-      new (source_block + i, Core::Placement::Construct)
-          type(rhs.source_block[i]);
+      Toolchain::Memory::Lifetime::construct<type>(
+          source_block + i, [&rhs, i] { return type(rhs.source_block[i]); });
     }
 
     return *this;
@@ -94,7 +95,8 @@ class Vector {
 
   constexpr auto insert(const type& data) -> type& {
     if (!ensure_capacity(size + 1, data)) {
-      new (source_block + size, Core::Placement::Construct) type(data);
+      Toolchain::Memory::Lifetime::construct<type>(
+          source_block + size, [&data] { return type(data); });
     }
 
     return source_block[size++];
@@ -102,8 +104,9 @@ class Vector {
 
   constexpr auto emplace(type&& data) -> type& {
     if (!ensure_capacity(size + 1, Core::Data::take(data))) {
-      new (source_block + size, Core::Placement::Construct)
-          type(Core::Data::take(data));
+      Toolchain::Memory::Lifetime::construct<type>(
+          source_block + size,
+          [&data] { return type(Core::Data::take(data)); });
     }
 
     return source_block[size++];
@@ -125,11 +128,14 @@ class Vector {
       source_block[index].~type();
       if (index != last_index) {
         if constexpr (__is_constructible(type, type&)) {
-          new (source_block + index, Core::Placement::Construct)
-              type(source_block[last_index]);
+          Toolchain::Memory::Lifetime::construct<type>(
+              source_block + index,
+              [this, last_index] { return type(source_block[last_index]); });
         } else {
-          new (source_block + index, Core::Placement::Construct)
-              type(Core::Data::take(source_block[last_index]));
+          Toolchain::Memory::Lifetime::construct<type>(
+              source_block + index, [this, last_index] {
+                return type(Core::Data::take(source_block[last_index]));
+              });
         }
 
         source_block[last_index].~type();
@@ -160,11 +166,15 @@ class Vector {
       source_block[index].~type();
       for (Count shift_index = index; shift_index < last_index; shift_index++) {
         if constexpr (__is_constructible(type, type&)) {
-          new (source_block + shift_index, Core::Placement::Construct)
-              type(source_block[shift_index + 1]);
+          Toolchain::Memory::Lifetime::construct<type>(
+              source_block + shift_index, [this, shift_index] {
+                return type(source_block[shift_index + 1]);
+              });
         } else {
-          new (source_block + shift_index, Core::Placement::Construct)
-              type(Core::Data::take(source_block[shift_index + 1]));
+          Toolchain::Memory::Lifetime::construct<type>(
+              source_block + shift_index, [this, shift_index] {
+                return type(Core::Data::take(source_block[shift_index + 1]));
+              });
         }
 
         source_block[shift_index + 1].~type();
@@ -203,7 +213,7 @@ class Vector {
     ensure_capacity(new_size);
     if constexpr (!__is_trivially_constructible(type)) {
       for (Count i = size; i < new_size; i++) {
-        new (source_block + i, Core::Placement::Construct) type();
+        Toolchain::Memory::Lifetime::construct<type>(source_block + i);
       }
     }
 
@@ -238,7 +248,8 @@ class Vector {
       Core::Bibliotheca::remit((U8*)source_block);
     }
 
-    auto alloc = Core::Bibliotheca::check_out(allocation_size(required_size));
+    auto alloc =
+        Core::Bibliotheca::check_out(allocation_size(required_size));
     source_block = Core::Data::cast<type>(alloc.ptr);
     capacity = alloc.capacity / sizeof(type);
   }
@@ -284,10 +295,10 @@ class Vector {
     return count > Count(-1) / sizeof(type) ? Count(-1) : count * sizeof(type);
   }
 
-  // Growth may also construct the pending insertion. Doing that before
-  // relocation keeps an argument borrowed from our own elements alive without
-  // copying it through a temporary. Calls without an argument only grow
-  // storage.
+  // Growth may also construct the pending insertion. Constructing it in the new
+  // block before relocation keeps an argument that refers to a current element
+  // valid until its value reaches the destination. Calls without an argument
+  // only grow storage.
   template <typename... argument_types>
   auto ensure_capacity(Count required_size, argument_types&&... arguments)
       -> Bool {
@@ -301,11 +312,14 @@ class Vector {
         Core::Scalar::max(get_capacity() * 2, required_size);
 
     // Fetch and transfer to new block.
-    auto alloc = Core::Bibliotheca::check_out(allocation_size(new_capacity));
+    auto alloc =
+        Core::Bibliotheca::check_out(allocation_size(new_capacity));
     auto new_block = Core::Data::cast<type>(alloc.ptr);
     if constexpr (sizeof...(arguments) != 0) {
-      new (new_block + size, Core::Placement::Construct)
-          type(static_cast<argument_types&&>(arguments)...);
+      Toolchain::Memory::Lifetime::construct<type>(
+          new_block + size, [&arguments...] {
+            return type(static_cast<argument_types&&>(arguments)...);
+          });
     }
 
     if (source_block) {
@@ -316,11 +330,12 @@ class Vector {
           // Copyable values retain their existing relocation behavior but an
           // exclusive owner cannot be copied so we need to use move semantics.
           if constexpr (__is_constructible(type, type&)) {
-            new (new_block + i, Core::Placement::Construct)
-                type(source_block[i]);
+            Toolchain::Memory::Lifetime::construct<type>(
+                new_block + i, [this, i] { return type(source_block[i]); });
           } else {
-            new (new_block + i, Core::Placement::Construct)
-                type(Core::Data::take(source_block[i]));
+            Toolchain::Memory::Lifetime::construct<type>(
+                new_block + i,
+                [this, i] { return type(Core::Data::take(source_block[i])); });
           }
         }
 

@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/option.hpp"
-#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/bytes.h"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 

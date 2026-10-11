@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/perimortem.hpp"
+#include "toolchain/toolchain.hpp"
 
 // The target C runtime owns these declarations, including its import and
 // exception specifications. Clang recognizes the same memory intrinsics

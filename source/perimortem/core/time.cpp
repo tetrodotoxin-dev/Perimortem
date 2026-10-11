@@ -3,7 +3,7 @@
 
 #include "perimortem/core/time.hpp"
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 #include <windows.h>
 #else
 #include <time.h>
@@ -33,7 +33,7 @@ auto write_fixed(Writer::Textual& writer, U64 value) -> void {
 
 auto Time::now() -> Time {
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 
   LARGE_INTEGER counter, frequency;
   QueryPerformanceCounter(&counter);
@@ -55,7 +55,7 @@ auto Time::now() -> Time {
 
 auto Time::clock() -> Time {
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 
   FILETIME stamp;
   GetSystemTimePreciseAsFileTime(&stamp);

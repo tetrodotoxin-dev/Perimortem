@@ -3,15 +3,15 @@
 
 #include "perimortem/core/bibliotheca.hpp"
 
-#ifdef PERI_WASM
+#ifdef TOOLCHAIN_WASM
 #include <stdlib.h>
 #endif
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 #include <windows.h>
 #endif
 
-#ifdef PERI_LINUX
+#ifdef TOOLCHAIN_LINUX
 #include <linux/mman.h>
 #include <sys/mman.h>
 #endif
@@ -49,7 +49,7 @@ class alignas(64) Slab {
     Count size = allocator_size;
     void* mapped_memory = nullptr;
 
-#ifdef PERI_WASM
+#ifdef TOOLCHAIN_WASM
 
     // Browser linear memory has no page mapping contract. Retain the slab
     // allocator above an aligned allocation so its chunk ownership is shared
@@ -70,7 +70,7 @@ class alignas(64) Slab {
       Diagnostics::Log::fatal("Unable to allocate a runtime slab."_view);
     }
 
-#elifdef PERI_WINDOWS
+#elifdef TOOLCHAIN_WINDOWS
 
     size = Data::align<megabytes_2>(Scalar::max(block_size, allocator_size));
     mapped_memory = VirtualAlloc(
@@ -79,7 +79,7 @@ class alignas(64) Slab {
       Diagnostics::Log::fatal("Unable to allocate a runtime slab."_view);
     }
 
-#elifdef PERI_LINUX
+#elifdef TOOLCHAIN_LINUX
 
     // If we need a specificly large slab then grab one but make sure it falls
     // on a 2MB boundary. Don't worry about fragmentation, as part of demotion
@@ -124,14 +124,14 @@ class alignas(64) Slab {
 
   static auto release(Slab* slab) -> Bool {
 
-#ifdef PERI_WASM
+#ifdef TOOLCHAIN_WASM
 
     // Wasm32 doesn't need any special processing of it's blocks since they just
     // wrap regular alloc.
     free(slab);
     return True;
 
-#elif defined(PERI_WINDOWS)
+#elif defined(TOOLCHAIN_WINDOWS)
 
     if (!VirtualFree(slab, 0, MEM_RELEASE)) {
       Diagnostics::Log::error(
@@ -141,7 +141,7 @@ class alignas(64) Slab {
 
     return True;
 
-#elif defined(PERI_LINUX)
+#elif defined(TOOLCHAIN_LINUX)
 
     auto success = munmap(slab, slab->mapped_size);
     if (success != 0) {

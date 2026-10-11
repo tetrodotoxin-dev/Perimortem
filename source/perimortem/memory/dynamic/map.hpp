@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/option.hpp"
+#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Memory::Dynamic {
@@ -127,7 +127,8 @@ class Map {
     ensure_capacity(size + 1);
 
     Entry* empty = get_empty(hash);
-    new (empty, Core::Placement::Construct) Entry(key, value);
+    Toolchain::Memory::Lifetime::construct<Entry>(
+        empty, [&key, &value] { return Entry(key, value); });
     size++;
     return empty;
   }
@@ -149,8 +150,10 @@ class Map {
     ensure_capacity(size + 1);
 
     Entry* empty = get_empty(hash);
-    new (empty, Core::Placement::Construct)
-        Entry(static_cast<key_type&&>(key), static_cast<value_type&&>(value));
+    Toolchain::Memory::Lifetime::construct<Entry>(empty, [&key, &value] {
+      return Entry(
+          static_cast<key_type&&>(key), static_cast<value_type&&>(value));
+    });
     size++;
     return empty;
   }
@@ -271,7 +274,8 @@ class Map {
     ensure_capacity(size + 1);
 
     Entry* entry = get_empty(hash);
-    new (entry, Core::Placement::Construct) Entry(key, value_type());
+    Toolchain::Memory::Lifetime::construct<Entry>(
+        entry, [&key] { return Entry(key, value_type()); });
     size++;
     return entry->value;
   }
@@ -396,7 +400,8 @@ class Map {
 
   auto create_buffer(Count new_bucket_count) -> void {
     Core::Bibliotheca::Allocation allocation =
-        Core::Bibliotheca::check_out(required_buffer_size(new_bucket_count));
+        Core::Bibliotheca::check_out(
+            required_buffer_size(new_bucket_count));
     buckets = Core::Data::cast<U32>(allocation.ptr);
     entries = Core::Data::cast<Entry>(
         allocation.ptr + entry_offset(new_bucket_count));

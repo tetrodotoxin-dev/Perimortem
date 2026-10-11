@@ -3,7 +3,7 @@
 
 #include "perimortem/system/library.hpp"
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 #include <windows.h>
 #else
 #include <dlfcn.h>
@@ -21,7 +21,7 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 
 static auto library_error(Allocator::Arena& errors) -> View::Bytes {
   const auto code = GetLastError();
@@ -45,7 +45,7 @@ Library::Library(Library&& source) : handle(source.handle) {
 
 Library::~Library() {
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 
   if (handle && !FreeLibrary(static_cast<HMODULE>(handle))) {
     Diagnostics::Log::fatal("Unable to release a Windows library."_view);
@@ -66,7 +66,7 @@ auto Library::open(View::Bytes path, Allocator::Arena& errors)
   Dynamic::Bytes name(path);
   name.append(0);
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 
   const char* utf8 = reinterpret_cast<const char*>(name.get_view().get_data());
   const int size =
@@ -109,7 +109,7 @@ auto Library::symbol(View::Bytes name, Allocator::Arena& errors) const
   Dynamic::Bytes terminated(name);
   terminated.append(0);
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 
   auto* address = reinterpret_cast<void*>(GetProcAddress(
       static_cast<HMODULE>(handle),

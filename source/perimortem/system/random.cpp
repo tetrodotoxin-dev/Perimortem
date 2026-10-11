@@ -3,11 +3,11 @@
 
 #include "perimortem/system/random.hpp"
 
-#if defined(PERI_AVX2) || defined(PERI_LINUX) || defined(PERI_WINDOWS)
+#if defined(PERI_AVX2) || defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
 #include <immintrin.h>
 #endif
 #include <stdlib.h>
-#ifdef PERI_WASM
+#ifdef TOOLCHAIN_WASM
 #include <unistd.h>
 #endif
 
@@ -69,7 +69,7 @@ struct PhiloxState {
 
 auto Random::read_entropy() -> U64 {
 
-#ifdef PERI_WASM
+#ifdef TOOLCHAIN_WASM
 
   U64 value;
   if (getentropy(&value, sizeof(value)) != 0) {

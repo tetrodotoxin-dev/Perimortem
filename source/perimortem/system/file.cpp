@@ -6,9 +6,9 @@
 #include <errno.h>
 #include <stdio.h>
 
-#ifdef PERI_LINUX
+#ifdef TOOLCHAIN_LINUX
 #include <sys/stat.h>
-#elifdef PERI_WINDOWS
+#elifdef TOOLCHAIN_WINDOWS
 #include <io.h>
 #include <windows.h>
 #endif
@@ -37,7 +37,7 @@ enum class FileKind {
   Other,
 };
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 
 static auto wide_path(const char* path, wchar_t* output) -> Bool {
   if (MultiByteToWideChar(
@@ -55,11 +55,11 @@ static auto wide_path(const char* path, wchar_t* output) -> Bool {
 // allocation, and failure reporting below share the same transaction path.
 static auto open_stream(const char* path, const char* mode) -> FILE* {
 
-#ifdef PERI_LINUX
+#ifdef TOOLCHAIN_LINUX
 
   return fopen(path, mode);
 
-#elifdef PERI_WINDOWS
+#elifdef TOOLCHAIN_WINDOWS
 
   wchar_t wide[max_path_size];
   return wide_path(path, wide) ? _wfopen(wide, mode[0] == 'r' ? L"rb" : L"wb")
@@ -75,11 +75,11 @@ static auto open_stream(const char* path, const char* mode) -> FILE* {
 
 static auto replace_path(const char* source, const char* destination) -> S32 {
 
-#ifdef PERI_LINUX
+#ifdef TOOLCHAIN_LINUX
 
   return rename(source, destination);
 
-#elifdef PERI_WINDOWS
+#elifdef TOOLCHAIN_WINDOWS
 
   wchar_t from[max_path_size];
   wchar_t to[max_path_size];
@@ -104,11 +104,11 @@ static auto replace_path(const char* source, const char* destination) -> S32 {
 
 static auto remove_path(const char* path) -> S32 {
 
-#ifdef PERI_LINUX
+#ifdef TOOLCHAIN_LINUX
 
   return ::remove(path);
 
-#elifdef PERI_WINDOWS
+#elifdef TOOLCHAIN_WINDOWS
 
   wchar_t wide[max_path_size];
   return wide_path(path, wide) ? _wremove(wide) : -1;
@@ -123,7 +123,7 @@ static auto remove_path(const char* path) -> S32 {
 
 static auto inspect_path(const char* path) -> FileKind {
 
-#ifdef PERI_LINUX
+#ifdef TOOLCHAIN_LINUX
 
   struct stat64 status;
   if (stat64(path, &status) != 0) {
@@ -136,7 +136,7 @@ static auto inspect_path(const char* path) -> FileKind {
 
   return S_ISDIR(status.st_mode) ? FileKind::Directory : FileKind::Other;
 
-#elifdef PERI_WINDOWS
+#elifdef TOOLCHAIN_WINDOWS
 
   wchar_t wide[max_path_size];
   if (!wide_path(path, wide)) {
@@ -168,7 +168,7 @@ static auto inspect_path(const char* path) -> FileKind {
 // its timestamp units are converted to the same seconds and nanoseconds form.
 static auto inspect_stream(FILE* file) -> Option<File::Fingerprint> {
 
-#ifdef PERI_LINUX
+#ifdef TOOLCHAIN_LINUX
 
   struct stat64 status;
   if (fstat64(fileno(file), &status) != 0) {
@@ -185,7 +185,7 @@ static auto inspect_stream(FILE* file) -> Option<File::Fingerprint> {
       S64(status.st_mtim.tv_sec), S64(status.st_mtim.tv_nsec),
       S64(status.st_ctim.tv_sec), S64(status.st_ctim.tv_nsec));
 
-#elifdef PERI_WINDOWS
+#elifdef TOOLCHAIN_WINDOWS
 
   const auto handle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(file)));
   BY_HANDLE_FILE_INFORMATION identity;
@@ -422,7 +422,7 @@ static auto member_path(
 
   Bool absolute = (*path)[0] == '/';
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 
   absolute |= path->get_size() >= 2 && (*path)[1] == ':';
 

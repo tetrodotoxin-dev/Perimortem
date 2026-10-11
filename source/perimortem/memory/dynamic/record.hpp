@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/bibliotheca.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -22,8 +22,9 @@ class Record {
     static_assert(
         alignof(value_type) <= Core::Bibliotheca::allocation_alignment);
     auto allocation = Core::Bibliotheca::check_out(sizeof(value_type));
-    value = new (allocation.ptr, Core::Placement::Construct)
-        value_type(static_cast<arg_types&&>(args)...);
+    value = &Toolchain::Memory::Lifetime::construct<value_type>(
+        allocation.ptr,
+        [&args...] { return value_type(static_cast<arg_types&&>(args)...); });
   }
 
   Record(Record& rhs) : value(rhs.value) {
@@ -69,7 +70,8 @@ class Record {
 
   // A retaining cache can retire its entry when only cache reservations remain.
   auto get_reservations() const -> Count {
-    return Core::Bibliotheca::reservation_count(Core::Data::cast<U8>(value));
+    return Core::Bibliotheca::reservation_count(
+        Core::Data::cast<U8>(value));
   }
 
  private:

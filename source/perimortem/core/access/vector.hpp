@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/access/bytes.hpp"
+#include "perimortem/core/access/bytes.h"
 #include "perimortem/core/option.hpp"
 #include "perimortem/core/scalar.hpp"
 #include "perimortem/core/view/vector.hpp"

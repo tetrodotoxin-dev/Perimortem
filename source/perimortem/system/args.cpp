@@ -3,7 +3,7 @@
 
 #include "perimortem/system/args.hpp"
 
-#ifdef PERI_LINUX
+#ifdef TOOLCHAIN_LINUX
 #include <unistd.h>
 #endif
 
@@ -31,7 +31,7 @@ static auto basename(View::Bytes path) -> View::Bytes {
 
 static auto process_name() -> View::Bytes {
 
-#ifdef PERI_LINUX
+#ifdef TOOLCHAIN_LINUX
 
   static U8 path_buffer[512];
   S64 size = readlink(

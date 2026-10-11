@@ -4,9 +4,9 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/perimortem.hpp"
 #include "perimortem/core/scalar.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/memory/allocator/compiler.hpp"
 
 namespace Perimortem::Memory::Const {
 
@@ -19,7 +19,7 @@ class Vector {
   constexpr Vector() = default;
   constexpr ~Vector() {
     if (source_block) {
-      delete[] source_block;
+      Allocator::Compiler::release_range(source_block);
     }
   }
 
@@ -158,13 +158,13 @@ class Vector {
     const auto new_capacity =
         Core::Scalar::max(get_capacity() * 2, required_size);
 
-    auto* new_block = new type[new_capacity]{};
+    auto* new_block = Allocator::Compiler::allocate_range<type>(new_capacity);
     if (source_block) {
       for (Count i = 0; i < size; i++) {
         new_block[i] = static_cast<type&&>(source_block[i]);
       }
 
-      delete[] source_block;
+      Allocator::Compiler::release_range(source_block);
     }
 
     source_block = new_block;
@@ -173,7 +173,7 @@ class Vector {
 
   constexpr auto destruct() -> void {
     if (source_block) {
-      delete[] source_block;
+      Allocator::Compiler::release_range(source_block);
     }
 
     source_block = nullptr;

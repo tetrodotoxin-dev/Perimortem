@@ -3,7 +3,7 @@
 
 #include "perimortem/core/thread/worker.hpp"
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 #include <process.h>
 #include <windows.h>
 #else
@@ -19,7 +19,7 @@
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
 
-#ifndef PERI_WINDOWS
+#ifndef TOOLCHAIN_WINDOWS
 
 static_assert(
     sizeof(pthread_t) <= sizeof(U64) && alignof(pthread_t) <= alignof(U64),
@@ -37,7 +37,7 @@ static thread_local View::Bytes this_thread_name = ""_view;
 
 using WorkerJobFunction = Thread::Worker::JobFunction;
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 
 static SRWLOCK worker_mutex = SRWLOCK_INIT;
 static auto lock_workers() -> void {
@@ -96,7 +96,7 @@ class ThreadInitializer {
     // log and exit since we are most likely in a broken state.
     thread_id = reserve_thread();
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 
     handle = _beginthreadex(
         nullptr, 0,
@@ -200,7 +200,7 @@ class ThreadInitializer {
       return;
     }
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 
     // The full name remains in our thread storage. The debugger name uses a
     // bounded native buffer so naming never needs another allocation.
@@ -314,7 +314,7 @@ auto Thread::Worker::operator=(Worker&& other_worker) -> Worker& {
 auto Thread::Worker::join() -> void {
   if (handle) {
 
-#ifdef PERI_WINDOWS
+#ifdef TOOLCHAIN_WINDOWS
 
     HANDLE thread = reinterpret_cast<HANDLE>(handle);
     const auto waited = WaitForSingleObject(thread, INFINITE);

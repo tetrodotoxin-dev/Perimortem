@@ -236,7 +236,8 @@ class Map {
     Slot* slot = get_empty(hash);
     slot->hash = hash;
     buffer.size++;
-    new (&slot->entry, Core::Placement::Construct) Entry{key, value};
+    Toolchain::Memory::Lifetime::construct<Entry>(
+        &slot->entry, [&key, &value] { return Entry{key, value}; });
     return &slot->entry;
   }
 

@@ -47,7 +47,8 @@ class Vector {
     ensure_capacity(size + 1);
 
     // Construct using the copy constructor.
-    new (rented_block + (size++), Core::Placement::Construct) value_type(data);
+    Toolchain::Memory::Lifetime::construct<value_type>(
+        rented_block + (size++), [&data] { return value_type(data); });
   }
 
   constexpr auto prepend(const value_type& data) -> void {
@@ -56,7 +57,8 @@ class Vector {
       memmove(rented_block + 1, rented_block, sizeof(value_type) * size);
     }
 
-    new (rented_block, Core::Placement::Construct) value_type(data);
+    Toolchain::Memory::Lifetime::construct<value_type>(
+        rented_block, [&data] { return value_type(data); });
     size++;
   }
 
@@ -64,8 +66,8 @@ class Vector {
     ensure_capacity(size + 1);
 
     // Construct using the move constructor.
-    return *new (rented_block + (size++), Core::Placement::Construct)
-        value_type(data);
+    return Toolchain::Memory::Lifetime::construct<value_type>(
+        rented_block + (size++), [&data] { return value_type(data); });
   }
 
   constexpr auto contains(const value_type& data) const -> Bool {

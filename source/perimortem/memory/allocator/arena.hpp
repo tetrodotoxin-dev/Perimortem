@@ -5,7 +5,7 @@
 
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/bytes.h"
 
 namespace Perimortem::Memory::Allocator {
 
@@ -84,23 +84,23 @@ class Arena {
   auto construct(arg_types&&... args) -> type& {
     static_assert(alignof(type) <= arena_alignment);
     U8* ptr = allocate(sizeof(type)).get_data();
-    return *new (ptr, Core::Placement::Construct)
-        type(static_cast<arg_types&&>(args)...);
+    return Toolchain::Memory::Lifetime::construct<type>(
+        ptr, [&args...] { return type(static_cast<arg_types&&>(args)...); });
   }
 
   // Allocates one object from an exact value produced by its owning factory.
   //
   // Guaranteed copy elision lets the factory keep constructor access while the
-  // object begins its lifetime directly in arena storage. This admits immovable
-  // objects without making their constructors public.
+  // object begins its lifetime directly in arena storage. This supports
+  // immovable objects without making their constructors public.
   template <typename type, typename factory_type>
   auto construct_from(factory_type&& factory) -> type& {
     static_assert(alignof(type) <= arena_alignment);
     static_assert(
         __is_same(type, decltype(static_cast<factory_type&&>(factory)())));
     U8* ptr = allocate(sizeof(type)).get_data();
-    return *new (ptr, Core::Placement::Construct)
-        type(static_cast<factory_type&&>(factory)());
+    return Toolchain::Memory::Lifetime::construct<type>(
+        ptr, static_cast<factory_type&&>(factory));
   }
 
   // Creates a duplicate of the target buffer in the current arena.

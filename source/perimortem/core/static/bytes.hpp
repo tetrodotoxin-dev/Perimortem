@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include "perimortem/core/access/bytes.hpp"
+#include "perimortem/core/access/bytes.h"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/scalar.hpp"
-#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/bytes.h"
 
 namespace Perimortem::Core::Static {
 

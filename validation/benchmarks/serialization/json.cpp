@@ -5,7 +5,7 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/perimortem.hpp"
+#include "toolchain/toolchain.hpp"
 #include "perimortem/core/writer/textual.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/serialization/json/blueprint.hpp"
