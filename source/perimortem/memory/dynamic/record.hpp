@@ -23,7 +23,7 @@ class Record {
         alignof(value_type) <= Allocator::Bibliotheca::allocation_alignment);
     auto allocation = Allocator::Bibliotheca::check_out(sizeof(value_type));
     value = &Toolchain::Memory::Lifetime::construct<value_type>(
-        allocation.ptr,
+        allocation.get_data(),
         [&args...] { return value_type(static_cast<arg_types&&>(args)...); });
   }
 

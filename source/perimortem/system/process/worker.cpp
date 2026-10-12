@@ -194,8 +194,9 @@ class ThreadInitializer {
     const auto allocation =
         Allocator::Bibliotheca::check_out(source_bytes.get_size());
     Data::copy(
-        allocation.ptr, source_bytes.get_data(), source_bytes.get_size());
-    return View::Bytes(allocation.ptr, source_bytes.get_size());
+        allocation.get_data(), source_bytes.get_data(),
+        source_bytes.get_size());
+    return View::Bytes(allocation.get_data(), source_bytes.get_size());
   }
 
   static auto set_system_thread_name(View::Bytes thread_name) -> void {

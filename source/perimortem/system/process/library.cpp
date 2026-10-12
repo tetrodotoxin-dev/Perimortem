@@ -13,8 +13,8 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/writer/textual.hpp"
-#include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
+#include "perimortem/memory/thread/vector.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -77,7 +77,7 @@ auto Library::open(View::Bytes path, Allocator::Arena& errors)
     return library_error(errors);
   }
 
-  Dynamic::Vector<wchar_t> wide;
+  Thread::Vector<wchar_t> wide;
   wide.resize(size);
 
   const S32 written = MultiByteToWideChar(

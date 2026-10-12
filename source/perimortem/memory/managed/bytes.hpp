@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/allocation.hpp"
+#include "perimortem/memory/allocation.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/container/bytes.hpp"
 
@@ -26,29 +26,29 @@ class Bytes final : public Container::Bytes<Bytes> {
   // construction requires callers to name that binding even in the null state.
   constexpr explicit Bytes(Allocator::Arena& arena) : arena(&arena) {}
   Bytes(Allocator::Arena& arena, Count reserved_capacity) : arena(&arena) {
-    ensure_capacity(reserved_capacity);
+    Base::ensure_capacity(reserved_capacity);
   }
 
   Bytes(Allocator::Arena& arena, Core::View::Bytes view) : arena(&arena) {
-    copy(view);
+    Base::copy(view);
   }
 
-  Bytes(const Bytes& rhs) : arena(rhs.arena) { copy(rhs.get_view()); }
+  Bytes(const Bytes& rhs) : arena(rhs.arena) { Base::copy(rhs.get_view()); }
 
   constexpr Bytes(Bytes&& rhs) : arena(rhs.arena) {
-    take(static_cast<Base&&>(rhs));
+    Base::take(static_cast<Base&&>(rhs));
   }
 
   constexpr ~Bytes() = default;
 
   auto operator=(Core::View::Bytes view) -> Bytes& {
-    copy(view);
+    Base::copy(view);
     return *this;
   }
 
   auto operator=(const Bytes& rhs) -> Bytes& {
     if (this != &rhs) {
-      copy(rhs.get_view());
+      Base::copy(rhs.get_view());
     }
 
     return *this;
@@ -56,9 +56,9 @@ class Bytes final : public Container::Bytes<Bytes> {
 
   auto operator=(Bytes&& rhs) -> Bytes& {
     if (this != &rhs) {
-      reset();
+      Base::reset();
       arena = rhs.arena;
-      take(static_cast<Base&&>(rhs));
+      Base::take(static_cast<Base&&>(rhs));
     }
 
     return *this;
@@ -70,13 +70,15 @@ class Bytes final : public Container::Bytes<Bytes> {
   // Arena cannot extend an existing block. Geometric growth reduces retained
   // blocks and copying across repeated appends.
   static constexpr auto next_capacity(Count current, Count required) -> Count {
-    return Allocator::geometric_capacity(current, required);
+    constexpr Count initial_capacity = 32;
+    const Count doubled = current > Count(-1) / 2 ? Count(-1) : current * 2;
+    const Count grown = doubled > initial_capacity ? doubled : initial_capacity;
+    return grown > required ? grown : required;
   }
 
-  auto allocate(Count requested_bytes) -> Allocator::Allocation {
+  auto allocate(Count requested_bytes) -> Allocation<U8> {
     auto block = arena->allocate(requested_bytes);
-    return Allocator::Allocation{
-      .ptr = block.get_data(), .capacity = block.get_size()};
+    return Allocation<U8>(block.get_data(), block.get_size());
   }
 
   static constexpr auto release(U8*) -> void {}

@@ -3,76 +3,65 @@
 
 #pragma once
 
-#include "perimortem/core/data.hpp"
-#include "perimortem/memory/allocator/compiler.hpp"
+#include "toolchain/memory/const_allocation.hpp"
 
 namespace Perimortem::Memory::Const {
 
-// Owns one value allocated through Compiler during constant evaluation. Copies
-// create independent values and moves transfer the allocation.
+// Owns one value allocated through Toolchain during constant evaluation.
+// Copies create independent values and moves transfer the allocation.
 template <typename type>
 class Object {
  public:
   consteval Object() = default;
-  constexpr ~Object() { destruct(); }
+  constexpr ~Object() = default;
 
-  consteval Object(const type& value) {
-    construct();
-    *source_block = value;
+  consteval Object(const type& value) : allocation(1) {
+    *allocation.get_data() = value;
   }
 
   consteval Object(const Object& rhs) {
-    if (rhs.source_block) {
-      construct();
-      *source_block = *rhs.source_block;
+    if (rhs.get_data()) {
+      allocation = Toolchain::Memory::ConstAllocation<type>(1);
+      *allocation.get_data() = *rhs.get_data();
     }
   }
 
-  consteval Object(Object&& rhs) {
-    Core::Data::swap(source_block, rhs.source_block);
-  }
+  consteval Object(Object&& rhs)
+      : allocation(
+            static_cast<Toolchain::Memory::ConstAllocation<type>&&>(
+                rhs.allocation)) {}
 
   consteval auto operator=(const Object& rhs) -> Object& {
-    // Noop
-    if (source_block == rhs.source_block) {
+    if (this == &rhs) {
       return *this;
     }
 
-    // Requesting a clear.
-    if (!rhs.source_block) {
-      destruct();
+    if (!rhs.get_data()) {
+      allocation = Toolchain::Memory::ConstAllocation<type>();
       return *this;
     }
 
-    // Since stroage is requested then make sure we have storage.
-    construct();
-    *source_block = *rhs.source_block;
+    if (!allocation.get_data()) {
+      allocation = Toolchain::Memory::ConstAllocation<type>(1);
+    }
+
+    *allocation.get_data() = *rhs.get_data();
     return *this;
   }
 
   consteval auto operator=(Object&& rhs) -> Object& {
-    Core::Data::swap(source_block, rhs.source_block);
+    allocation =
+        static_cast<Toolchain::Memory::ConstAllocation<type>&&>(rhs.allocation);
     return *this;
   }
 
-  consteval auto get_data() const -> const type* { return source_block; }
-  consteval auto get_data() -> type* { return source_block; }
+  constexpr auto get_data() const -> const type* {
+    return allocation.get_data();
+  }
+  constexpr auto get_data() -> type* { return allocation.get_data(); }
 
  private:
-  consteval auto construct() -> void {
-    if (!source_block) {
-      source_block = Allocator::Compiler::allocate_object<type>();
-    }
-  }
-
-  constexpr auto destruct() -> void {
-    if (source_block) {
-      Allocator::Compiler::release_object(source_block);
-      source_block = nullptr;
-    }
-  }
-
-  type* source_block = nullptr;
+  Toolchain::Memory::ConstAllocation<type> allocation;
 };
 
 }  // namespace Perimortem::Memory::Const

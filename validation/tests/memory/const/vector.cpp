@@ -7,6 +7,11 @@
 
 using namespace Perimortem::Memory;
 
+template <typename type>
+static constexpr bool supports_forgetful_resize =
+    requires(Const::Vector<type>& values) { values.forgetful_resize(1); };
+static_assert(!supports_forgetful_resize<S32>);
+
 // Growth may move the owner records but must leave their separately allocated
 // pointees intact. Schema compilation retains exactly this kind of reference.
 static_assert(
@@ -67,6 +72,26 @@ static_assert(
              values[0].get_data() == retained && !values[99].get_data();
     }(),
     "Resize covers large requests and does not resurrect truncated values");
+
+// Retaining a subrange reuses the allocation and clips the requested count to
+// the available suffix. Every capacity slot remains valid for final deletion.
+static_assert(
+    [] {
+      Const::Vector<S32> values;
+      values.insert(10);
+      values.insert(20);
+      values.insert(30);
+      values.insert(40);
+
+      auto* storage = values.get_data();
+      const Count capacity = values.get_capacity();
+      values.retain(1, Count(-1));
+
+      return values.get_data() == storage &&
+             values.get_capacity() == capacity && values.get_size() == 3 &&
+             values[0] == 20 && values[1] == 30 && values[2] == 40;
+    }(),
+    "Retain clips and reuses Const storage");
 
 static_assert(
     [] {

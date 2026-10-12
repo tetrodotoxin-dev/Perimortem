@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/memory/global/bytes.hpp"
+#include "perimortem/memory/allocator/global.hpp"
 
 #include <stdlib.h>
 
@@ -11,9 +11,10 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 
-auto Global::Bytes::allocate(Count requested_bytes) -> Allocator::Allocation {
+auto Allocator::Global::allocate(Count requested_bytes)
+    -> Perimortem::Memory::Allocation<U8> {
   if (requested_bytes == 0) {
-    return Allocator::Allocation();
+    return Perimortem::Memory::Allocation<U8>();
   }
 
   if (requested_bytes > CppSize(-1)) {
@@ -26,9 +27,9 @@ auto Global::Bytes::allocate(Count requested_bytes) -> Allocator::Allocation {
     Diagnostics::Log::fatal("Unable to allocate global memory."_view);
   }
 
-  return Allocator::Allocation{.ptr = data, .capacity = requested_bytes};
+  return Perimortem::Memory::Allocation<U8>(data, requested_bytes);
 }
 
-auto Global::Bytes::release(U8* data) -> void {
+auto Allocator::Global::release(U8* data) -> void {
   free(data);
 }

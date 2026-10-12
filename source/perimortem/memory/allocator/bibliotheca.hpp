@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/allocation.hpp"
+#include "perimortem/memory/allocation.hpp"
 
 namespace Perimortem::Memory::Allocator {
 
@@ -24,7 +24,7 @@ class Bibliotheca {
   // greater than 64 bytes.
   static constexpr auto allocation_alignment = 64;
 
-  using Allocation = Allocator::Allocation;
+  using Allocation = Perimortem::Memory::Allocation<U8>;
 
   // Returns an uninitialized block with at least `requested_bytes` usable bytes
   // and one active reservation. The selected size class can make capacity

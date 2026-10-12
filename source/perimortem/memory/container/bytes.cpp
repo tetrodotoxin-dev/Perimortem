@@ -59,15 +59,15 @@ auto Container::Bytes<policy_type>::concat(View::Bytes view) -> void {
       policy_type::next_capacity(capacity, required_size);
   auto allocation = get_policy().allocate(requested_capacity);
   if (size) {
-    Data::copy(allocation.ptr, source_block, size);
+    Data::copy(allocation.get_data(), source_block, size);
   }
 
   // `ensure_capacity` could release storage addressed by `view`. Build the new
   // block directly and release the old source only after the append completes.
-  Data::copy(allocation.ptr + size, view.get_data(), view.get_size());
+  Data::copy(allocation.get_data() + size, view.get_data(), view.get_size());
   policy_type::release(source_block);
-  source_block = allocation.ptr;
-  capacity = allocation.capacity;
+  source_block = allocation.get_data();
+  capacity = allocation.get_capacity();
   size = required_size;
 }
 
@@ -86,10 +86,10 @@ auto Container::Bytes<policy_type>::copy(View::Bytes view) -> void {
     const Count requested_capacity =
         policy_type::next_capacity(capacity, view.get_size());
     auto allocation = get_policy().allocate(requested_capacity);
-    Data::copy(allocation.ptr, view.get_data(), view.get_size());
+    Data::copy(allocation.get_data(), view.get_data(), view.get_size());
     policy_type::release(source_block);
-    source_block = allocation.ptr;
-    capacity = allocation.capacity;
+    source_block = allocation.get_data();
+    capacity = allocation.get_capacity();
   }
 
   size = view.get_size();
@@ -216,12 +216,12 @@ auto Container::Bytes<policy_type>::ensure_capacity(Count required_size)
   if (source_block) {
     // `resize` may hide initialized bytes without invalidating them. Copying
     // the complete capacity preserves those bytes if growth exposes them again.
-    Data::copy(allocation.ptr, source_block, capacity);
+    Data::copy(allocation.get_data(), source_block, capacity);
     policy_type::release(source_block);
   }
 
-  source_block = allocation.ptr;
-  capacity = allocation.capacity;
+  source_block = allocation.get_data();
+  capacity = allocation.get_capacity();
 }
 
 // Explicit instantiation closes the capability over Perimortem's supported

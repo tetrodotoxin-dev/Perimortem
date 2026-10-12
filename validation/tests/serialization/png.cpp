@@ -80,7 +80,7 @@ VALIDATION_TEST(SerializationPng, unaligned_input) {
   // A PNG can arrive as a slice of another byte buffer. Move this fixture by
   // one byte so its header and chunk integers cannot rely on native alignment.
   // Sanitized builds must accept that input and still decode the same pixel.
-  Dynamic::Vector<U8> storage;
+  Thread::Vector<U8> storage;
   storage.resize(source->get_size() + 1);
   Data::copy(
       storage.get_data() + 1, source->get_view().get_data(),
@@ -211,7 +211,7 @@ VALIDATION_TEST(SerializationPng, decoded_extent_overflow) {
 }
 
 VALIDATION_TEST(SerializationPng, roundtrip_1x1) {
-  Dynamic::Vector<Rgba8> source_pixels;
+  Thread::Vector<Rgba8> source_pixels;
   source_pixels.insert(Rgba8::from_rgba(0x12, 0x34, 0x56, 0x78));
 
   auto source_image = Matrix<Rgba8>::create(
@@ -234,7 +234,7 @@ VALIDATION_TEST(SerializationPng, roundtrip_1x1) {
 }
 
 VALIDATION_TEST(SerializationPng, roundtrip_checker) {
-  Dynamic::Vector<Rgba8> source_pixels;
+  Thread::Vector<Rgba8> source_pixels;
   source_pixels.insert(Rgba8::from_rgba(0xFF, 0x00, 0x00, 0xFF));
   source_pixels.insert(Rgba8::from_rgba(0x00, 0xFF, 0x00, 0xFF));
   source_pixels.insert(Rgba8::from_rgba(0x00, 0x00, 0xFF, 0xFF));
@@ -262,7 +262,7 @@ VALIDATION_TEST(SerializationPng, roundtrip_checker) {
 VALIDATION_TEST(SerializationPng, roundtrip_64x64) {
   constexpr Count width = 1 << 6;
   constexpr Count height = 1 << 6;
-  Dynamic::Vector<Rgba8> source_pixels;
+  Thread::Vector<Rgba8> source_pixels;
   source_pixels.resize(width * height);
   for (Count row = 0; row < height; row++) {
     for (Count col = 0; col < width; col++) {

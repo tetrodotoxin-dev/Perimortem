@@ -397,8 +397,7 @@ auto Allocator::Bibliotheca::check_out(Count requested_bytes) -> Allocation {
     entry->reservations = 1;
     entry->block_size = actual_bytes - sizeof(Preface);
     entry->next = nullptr;
-    return Allocation{
-      .ptr = preface_to_corpus(entry), .capacity = entry->get_usable_bytes()};
+    return Allocation(preface_to_corpus(entry), entry->get_usable_bytes());
   }
 
   Preface* entry = secret_archive.collections[archive_index].initial_entry;
@@ -409,8 +408,7 @@ auto Allocator::Bibliotheca::check_out(Count requested_bytes) -> Allocation {
   // restore one reservation before publishing the corpus again.
   entry->reservations = 1;
   entry->next = nullptr;
-  return Allocation{
-    .ptr = preface_to_corpus(entry), .capacity = entry->get_usable_bytes()};
+  return Allocation(preface_to_corpus(entry), entry->get_usable_bytes());
 }
 
 auto Allocator::Bibliotheca::reserve(U8* data) -> Count {

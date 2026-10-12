@@ -14,8 +14,8 @@ namespace Perimortem::Memory::Container {
 // this capability owns byte behavior and storage invariants.
 //
 // The null representation has no allocation, zero size and zero capacity. A
-// policy that exposes default construction enters this valid state in constexpr
-// O(1) time. Replacing any value with empty bytes performs no allocation. That
+// policy that exposes default construction evaluates in constexpr O(1) time.
+// Replacing any value with empty bytes performs no allocation, but that
 // operation may retain or release existing storage according to its purpose.
 // `clear` retains storage for reuse while `reset` releases policy ownership.
 template <typename policy_type>

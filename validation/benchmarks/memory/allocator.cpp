@@ -7,7 +7,6 @@
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
-#include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;
@@ -24,8 +23,8 @@ static auto bibliotheca_cycle() -> void {
   Allocator::Bibliotheca::Allocation alloc;
   for (Count i = 0; i < 100; i++) {
     alloc = Allocator::Bibliotheca::check_out(alloc_size);
-    Benchmark::prevent_optimization(alloc.ptr);
-    Allocator::Bibliotheca::remit(alloc.ptr);
+    Benchmark::prevent_optimization(alloc.get_data());
+    Allocator::Bibliotheca::remit(alloc.get_data());
   }
 }
 
@@ -56,7 +55,7 @@ static auto frame_stability() -> void {
   for (Count i = 0; i < frame_alloc_count; i++) {
     auto alloc = Allocator::Bibliotheca::check_out(
         (Random::generate() & size_range) + size_minimum);
-    ptrs[i] = alloc.ptr;
+    ptrs[i] = alloc.get_data();
   }
 
   for (Count i = 0; i < frame_alloc_count; i++) {
@@ -89,14 +88,14 @@ static auto frame_stability_interleaved() -> void {
   for (Count i = 0; i < window; i++) {
     ptrs[i] = Allocator::Bibliotheca::check_out(
                   (Random::generate() & size_range) + size_minimum)
-                  .ptr;
+                  .get_data();
   }
 
   // Rolling exchange.
   for (Count i = window; i < frame_alloc_count; i++) {
     ptrs[i] = Allocator::Bibliotheca::check_out(
                   (Random::generate() & size_range) + size_minimum)
-                  .ptr;
+                  .get_data();
     Allocator::Bibliotheca::remit(ptrs[i - window]);
   }
 

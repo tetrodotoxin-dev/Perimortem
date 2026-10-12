@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.h"
-#include "perimortem/memory/dynamic/vector.hpp"
+#include "perimortem/memory/thread/vector.hpp"
 
 namespace Perimortem::Compression {
 
@@ -47,8 +47,8 @@ class Lz77 {
       Count depth) -> Match;
 
  private:
-  Memory::Dynamic::Vector<U32> hash_table;
-  Memory::Dynamic::Vector<U32> chain_table;
+  Memory::Thread::Vector<U32> hash_table;
+  Memory::Thread::Vector<U32> chain_table;
 };
 
 }  // namespace Perimortem::Compression

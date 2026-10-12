@@ -1,26 +1,43 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/memory/dynamic/vector.hpp"
-
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/memory/allocator/compiler.hpp"
+#include "perimortem/memory/allocator/global.hpp"
+#include "perimortem/memory/thread/vector.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Toolchain::Validation;
 
-static Harness DynamicVector = {
-  .name = "Dynamic::Vector",
+static_assert(__is_constructible(Thread::Vector<U32>));
+static_assert(
+    sizeof(Thread::Vector<U32>) ==
+    Data::align<alignof(Count)>(sizeof(U32*)) + sizeof(Count) * 2);
+static_assert([] {
+  Thread::Vector<U32> values;
+  return values.is_empty() && values.get_capacity() == 0 &&
+         values.get_data() == nullptr;
+}());
+
+static Harness ThreadVector = {
+  .name = "Thread::Vector",
 };
 
 template <typename type>
 static constexpr bool supports_forgetful_resize =
-    requires(Dynamic::Vector<type>& values) { values.forgetful_resize(1); };
+    requires(Thread::Vector<type>& values) { values.forgetful_resize(1); };
+
+template <typename type>
+static constexpr bool supports_resize =
+    requires(Thread::Vector<type>& values) { values.resize(1); };
+
+template <typename type>
+static constexpr bool supports_retain =
+    requires(Thread::Vector<type>& values) { values.retain(0, 1); };
 
 // Ordinary resize can support owning values, while forgetful resize skips
 // construction and destruction. The checks below cover a nontrivial
@@ -46,6 +63,27 @@ static_assert(supports_forgetful_resize<U32>);
 static_assert(!supports_forgetful_resize<ConstructedValue>);
 static_assert(!supports_forgetful_resize<DestructedValue>);
 static_assert(!supports_forgetful_resize<UnconstructibleValue>);
+static_assert(supports_resize<ConstructedValue>);
+static_assert(!supports_resize<UnconstructibleValue>);
+static_assert(supports_retain<UnconstructibleValue>);
+
+VALIDATION_TEST(ThreadVector, value_semantics) {
+  Thread::Vector<U32> original;
+  original.insert(4);
+  original.insert(8);
+
+  Thread::Vector<U32> copied(original);
+  copied.insert(16);
+
+  EXPECT_EQ(original.get_size(), Count(2));
+  EXPECT_EQ(copied.get_size(), Count(3));
+  EXPECT(copied.get_data() != original.get_data());
+
+  Thread::Vector<U32> moved;
+  moved = static_cast<Thread::Vector<U32>&&>(copied);
+  EXPECT_EQ(moved.get_size(), Count(3));
+  EXPECT(!copied.get_data());
+}
 
 class ResizeValue {
  public:
@@ -60,9 +98,9 @@ class ResizeValue {
 
 // Shrinking ends the removed lifetimes. Growing within capacity must begin
 // them again just as growth into a new allocation does, preserving survivors.
-VALIDATION_TEST(DynamicVector, resize_lifetimes) {
+VALIDATION_TEST(ThreadVector, resize_lifetimes) {
   {
-    Dynamic::Vector<ResizeValue> values;
+    Thread::Vector<ResizeValue> values;
     values.resize(3);
     EXPECT_EQ(ResizeValue::instances, Count(3));
     values[0].value = 7;
@@ -81,8 +119,8 @@ VALIDATION_TEST(DynamicVector, resize_lifetimes) {
   EXPECT_EQ(ResizeValue::instances, Count(0));
 }
 
-VALIDATION_TEST(DynamicVector, forgetful_scalars) {
-  Dynamic::Vector<U32> values;
+VALIDATION_TEST(ThreadVector, forgetful_scalars) {
+  Thread::Vector<U32> values;
   values.forgetful_resize(100);
   EXPECT_EQ(values.get_size(), Count(100));
   EXPECT(values.get_capacity() >= 100);
@@ -91,15 +129,15 @@ VALIDATION_TEST(DynamicVector, forgetful_scalars) {
   EXPECT_EQ(values[99], U32(42));
 }
 
-VALIDATION_TEST(DynamicVector, self_move_assignment) {
-  Dynamic::Vector<U32> values;
+VALIDATION_TEST(ThreadVector, self_move_assignment) {
+  Thread::Vector<U32> values;
   values.insert(4);
   values.insert(8);
 
   auto* allocation = values.get_data();
   const auto capacity = values.get_capacity();
   auto& self = values;
-  values = static_cast<Dynamic::Vector<U32>&&>(self);
+  values = static_cast<Thread::Vector<U32>&&>(self);
 
   EXPECT(values.get_data() == allocation);
   EXPECT_EQ(values.get_capacity(), capacity);
@@ -108,8 +146,8 @@ VALIDATION_TEST(DynamicVector, self_move_assignment) {
   EXPECT_EQ(values[1], U32(8));
 }
 
-VALIDATION_TEST(DynamicVector, remove) {
-  Dynamic::Vector<S32> values;
+VALIDATION_TEST(ThreadVector, remove) {
+  Thread::Vector<S32> values;
   values.insert(1);
   values.insert(2);
   values.insert(3);
@@ -133,8 +171,8 @@ VALIDATION_TEST(DynamicVector, remove) {
   EXPECT(!values.remove(0));
 }
 
-VALIDATION_TEST(DynamicVector, remove_stable) {
-  Dynamic::Vector<S32> values;
+VALIDATION_TEST(ThreadVector, remove_stable) {
+  Thread::Vector<S32> values;
   values.insert(1);
   values.insert(2);
   values.insert(3);
@@ -198,7 +236,7 @@ static auto check_removal_lifetimes(Test::TestResult& result) -> void {
   for (Count stable = 0; stable < 2; ++stable) {
     Static::Vector<U32, 4> owners;
     {
-      Dynamic::Vector<RelocationValue<copyable>> values;
+      Thread::Vector<RelocationValue<copyable>> values;
       for (U32 index = 0; index < owners.get_size(); ++index) {
         RelocationValue<copyable> value(index, owners[index]);
         if constexpr (copyable) {
@@ -257,12 +295,68 @@ static auto check_removal_lifetimes(Test::TestResult& result) -> void {
   }
 }
 
-VALIDATION_TEST(DynamicVector, copy_removal_lifetimes) {
+VALIDATION_TEST(ThreadVector, copy_removal_lifetimes) {
   check_removal_lifetimes<true>(result);
 }
 
-VALIDATION_TEST(DynamicVector, move_removal_lifetimes) {
+VALIDATION_TEST(ThreadVector, move_removal_lifetimes) {
   check_removal_lifetimes<false>(result);
+}
+
+template <bool copyable>
+static auto check_retain_lifetimes(Test::TestResult& result) -> void {
+  Static::Vector<U32, 5> owners;
+  {
+    Thread::Vector<RelocationValue<copyable>> values;
+    for (U32 index = 0; index < owners.get_size(); ++index) {
+      RelocationValue<copyable> value(index, owners[index]);
+      if constexpr (copyable) {
+        values.insert(value);
+      } else {
+        values.emplace(Data::take(value));
+      }
+    }
+
+    auto* storage = values.get_data();
+    const Count capacity = values.get_capacity();
+    values.retain(1, 3);
+
+    EXPECT(values.get_data() == storage);
+    EXPECT_EQ(values.get_capacity(), capacity);
+    EXPECT_EQ(values.get_size(), Count(3));
+    for (Count index = 0; index < values.get_size(); index++) {
+      EXPECT_EQ(values[index].value, U32(index + 1));
+      EXPECT(values[index].location == &values[index]);
+      EXPECT_EQ(owners[index + 1], U32(1));
+    }
+
+    EXPECT_EQ(owners[0], U32(0));
+    EXPECT_EQ(owners[4], U32(0));
+
+    // A count beyond the available suffix clips to the remaining elements.
+    // The operation still reuses the allocation and retires the skipped value.
+    values.retain(1, Count(-1));
+    EXPECT(values.get_data() == storage);
+    EXPECT_EQ(values.get_capacity(), capacity);
+    EXPECT_EQ(values.get_size(), Count(2));
+    EXPECT_EQ(values[0].value, U32(2));
+    EXPECT_EQ(values[1].value, U32(3));
+    EXPECT_EQ(owners[1], U32(0));
+    EXPECT_EQ(owners[2], U32(1));
+    EXPECT_EQ(owners[3], U32(1));
+  }
+
+  for (Count index = 0; index < owners.get_size(); index++) {
+    EXPECT_EQ(owners[index], U32(0));
+  }
+}
+
+VALIDATION_TEST(ThreadVector, copy_retain_lifetimes) {
+  check_retain_lifetimes<true>(result);
+}
+
+VALIDATION_TEST(ThreadVector, move_retain_lifetimes) {
+  check_retain_lifetimes<false>(result);
 }
 
 // Exclusive owners cannot be copied during growth. Moving an element must
@@ -284,10 +378,10 @@ class MoveOnly {
   U32* releases = nullptr;
 };
 
-VALIDATION_TEST(DynamicVector, move_only) {
+VALIDATION_TEST(ThreadVector, move_only) {
   U32 releases[64] = {};
   {
-    Dynamic::Vector<MoveOnly> values;
+    Thread::Vector<MoveOnly> values;
     for (U32 index = 0; index < 64; ++index) {
       values.emplace(MoveOnly(releases[index]));
     }
@@ -308,38 +402,63 @@ VALIDATION_TEST(DynamicVector, move_only) {
 // behind and hide a read through the expired argument.
 class InsertedValue {
  public:
-  explicit InsertedValue(U32 value)
-      : value(Allocator::Compiler::allocate_object<U32>()) {
-    *this->value = value;
-  }
+  explicit InsertedValue(U32 value) : value(allocate(value)) {}
   InsertedValue(const InsertedValue& other)
-      : value(
-            other.value ? Allocator::Compiler::allocate_object<U32>()
-                        : nullptr) {
-    if (value) {
-      *value = *other.value;
-    }
+      : value(other.value ? allocate(*other.value) : nullptr) {
+    copies++;
   }
-  InsertedValue(InsertedValue&& other) { Data::swap(value, other.value); }
-  ~InsertedValue() { Allocator::Compiler::release_object(value); }
+  InsertedValue(InsertedValue&& other) {
+    moves++;
+    Data::swap(value, other.value);
+  }
+  ~InsertedValue() { Allocator::Global::release(Data::cast<U8>(value)); }
+
+  static auto reset_counts() -> void {
+    copies = 0;
+    moves = 0;
+  }
+
+  static auto get_copies() -> Count { return copies; }
+  static auto get_moves() -> Count { return moves; }
 
   U32* value = nullptr;
+
+ private:
+  // The fixture needs independent runtime ownership so a destroyed source
+  // loses its pointee. Global names that policy explicitly and keeps compiler
+  // allocation expressions unavailable to ordinary test code.
+  static auto allocate(U32 value) -> U32* {
+    auto allocation = Allocator::Global::allocate(sizeof(U32));
+    U32* result = Data::cast<U32>(allocation.get_data());
+    *result = value;
+    return result;
+  }
+
+  inline static Count copies = 0;
+  inline static Count moves = 0;
 };
 
-VALIDATION_TEST(DynamicVector, insertion_alias) {
-  Dynamic::Vector<InsertedValue> values;
+VALIDATION_TEST(ThreadVector, insertion_alias) {
+  InsertedValue::reset_counts();
+
+  Thread::Vector<InsertedValue> values;
   values.emplace(InsertedValue(42));
   while (values.get_size() < values.get_capacity()) {
     values.emplace(InsertedValue(7));
   }
 
+  const Count copies_before_insert = InsertedValue::get_copies();
   EXPECT_EQ(*values.insert(values[0]).value, U32(42));
   EXPECT_EQ(*values[0].value, U32(42));
+  EXPECT_EQ(InsertedValue::get_copies(), copies_before_insert + 1);
 
   while (values.get_size() < values.get_capacity()) {
     values.emplace(InsertedValue(7));
   }
 
+  const Count copies_before_emplace = InsertedValue::get_copies();
   EXPECT_EQ(*values.emplace(Data::take(values[0])).value, U32(42));
   EXPECT(values[0].value == nullptr);
+  EXPECT_EQ(InsertedValue::get_copies(), copies_before_emplace);
+  EXPECT(InsertedValue::get_moves() > values.get_size());
 }

@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/allocation.hpp"
+#include "perimortem/memory/allocator/global.hpp"
 #include "perimortem/memory/container/bytes.hpp"
 
 namespace Perimortem::Memory::Global {
@@ -24,28 +24,28 @@ class Bytes final : public Container::Bytes<Bytes> {
   // Capacity construction can allocate without producing visible bytes.
   // Explicit construction prevents an integer from silently reserving storage.
   explicit Bytes(Count reserved_capacity) {
-    ensure_capacity(reserved_capacity);
+    Base::ensure_capacity(reserved_capacity);
   }
 
   // The caller keeps the View storage valid until construction returns. This
   // value copies those bytes into independent storage that it owns. Explicit
   // construction exposes the possible allocation at the call site.
-  explicit Bytes(Core::View::Bytes view) { copy(view); }
+  explicit Bytes(Core::View::Bytes view) { Base::copy(view); }
 
-  Bytes(const Bytes& rhs) { copy(rhs.get_view()); }
+  Bytes(const Bytes& rhs) { Base::copy(rhs.get_view()); }
 
-  constexpr Bytes(Bytes&& rhs) { take(static_cast<Base&&>(rhs)); }
+  constexpr Bytes(Bytes&& rhs) { Base::take(static_cast<Base&&>(rhs)); }
 
   constexpr ~Bytes() = default;
 
   auto operator=(Core::View::Bytes view) -> Bytes& {
-    copy(view);
+    Base::copy(view);
     return *this;
   }
 
   auto operator=(const Bytes& rhs) -> Bytes& {
     if (this != &rhs) {
-      copy(rhs.get_view());
+      Base::copy(rhs.get_view());
     }
 
     return *this;
@@ -53,8 +53,8 @@ class Bytes final : public Container::Bytes<Bytes> {
 
   auto operator=(Bytes&& rhs) -> Bytes& {
     if (this != &rhs) {
-      reset();
-      take(static_cast<Base&&>(rhs));
+      Base::reset();
+      Base::take(static_cast<Base&&>(rhs));
     }
 
     return *this;
@@ -64,12 +64,17 @@ class Bytes final : public Container::Bytes<Bytes> {
   // The process heap publishes the requested extent exactly. Geometric growth
   // amortizes allocation and copying across repeated appends.
   static constexpr auto next_capacity(Count current, Count required) -> Count {
-    return Allocator::geometric_capacity(current, required);
+    constexpr Count initial_capacity = 32;
+    const Count doubled = current > Count(-1) / 2 ? Count(-1) : current * 2;
+    const Count grown = doubled > initial_capacity ? doubled : initial_capacity;
+    return grown > required ? grown : required;
   }
 
-  static EXPORTED(PERIMORTEM) auto allocate(Count requested_bytes)
-      -> Allocator::Allocation;
-  static EXPORTED(PERIMORTEM) auto release(U8* data) -> void;
+  static auto allocate(Count requested_bytes) -> Allocation<U8> {
+    return Allocator::Global::allocate(requested_bytes);
+  }
+
+  static auto release(U8* data) -> void { Allocator::Global::release(data); }
 };
 
 }  // namespace Perimortem::Memory::Global

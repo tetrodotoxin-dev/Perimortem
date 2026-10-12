@@ -322,9 +322,9 @@ class Set {
 
     Allocator::Bibliotheca::Allocation allocation =
         Allocator::Bibliotheca::check_out(required_buffer_size(buckets));
-    new_buffer.bucket_buffer = Core::Data::cast<U32>(allocation.ptr);
-    new_buffer.slots_buffer =
-        Core::Data::cast<key_type>(allocation.ptr + slot_offset(buckets));
+    new_buffer.bucket_buffer = Core::Data::cast<U32>(allocation.get_data());
+    new_buffer.slots_buffer = Core::Data::cast<key_type>(
+        allocation.get_data() + slot_offset(buckets));
     for (Count bucket_index = 0; bucket_index < buckets; bucket_index++) {
       new_buffer.bucket_buffer[bucket_index] = 0;
     }

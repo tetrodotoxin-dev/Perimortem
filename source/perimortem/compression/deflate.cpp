@@ -733,7 +733,7 @@ constexpr auto collect_lz77_tokens(
     View::Bytes source,
     Count search_depth,
     Lz77& lz77,
-    Dynamic::Vector<Token>& tokens,
+    Thread::Vector<Token>& tokens,
     Static::Vector<U32, deflate_literal_len_count>& literal_len_frequencies,
     Static::Vector<U32, deflate_distance_count>& distance_frequencies) -> void {
   // Matches at least this long emit immediately because another chain search is
@@ -835,7 +835,7 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
   // Single lz77 pass to collect tokens and count frequencies simultaneously.
   // Worst case token count is one per min_match bytes but in practice back
   // references make it much smaller so this is a generous upper bound.
-  Dynamic::Vector<Token> tokens(source.get_size() / Lz77::min_match + 64);
+  Thread::Vector<Token> tokens(source.get_size() / Lz77::min_match + 64);
   collect_lz77_tokens(
       source, search_depth, lz77, tokens, literal_len_frequencies,
       distance_frequencies);

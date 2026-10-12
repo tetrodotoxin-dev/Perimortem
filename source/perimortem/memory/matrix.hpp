@@ -6,7 +6,7 @@
 #include "perimortem/core/option.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/math/domain.hpp"
-#include "perimortem/memory/dynamic/vector.hpp"
+#include "perimortem/memory/thread/vector.hpp"
 #include "perimortem/utility/result.hpp"
 
 namespace Perimortem::Memory {
@@ -62,7 +62,7 @@ class Matrix {
     Count count = source_domain.get_extent(0);
     count *= source_domain.get_extent(1);
 
-    Dynamic::Vector<type> copied(count);
+    Thread::Vector<type> copied(count);
     for (Count index = 0; index < count && index < source.get_size(); index++) {
       copied.insert(source.get_data()[index]);
     }
@@ -85,7 +85,7 @@ class Matrix {
   // existing value. A mismatch leaves the supplied vector with its values.
   static auto project(
       Math::Domain<2, column_boundary, row_boundary> source_domain,
-      Dynamic::Vector<type>&& source) -> Utility::Result<Matrix, Failure> {
+      Thread::Vector<type>&& source) -> Utility::Result<Matrix, Failure> {
     Count count = source_domain.get_extent(0);
     count *= source_domain.get_extent(1);
     if (source.get_size() != count) {
@@ -148,7 +148,7 @@ class Matrix {
     return index;
   }
 
-  Dynamic::Vector<type> values;
+  Thread::Vector<type> values;
   Math::Domain<2, column_boundary, row_boundary> domain;
 };
 

@@ -3,6 +3,7 @@
 
 #include "toolchain/validation/test.hpp"
 
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
@@ -13,7 +14,9 @@ using namespace Toolchain::Validation;
 
 static_assert(__is_constructible(Thread::Bytes));
 static_assert(__is_constructible(Thread::Bytes, View::Bytes));
-static_assert(sizeof(Thread::Bytes) == sizeof(U8*) + sizeof(Count) * 2);
+static_assert(
+    sizeof(Thread::Bytes) ==
+    Data::align<alignof(Count)>(sizeof(U8*)) + sizeof(Count) * 2);
 static_assert([] {
   Thread::Bytes bytes;
   return bytes.is_empty() && bytes.get_capacity() == 0 &&

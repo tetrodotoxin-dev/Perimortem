@@ -396,9 +396,9 @@ class Map {
     Allocator::Bibliotheca::Allocation allocation =
         Allocator::Bibliotheca::check_out(
             required_buffer_size(new_bucket_count));
-    buckets = Core::Data::cast<U32>(allocation.ptr);
+    buckets = Core::Data::cast<U32>(allocation.get_data());
     entries = Core::Data::cast<Entry>(
-        allocation.ptr + entry_offset(new_bucket_count));
+        allocation.get_data() + entry_offset(new_bucket_count));
     bucket_count = new_bucket_count;
     size = 0;
     for (Count i = 0; i < new_bucket_count; i++) {

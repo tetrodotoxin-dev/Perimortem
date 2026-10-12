@@ -613,7 +613,7 @@ constexpr auto convert_to_pixels(
     Count height,
     ColorType color_type,
     View::Bytes palette,
-    Dynamic::Vector<Rgba8>& output) -> Bool {
+    Thread::Vector<Rgba8>& output) -> Bool {
   Count source_channels = number_of_color_channels(color_type);
   if (source_channels == 0) [[unlikely]] {
     return False;
@@ -774,7 +774,7 @@ constexpr auto process_data(
     return Option<Matrix<Rgba8>>();
   }
 
-  Dynamic::Vector<Rgba8> pixels;
+  Thread::Vector<Rgba8> pixels;
 
   // PNG RGBA samples match the four byte Rgba8 layout, so reconstruction can
   // write final pixel storage without an intermediate conversion buffer.

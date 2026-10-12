@@ -9,18 +9,20 @@
 
 namespace Perimortem::Memory::Allocator {
 
-// Allocates objects that share one lifetime, allowing fast allocation and
-// bulk deallocation.
+// Allocates objects whose access ends together when the Arena resets or is
+// destroyed, allowing fast allocation and bulk storage reclamation.
 //
 // An arena avoids the bookkeeping overhead of an allocation header for every
 // object. This makes it useful when many small objects must be created quickly
 // and discarded together, such as a deserialized JSON document or one compiler
 // transaction.
 //
-// `construct()` begins an object's lifetime, but Arena does not call individual
-// destructors when it resets. Arena owned objects must therefore release no
-// independently owned resources from their destructors. In particular, rented
-// Bibliotheca storage must be remitted before the arena is reset or destroyed.
+// `construct()` begins a C++ object lifetime in Arena storage. Reset ends every
+// access promise without calling individual destructors. A later allocation can
+// reuse retained storage and thereby end the former C++ object lifetime. Arena
+// objects must therefore release no independently owned resources from their
+// destructors. In particular, rented Bibliotheca storage must be remitted
+// before the Arena is reset or destroyed.
 class Arena {
  public:
   // Attempt to request blocks in 32k pages including the preface and a previous
@@ -51,7 +53,8 @@ class Arena {
       fetch_page(bytes_requested);
     }
 
-    // Align the bump pointer to keep produced data aligned.
+    // Round the next cursor to `arena_alignment`. Every returned block can then
+    // hold any type admitted by `reserve`.
     U8* root = rented_block + usage;
     usage = Core::Data::align<arena_alignment>(usage + bytes_requested);
     return Core::Access::Bytes(root, bytes_requested);
@@ -115,11 +118,14 @@ class Arena {
     return access;
   }
 
+  // Invalidates every pointer and reference obtained from this Arena. No object
+  // destructor runs. The retained page may be reused by the next allocation,
+  // so former values cannot be inspected after return.
   EXPORTED(PERIMORTEM) auto reset() -> void;
 
  private:
-  // allocate() is inline, so consumers call this growth path across the library
-  // boundary.
+  // `allocate` keeps the bump path inline. Page acquisition remains out of line
+  // so consumers share one implementation of Bibliotheca page ownership.
   EXPORTED(PERIMORTEM) auto fetch_page(Count bytes_requested) -> void;
 
   U8* rented_block;

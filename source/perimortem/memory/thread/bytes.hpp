@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/allocation.hpp"
+#include "perimortem/memory/allocation.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/memory/container/bytes.hpp"
 
@@ -25,28 +25,28 @@ class Bytes final : public Container::Bytes<Bytes> {
   // Capacity construction can allocate without producing visible bytes.
   // Explicit construction prevents an integer from silently reserving storage.
   explicit Bytes(Count reserved_capacity) {
-    ensure_capacity(reserved_capacity);
+    Base::ensure_capacity(reserved_capacity);
   }
 
   // The caller keeps the View storage valid until construction returns. This
   // value copies those bytes into independent storage that it owns. Explicit
   // construction exposes the possible allocation at the call site.
-  explicit Bytes(Core::View::Bytes view) { copy(view); }
+  explicit Bytes(Core::View::Bytes view) { Base::copy(view); }
 
-  Bytes(const Bytes& rhs) { copy(rhs.get_view()); }
+  Bytes(const Bytes& rhs) { Base::copy(rhs.get_view()); }
 
-  constexpr Bytes(Bytes&& rhs) { take(static_cast<Base&&>(rhs)); }
+  constexpr Bytes(Bytes&& rhs) { Base::take(static_cast<Base&&>(rhs)); }
 
   constexpr ~Bytes() = default;
 
   auto operator=(Core::View::Bytes view) -> Bytes& {
-    copy(view);
+    Base::copy(view);
     return *this;
   }
 
   auto operator=(const Bytes& rhs) -> Bytes& {
     if (this != &rhs) {
-      copy(rhs.get_view());
+      Base::copy(rhs.get_view());
     }
 
     return *this;
@@ -54,8 +54,8 @@ class Bytes final : public Container::Bytes<Bytes> {
 
   auto operator=(Bytes&& rhs) -> Bytes& {
     if (this != &rhs) {
-      reset();
-      take(static_cast<Base&&>(rhs));
+      Base::reset();
+      Base::take(static_cast<Base&&>(rhs));
     }
 
     return *this;
@@ -68,7 +68,7 @@ class Bytes final : public Container::Bytes<Bytes> {
     return required;
   }
 
-  static auto allocate(Count requested_bytes) -> Allocator::Allocation {
+  static auto allocate(Count requested_bytes) -> Allocation<U8> {
     return Allocator::Bibliotheca::check_out(requested_bytes);
   }
 

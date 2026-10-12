@@ -3,57 +3,51 @@
 
 #pragma once
 
-#include "perimortem/core/data.hpp"
-#include "perimortem/memory/allocator/compiler.hpp"
+#include "toolchain/memory/const_allocation.hpp"
 
 namespace Perimortem::Memory::Const {
 
-// Owns contiguous values allocated through Compiler during constant evaluation.
-// Copies create independent values and moves transfer the allocation.
+// Range provides fixed contiguous working storage to a constant expression.
+// Construction begins every element lifetime. Copies receive independent
+// storage, while moves preserve the addresses observed before the transfer.
+// Its allocation cannot escape into a runtime value.
 template <typename type>
 class Range {
  public:
   consteval Range() = default;
-  constexpr ~Range() { destruct(); }
-  consteval Range(Count size) { construct(size); };
+  constexpr ~Range() = default;
+  consteval Range(Count size) : allocation(size) {}
 
-  consteval Range(const Range& rhs) {
-    construct(rhs.get_size());
-    for (Count i = 0; i < size; i++) {
-      source_block[i] = rhs.get_data()[i];
+  consteval Range(const Range& rhs) : allocation(rhs.get_size()) {
+    for (Count i = 0; i < get_size(); i++) {
+      get_data()[i] = rhs.get_data()[i];
     }
   }
 
-  consteval Range(Range&& rhs) {
-    Core::Data::swap(size, rhs.size);
-    Core::Data::swap(source_block, rhs.source_block);
-  }
+  consteval Range(Range&& rhs)
+      : allocation(
+            static_cast<Toolchain::Memory::ConstAllocation<type>&&>(
+                rhs.allocation)) {}
 
   consteval auto operator=(const Range& rhs) -> Range& {
-    // Noop
-    if (source_block == rhs.source_block) {
-      return *this;
-    }
-
-    if (rhs.source_block == nullptr) {
-      destruct();
+    if (this == &rhs) {
       return *this;
     }
 
     if (rhs.get_size() != get_size()) {
-      construct(rhs.get_size());
+      allocation = Toolchain::Memory::ConstAllocation<type>(rhs.get_size());
     }
 
-    for (Count i = 0; i < size; i++) {
-      source_block[i] = rhs.get_data()[i];
+    for (Count i = 0; i < get_size(); i++) {
+      get_data()[i] = rhs.get_data()[i];
     }
 
     return *this;
   }
 
   consteval auto operator=(Range&& rhs) -> Range& {
-    Core::Data::swap(size, rhs.size);
-    Core::Data::swap(source_block, rhs.source_block);
+    allocation =
+        static_cast<Toolchain::Memory::ConstAllocation<type>&&>(rhs.allocation);
     return *this;
   }
 
@@ -62,28 +56,14 @@ class Range {
   }
   consteval auto operator[](Count index) -> type& { return get_data()[index]; }
 
-  consteval auto get_data() const -> const type* { return source_block; }
-  consteval auto get_data() -> type* { return source_block; }
-  consteval auto get_size() const -> Count { return size; }
+  constexpr auto get_data() const -> const type* {
+    return allocation.get_data();
+  }
+  constexpr auto get_data() -> type* { return allocation.get_data(); }
+  constexpr auto get_size() const -> Count { return allocation.get_capacity(); }
 
  private:
-  constexpr auto construct(Count new_size) -> void {
-    destruct();
-    source_block = Allocator::Compiler::allocate_range<type>(new_size);
-    size = new_size;
-  }
-
-  constexpr auto destruct() -> void {
-    if (source_block) {
-      Allocator::Compiler::release_range(source_block);
-    }
-
-    source_block = nullptr;
-    size = 0;
-  }
-
-  type* source_block = nullptr;
-  Count size = 0;
+  Toolchain::Memory::ConstAllocation<type> allocation;
 };
 
 }  // namespace Perimortem::Memory::Const

@@ -54,11 +54,11 @@ auto Allocator::Arena::fetch_page(Count bytes_requested) -> void {
   auto alloc = Allocator::Bibliotheca::check_out(alloc_size);
 
   // Store the previous pointer in the arena itself.
-  U8** previous = Data::cast<U8*>(alloc.ptr);
+  U8** previous = Data::cast<U8*>(alloc.get_data());
 
   // Store and swap the blocks.
   *previous = rented_block;
-  rented_block = alloc.ptr;
+  rented_block = alloc.get_data();
 
   // Leave an aligned prefix even when the page link is a smaller pointer.
   usage = arena_alignment;

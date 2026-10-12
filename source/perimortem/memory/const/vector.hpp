@@ -3,182 +3,108 @@
 
 #pragma once
 
-#include "perimortem/core/data.hpp"
-#include "perimortem/core/scalar.hpp"
-#include "perimortem/core/view/vector.hpp"
-#include "perimortem/memory/allocator/compiler.hpp"
+#include "toolchain/memory/const_allocation.hpp"
+
+#include "perimortem/memory/container/vector.hpp"
 
 namespace Perimortem::Memory::Const {
 
-// Owns temporary array storage in constant evaluation or at runtime. Using
-// the same lifetime rules in both cases lets algorithms share their working
-// storage without exposing a separate allocation policy to each caller.
+// Const Vector owns temporary values only during constant evaluation. Every
+// capacity slot has a live value, so insertion and relocation assign existing
+// objects rather than beginning individual lifetimes in raw storage. Immediate
+// allocation prevents this policy from becoming a runtime path to `new`.
 template <typename type>
-class Vector {
+class Vector final : public Container::Vector<Vector<type>, type> {
+  using Base = Container::Vector<Vector<type>, type>;
+  friend Base;
+
  public:
-  constexpr Vector() = default;
-  constexpr ~Vector() {
-    if (source_block) {
-      Allocator::Compiler::release_range(source_block);
-    }
+  consteval Vector() = default;
+
+  consteval Vector(const Vector& rhs) { Base::copy_from(rhs); }
+
+  consteval Vector(Vector&& rhs)
+      : allocation(
+            static_cast<Toolchain::Memory::ConstAllocation<type>&&>(
+                rhs.allocation)) {
+    Base::take(static_cast<Base&&>(rhs));
   }
 
-  constexpr Vector(const Vector& rhs) {
-    if (rhs.is_empty()) {
-      return;
-    }
+  constexpr ~Vector() = default;
 
-    ensure_capacity(rhs.get_size());
-    size = rhs.get_size();
-    for (Count i = 0; i < rhs.get_size(); i++) {
-      source_block[i] = rhs.source_block[i];
-    }
+  consteval auto insert(type value) -> type& {
+    return Base::emplace(static_cast<type&&>(value));
   }
 
-  constexpr Vector(Vector&& rhs) {
-    Core::Data::swap(source_block, rhs.source_block);
-    Core::Data::swap(size, rhs.size);
-    Core::Data::swap(capacity, rhs.capacity);
-  }
-
-  constexpr auto operator=(const Vector& rhs) -> Vector& {
-    if (this == &rhs) {
-      return *this;
-    }
-
-    destruct();
-    ensure_capacity(rhs.get_size());
-    size = rhs.get_size();
-    for (Count i = 0; i < size; i++) {
-      source_block[i] = rhs.source_block[i];
+  consteval auto operator=(const Vector& rhs) -> Vector& {
+    if (this != &rhs) {
+      Base::clear();
+      Base::copy_from(rhs);
     }
 
     return *this;
-  };
+  }
 
-  constexpr auto operator=(Vector&& rhs) -> Vector& {
-    if (this == &rhs) {
-      return *this;
+  consteval auto operator=(Vector&& rhs) -> Vector& {
+    if (this != &rhs) {
+      Base::reset_storage();
+      allocation = static_cast<Toolchain::Memory::ConstAllocation<type>&&>(
+          rhs.allocation);
+      Base::take(static_cast<Base&&>(rhs));
     }
 
-    destruct();
-    Core::Data::swap(source_block, rhs.source_block);
-    Core::Data::swap(size, rhs.size);
-    Core::Data::swap(capacity, rhs.capacity);
     return *this;
   }
 
-  constexpr auto insert(type value) -> type& {
-    ensure_capacity(get_size() + 1);
-
-    source_block[size] = static_cast<type&&>(value);
-    return source_block[size++];
-  }
-
-  constexpr auto remove(Count index) -> Bool {
-    if (index >= size) {
-      return False;
-    }
-
-    Count last_index = size - 1;
-    if (index != last_index) {
-      source_block[index] = static_cast<type&&>(source_block[last_index]);
-    }
-
-    // The array owns every capacity slot until delete[]. Assignment releases
-    // the removed value while keeping that slot alive for later insertion.
-    source_block[last_index] = type();
-    size--;
-    return True;
-  }
-
-  constexpr auto remove_stable(Count index) -> Bool {
-    if (index >= size) {
-      return False;
-    }
-
-    Count last_index = size - 1;
-    for (Count shift_index = index; shift_index < last_index; shift_index++) {
-      source_block[shift_index] =
-          static_cast<type&&>(source_block[shift_index + 1]);
-    }
-
-    source_block[last_index] = type();
-    size--;
-    return True;
-  }
-
-  constexpr auto resize(Count new_size) -> void {
-    ensure_capacity(new_size);
-    for (Count i = new_size; i < size; ++i) {
-      source_block[i] = type();
-    }
-
-    size = new_size;
-  }
-  constexpr auto contains(const type& data) const -> Bool {
-    return get_view().contains(data);
-  }
-
-  constexpr auto at(Count index) const -> const type& {
-    return source_block[index];
-  }
-
-  constexpr auto at(Count index) -> type& { return source_block[index]; }
-  constexpr auto operator[](Count index) const -> const type& {
-    return at(index);
-  }
-
-  constexpr auto operator[](Count index) -> type& { return at(index); }
-
-  constexpr operator Core::View::Vector<type>() const { return get_view(); }
-
-  constexpr auto get_size() const -> Count { return size; }
-  constexpr auto get_capacity() const -> Count { return capacity; }
-  constexpr auto get_view() const -> const Core::View::Vector<type> {
-    return Core::View::Vector<type>(source_block, get_size());
-  }
-
-  constexpr auto get_data() const -> const type* { return source_block; }
-  constexpr auto get_data() -> type* { return source_block; }
-
-  constexpr auto is_empty() const -> Bool { return get_size() == 0; }
+  consteval auto reset() -> void { Base::reset_storage(); }
 
  private:
-  constexpr auto ensure_capacity(Count required_size) -> void {
-    if (required_size <= get_capacity()) {
-      return;
-    }
-
-    const auto new_capacity =
-        Core::Scalar::max(get_capacity() * 2, required_size);
-
-    auto* new_block = Allocator::Compiler::allocate_range<type>(new_capacity);
-    if (source_block) {
-      for (Count i = 0; i < size; i++) {
-        new_block[i] = static_cast<type&&>(source_block[i]);
-      }
-
-      Allocator::Compiler::release_range(source_block);
-    }
-
-    source_block = new_block;
-    capacity = new_capacity;
+  // ConstAllocation returns the requested element count exactly. Geometric
+  // growth limits repeated allocation during constant evaluation.
+  static constexpr auto next_capacity(Count current, Count required) -> Count {
+    const Count doubled = current > Count(-1) / 2 ? Count(-1) : current * 2;
+    return doubled > required ? doubled : required;
   }
 
-  constexpr auto destruct() -> void {
-    if (source_block) {
-      Allocator::Compiler::release_range(source_block);
-    }
-
-    source_block = nullptr;
-    size = 0;
-    capacity = 0;
+  static consteval auto allocate(Count requested_capacity)
+      -> Toolchain::Memory::ConstAllocation<type> {
+    return Toolchain::Memory::ConstAllocation<type>(requested_capacity);
   }
 
-  type* source_block = nullptr;
-  Count size = 0;
-  Count capacity = 0;
+  consteval auto adopt(Toolchain::Memory::ConstAllocation<type>&& retained)
+      -> void {
+    allocation =
+        static_cast<Toolchain::Memory::ConstAllocation<type>&&>(retained);
+  }
+
+  template <typename factory_type>
+  static consteval auto construct(type* destination, factory_type&& factory)
+      -> type& {
+    *destination = static_cast<factory_type&&>(factory)();
+    return *destination;
+  }
+
+  // Moving transfers nested constant allocations before the old capacity is
+  // deleted. Copying here would replace the stable pointees retained by users.
+  static consteval auto relocate(type* destination, type& source) -> void {
+    *destination = static_cast<type&&>(source);
+  }
+
+  static consteval auto replace(type* destination, type& source) -> void {
+    *destination = static_cast<type&&>(source);
+  }
+
+  static consteval auto retire(type* data, Count size) -> void {
+    for (Count index = 0; index < size; index++) {
+      data[index] = type();
+    }
+  }
+
+  consteval auto release(type*, Count) -> void {
+    allocation = Toolchain::Memory::ConstAllocation<type>();
+  }
+
+  Toolchain::Memory::ConstAllocation<type> allocation;
 };
 
 }  // namespace Perimortem::Memory::Const

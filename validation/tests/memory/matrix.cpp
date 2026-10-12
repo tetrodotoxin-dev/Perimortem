@@ -27,7 +27,7 @@ VALIDATION_TEST(MemoryMatrix, empty_value) {
 // Projection transfers an exact length allocation without copying its values.
 // Moving the result carries both storage and the Domain that indexes it.
 VALIDATION_TEST(MemoryMatrix, projects_owned_values) {
-  Dynamic::Vector<Rgba8> values;
+  Thread::Vector<Rgba8> values;
   values.emplace(Rgba8::from_rgba(17, 34, 51, 68));
 
   const auto* data = values.get_data();
@@ -64,7 +64,7 @@ VALIDATION_TEST(MemoryMatrix, zero_domain) {
 }
 
 VALIDATION_TEST(MemoryMatrix, mixed_boundary_access) {
-  Dynamic::Vector<Rgba8> values;
+  Thread::Vector<Rgba8> values;
   values.emplace(Rgba8::from_rgb(1, 0, 0));
   values.emplace(Rgba8::from_rgb(2, 0, 0));
   values.emplace(Rgba8::from_rgb(3, 0, 0));
@@ -79,7 +79,7 @@ VALIDATION_TEST(MemoryMatrix, mixed_boundary_access) {
 }
 
 VALIDATION_TEST(MemoryMatrix, uniform_boundary_access) {
-  Dynamic::Vector<Rgba8> values;
+  Thread::Vector<Rgba8> values;
   values.emplace(Rgba8::from_rgb(1, 0, 0));
   values.emplace(Rgba8::from_rgb(2, 0, 0));
   values.emplace(Rgba8::from_rgb(3, 0, 0));
@@ -110,7 +110,7 @@ VALIDATION_TEST(MemoryMatrix, swaps_complete_values) {
 }
 
 VALIDATION_TEST(MemoryMatrix, copies_and_pads) {
-  Dynamic::Vector<Rgba8> values;
+  Thread::Vector<Rgba8> values;
   values.emplace(Rgba8::from_rgb(1, 2, 3));
 
   auto matrix = Matrix<Rgba8>::create(
@@ -138,7 +138,7 @@ VALIDATION_TEST(MemoryMatrix, pads_trivial_values) {
 }
 
 VALIDATION_TEST(MemoryMatrix, truncates_source_view) {
-  Dynamic::Vector<Rgba8> values;
+  Thread::Vector<Rgba8> values;
   values.resize(32);
 
   values[0] = Rgba8::from_rgb(1, 2, 3);
@@ -154,7 +154,7 @@ VALIDATION_TEST(MemoryMatrix, truncates_source_view) {
 }
 
 VALIDATION_TEST(MemoryMatrix, bad_projection_dimensions) {
-  Dynamic::Vector<Rgba8> values;
+  Thread::Vector<Rgba8> values;
   values.emplace(Rgba8::from_rgb(1, 2, 3));
 
   const auto* data = values.get_data();
