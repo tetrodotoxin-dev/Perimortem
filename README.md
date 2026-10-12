@@ -46,14 +46,16 @@ Run these commands from the repository root:
 ```sh
 bazel run :format -- --check
 bazel build //source/...
-bazel run //validation:tests
-bazel run //validation:benchmarks --config=release
+bazel run :tests
+bazel run :benchmarks --config=release
 bazel build :sdk --config=release
+bazel run :snapshot
 ```
 
 Tests and benchmarks are standalone executables. Run them from the repository
-root so their test data is available. The SDK packages the component headers,
-source and static and shared libraries for independently built consumers.
+root so their test data is available. The SDK packages the component headers
+and static and shared libraries for independently built consumers. A snapshot
+archives the clean Git commit that reproduces the source and validation state.
 
 For VS Code tasks, debugging and header navigation, run `bazel run :vscode`.
 

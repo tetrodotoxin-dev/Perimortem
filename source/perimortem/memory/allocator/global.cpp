@@ -11,10 +11,9 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 
-auto Allocator::Global::allocate(Count requested_bytes)
-    -> Perimortem::Memory::Allocation<U8> {
+auto Allocator::Global::allocate(Count requested_bytes) -> Allocation<U8> {
   if (requested_bytes == 0) {
-    return Perimortem::Memory::Allocation<U8>();
+    return Allocation<U8>();
   }
 
   if (requested_bytes > CppSize(-1)) {
@@ -27,7 +26,7 @@ auto Allocator::Global::allocate(Count requested_bytes)
     Diagnostics::Log::fatal("Unable to allocate global memory."_view);
   }
 
-  return Perimortem::Memory::Allocation<U8>(data, requested_bytes);
+  return Allocation<U8>(data, requested_bytes);
 }
 
 auto Allocator::Global::release(U8* data) -> void {

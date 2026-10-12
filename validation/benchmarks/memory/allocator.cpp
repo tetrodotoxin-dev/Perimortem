@@ -23,8 +23,10 @@ static auto bibliotheca_cycle() -> void {
   Allocator::Bibliotheca::Allocation alloc;
   for (Count i = 0; i < 100; i++) {
     alloc = Allocator::Bibliotheca::check_out(alloc_size);
-    Benchmark::prevent_optimization(alloc.get_data());
-    Allocator::Bibliotheca::remit(alloc.get_data());
+
+    U8* data = alloc.get_data();
+    Benchmark::prevent_optimization(data);
+    Allocator::Bibliotheca::remit(data);
   }
 }
 
