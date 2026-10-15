@@ -48,7 +48,7 @@ auto Container::Bytes<policy_type>::concat(View::Bytes view) -> void {
 
   const Count required_size = size + view.get_size();
   if (required_size <= capacity) {
-    // A View over the current visible bytes ends no later than the append
+    // A View over the current values ends no later than the append
     // destination begins. Those source and destination ranges cannot overlap.
     Data::copy(source_block + size, view.get_data(), view.get_size());
     size = required_size;
@@ -96,19 +96,19 @@ auto Container::Bytes<policy_type>::copy(View::Bytes view) -> void {
 }
 
 template <typename policy_type>
-auto Container::Bytes<policy_type>::set(U8 target) -> void {
+auto Container::Bytes<policy_type>::set(U8 value) -> void {
   if (!is_empty()) {
-    Data::set(source_block, target, size);
+    Data::set(source_block, value, size);
   }
 }
 
 template <typename policy_type>
-auto Container::Bytes<policy_type>::convert(U8 source, U8 target) -> void {
-  for (Count index = 0; index < size; index++) {
-    if (source_block[index] == source) {
-      source_block[index] = target;
-    }
+auto Container::Bytes<policy_type>::operator[](Count index) -> Option<U8&> {
+  if (index >= size) {
+    return {};
   }
+
+  return source_block[index];
 }
 
 template <typename policy_type>
@@ -119,21 +119,25 @@ auto Container::Bytes<policy_type>::slice(Count start, Count size) const
 
 template <typename policy_type>
 auto Container::Bytes<policy_type>::resize(Count new_size) -> void {
+  const Count old_size = size;
   ensure_capacity(new_size);
+  if (new_size > old_size) {
+    Data::set(source_block + old_size, 0, new_size - old_size);
+  }
+
   size = new_size;
 }
 
 template <typename policy_type>
-auto Container::Bytes<policy_type>::forgetful_resize(Count required_size)
-    -> void {
-  if (required_size <= capacity && required_size > (capacity >> 1)) {
-    size = required_size;
+auto Container::Bytes<policy_type>::forgetful_resize(Count new_size) -> void {
+  if (new_size <= capacity && new_size > (capacity >> 1)) {
+    size = new_size;
     return;
   }
 
   reset();
-  ensure_capacity(required_size);
-  size = required_size;
+  ensure_capacity(new_size);
+  size = new_size;
 }
 
 template <typename policy_type>
@@ -158,8 +162,8 @@ auto Container::Bytes<policy_type>::reframe(S64 start, Count new_size) -> void {
 
   ensure_capacity(new_size);
   if (copied_size) {
-    // Move retained bytes before clearing padding because a negative start can
-    // shift source bytes into the range that becomes leading zeros.
+    // Move retained values before clearing padding because a negative start can
+    // shift source values into the range that becomes leading zeros.
     memmove(
         source_block + destination_start, source_block + source_start,
         copied_size);
@@ -178,13 +182,13 @@ auto Container::Bytes<policy_type>::reframe(S64 start, Count new_size) -> void {
 }
 
 template <typename policy_type>
-auto Container::Bytes<policy_type>::operator[](Count index) const -> U8 {
-  return get_view()[index];
-}
+auto Container::Bytes<policy_type>::operator[](Count index) const
+    -> Option<const U8&> {
+  if (index >= size) {
+    return {};
+  }
 
-template <typename policy_type>
-auto Container::Bytes<policy_type>::at(Count index) const -> U8 {
-  return get_view()[index];
+  return source_block[index];
 }
 
 template <typename policy_type>
@@ -214,9 +218,9 @@ auto Container::Bytes<policy_type>::ensure_capacity(Count required_size)
       policy_type::next_capacity(capacity, required_size);
   auto allocation = get_policy().allocate(requested_capacity);
   if (source_block) {
-    // `resize` may hide initialized bytes without invalidating them. Copying
-    // the complete capacity preserves those bytes if growth exposes them again.
-    Data::copy(allocation.get_data(), source_block, capacity);
+    // Only values below the current size belong to the Bytes object. Remaining
+    // allocation contents are not copied into replacement storage.
+    Data::copy(allocation.get_data(), source_block, size);
     policy_type::release(source_block);
   }
 

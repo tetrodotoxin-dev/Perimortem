@@ -36,9 +36,11 @@ VALIDATION_TEST(ManagedBytes, bounds) {
   Allocator::Arena arena;
   Managed::Bytes bytes(arena, "abc"_view);
 
-  EXPECT_EQ(bytes[2], U8('c'));
-  EXPECT_EQ(bytes[3], U8(0));
-  EXPECT_EQ(bytes.at(Count(-1)), U8(0));
+  auto selected = bytes[2];
+  ASSERT(selected);
+  EXPECT_EQ(*selected, U8('c'));
+  EXPECT(!bytes[3]);
+  EXPECT(!bytes[Count(-1)]);
 }
 
 VALIDATION_TEST(ManagedBytes, value_semantics) {
@@ -64,9 +66,10 @@ VALIDATION_TEST(ManagedBytes, value_semantics) {
 
   Managed::Bytes transferred(destination_arena, "released"_view);
   transferred = static_cast<Managed::Bytes&&>(moved);
-  EXPECT(&transferred.get_arena() == &source_arena);
+  EXPECT(&transferred.get_arena() == &destination_arena);
   EXPECT_EQ(transferred.get_view(), "managed!"_view);
-  EXPECT(moved.is_empty());
+  EXPECT_EQ(moved.get_view(), "managed!"_view);
+  EXPECT(transferred.get_view().get_data() != moved.get_view().get_data());
 
   const auto retained = transferred.get_view();
   transferred.reset();

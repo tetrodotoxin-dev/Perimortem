@@ -54,8 +54,8 @@ VALIDATION_TEST(GlobalBytes, cross_thread_transfer) {
   transferred_bytes.append(U8('!'));
   EXPECT_EQ(transferred_bytes.get_view(), "worker owned!"_view);
 
-  // Main thread release proves deallocation is independent of the allocating
-  // worker's Bibliotheca lifetime.
+  // Main thread release proves that process heap ownership is independent of
+  // the worker that allocated and populated the values.
   transferred_bytes.reset();
   EXPECT(!transferred_bytes.get_view().get_data());
 }

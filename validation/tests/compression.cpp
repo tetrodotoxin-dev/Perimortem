@@ -176,8 +176,8 @@ VALIDATION_TEST(CompressionTests, back_references) {
 
   ASSERT_EQ(out.get_size(), 100);
   for (Count i = 0; i < 100; i += 2) {
-    EXPECT_EQ(out[i + 0], U8(0xAB));
-    EXPECT_EQ(out[i + 1], U8(0xCD));
+    EXPECT_EQ(out.get_data()[i + 0], U8(0xAB));
+    EXPECT_EQ(out.get_data()[i + 1], U8(0xCD));
   }
 }
 
@@ -190,7 +190,7 @@ VALIDATION_TEST(CompressionTests, inflate_single_byte) {
   auto out = Deflate::inflate(single_compressed);
 
   ASSERT_EQ(out.get_size(), 1);
-  EXPECT_EQ(out[0], U8(0x42));
+  EXPECT_EQ(out.get_data()[0], U8(0x42));
 }
 
 VALIDATION_TEST(CompressionTests, truncated_input) {
@@ -291,7 +291,7 @@ VALIDATION_TEST(CompressionTests, deflate_single_byte) {
 
   auto recovered = Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), Count(1));
-  EXPECT_EQ(recovered[0], U8(0x42));
+  EXPECT_EQ(recovered.get_data()[0], U8(0x42));
 }
 
 VALIDATION_TEST(CompressionTests, roundtrip_short) {
@@ -322,8 +322,10 @@ VALIDATION_TEST(CompressionTests, valid_header) {
   auto compressed = Deflate::deflate(stored_raw);
 
   ASSERT(compressed.get_size() >= 6);
-  EXPECT_EQ(U8(compressed[0] & 0x0F), U8(8));
-  EXPECT_EQ((U32(compressed[0]) * 256 + compressed[1]) % 31, U32(0));
+  EXPECT_EQ(U8(compressed.get_data()[0] & 0x0F), U8(8));
+  EXPECT_EQ(
+      (U32(compressed.get_data()[0]) * 256 + compressed.get_data()[1]) % 31,
+      U32(0));
 }
 
 VALIDATION_TEST(CompressionTests, repeating_value) {

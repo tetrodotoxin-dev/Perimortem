@@ -9,21 +9,28 @@
 
 namespace Perimortem::Memory::Managed {
 
-// Managed Bytes borrows one Arena and cannot be default constructed. Its fast
-// bump allocation trades independent reclamation for the Arena's shared
-// lifetime. A value remains within its Arena and cannot outlive that Arena.
+// The recorded Arena owns every block attached to Managed Bytes. An Arena must
+// therefore be supplied during construction. Arena bump allocation makes
+// growth fast by trading independent release for a shared lifetime. Every View
+// remains accessible only while that Arena is alive. After mutation, an earlier
+// View has no guaranteed relationship to the current values because the
+// operation may reuse or replace the block. `reset()` detaches the Bytes object
+// while earlier Views continue to designate their former block until Arena
+// reset.
 //
-// Managed policies compose only values owned by the same Arena. Arena reset
-// ends those values together, so Managed containers do not invoke individual
-// destructors or reclaim individual allocations.
+// Copy construction uses the source Arena. Assignment retains the destination
+// Arena and materializes an independent copy of the source values there. Move
+// construction transfers the source Arena and current allocation, leaving the
+// source empty. Arena reset invalidates every allocation together.
 class Bytes final : public Container::Bytes<Bytes> {
   using Base = Container::Bytes<Bytes>;
   friend Base;
 
  public:
   Bytes() = delete;
-  // The Arena establishes the value's allocation and lifetime policy. Explicit
-  // construction requires callers to name that binding even in the null state.
+  // The Arena establishes the Bytes object's allocation and lifetime policy.
+  // Explicit construction requires callers to name the owning Arena even in the
+  // empty representation.
   constexpr explicit Bytes(Allocator::Arena& arena) : arena(&arena) {}
   Bytes(Allocator::Arena& arena, Count reserved_capacity) : arena(&arena) {
     Base::ensure_capacity(reserved_capacity);
@@ -31,6 +38,10 @@ class Bytes final : public Container::Bytes<Bytes> {
 
   Bytes(Allocator::Arena& arena, Core::View::Bytes view) : arena(&arena) {
     Base::copy(view);
+  }
+
+  Bytes(Allocator::Arena& arena, const Bytes& rhs) : arena(&arena) {
+    Base::copy(rhs.get_view());
   }
 
   Bytes(const Bytes& rhs) : arena(rhs.arena) { Base::copy(rhs.get_view()); }
@@ -49,16 +60,6 @@ class Bytes final : public Container::Bytes<Bytes> {
   auto operator=(const Bytes& rhs) -> Bytes& {
     if (this != &rhs) {
       Base::copy(rhs.get_view());
-    }
-
-    return *this;
-  }
-
-  auto operator=(Bytes&& rhs) -> Bytes& {
-    if (this != &rhs) {
-      Base::reset();
-      arena = rhs.arena;
-      Base::take(static_cast<Base&&>(rhs));
     }
 
     return *this;

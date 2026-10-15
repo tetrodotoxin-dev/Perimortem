@@ -11,25 +11,25 @@ namespace Perimortem::Memory::Global {
 // Global Bytes uses the process heap so allocation and release can occur on
 // different threads. This supports explicit transfer across thread boundaries
 // at the cost of the process allocator's synchronization. The policy does not
-// make concurrent access to one value safe, so sharing data across threads
-// still requires proper locking.
+// make concurrent access to one Bytes object safe, so sharing data across
+// threads still requires proper locking.
 //
-// Default construction uses the capability's allocation free null state.
+// Default construction uses the capability's empty representation.
 class Bytes final : public Container::Bytes<Bytes> {
   using Base = Container::Bytes<Bytes>;
   friend Base;
 
  public:
   constexpr Bytes() = default;
-  // Capacity construction can allocate without producing visible bytes.
+  // Capacity construction can allocate without changing size.
   // Explicit construction prevents an integer from silently reserving storage.
   explicit Bytes(Count reserved_capacity) {
     Base::ensure_capacity(reserved_capacity);
   }
 
-  // The caller keeps the View storage valid until construction returns. This
-  // value copies those bytes into independent storage that it owns. Explicit
-  // construction exposes the possible allocation at the call site.
+  // The caller keeps the View storage valid until construction returns. The
+  // Bytes object copies those values into independent storage that it owns.
+  // Explicit construction exposes the possible allocation at the call site.
   explicit Bytes(Core::View::Bytes view) { Base::copy(view); }
 
   Bytes(const Bytes& rhs) { Base::copy(rhs.get_view()); }

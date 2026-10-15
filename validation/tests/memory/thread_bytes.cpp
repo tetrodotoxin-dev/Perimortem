@@ -30,10 +30,12 @@ static Harness ThreadBytes = {
 VALIDATION_TEST(ThreadBytes, value_bounds) {
   Thread::Bytes bytes("abc"_view);
 
-  EXPECT_EQ(bytes[2], U8('c'));
-  EXPECT_EQ(bytes[3], U8(0));
-  EXPECT_EQ(bytes.at(Count(-1)), U8(0));
-  EXPECT_EQ(Thread::Bytes()[0], U8(0));
+  auto selected = bytes[2];
+  ASSERT(selected);
+  EXPECT_EQ(*selected, U8('c'));
+  EXPECT(!bytes[3]);
+  EXPECT(!bytes[Count(-1)]);
+  EXPECT(!Thread::Bytes()[0]);
 }
 
 VALIDATION_TEST(ThreadBytes, null_state) {
@@ -165,7 +167,7 @@ VALIDATION_TEST(ThreadBytes, aliased_input) {
   bytes.concat(bytes.get_view());
   EXPECT_EQ(bytes.get_size(), length * 2);
   for (Count index = 0; index < bytes.get_size(); index++) {
-    EXPECT_EQ(bytes[index], U8('x'));
+    EXPECT_EQ(bytes.get_data()[index], U8('x'));
   }
 }
 
@@ -195,7 +197,7 @@ VALIDATION_TEST(ThreadBytes, reframe_padding) {
   bytes.reframe(-2, expanded_size);
   EXPECT_EQ(bytes.slice(0, 5), "\0\0abc"_view);
   EXPECT_EQ(bytes.get_size(), expanded_size);
-  EXPECT_EQ(bytes[expanded_size - 1], U8(0));
+  EXPECT_EQ(bytes.get_data()[expanded_size - 1], U8(0));
 
   constexpr S64 minimum = -9223372036854775807LL - 1;
   bytes.reframe(minimum, 4);
@@ -212,12 +214,26 @@ VALIDATION_TEST(ThreadBytes, reframe_padding) {
 }
 
 VALIDATION_TEST(ThreadBytes, resize) {
-  Thread::Bytes bytes("preserved"_view);
-  Count capacity = bytes.get_capacity();
+  Thread::Bytes bytes(128);
+  bytes = "preserved"_view;
+
+  const Count capacity = bytes.get_capacity();
+  bytes.resize(2);
+  bytes.resize(9);
+  EXPECT_EQ(bytes.get_view(), "pr\0\0\0\0\0\0\0"_view);
+
+  bytes = "preserved"_view;
   bytes.resize(2);
   bytes.ensure_capacity(capacity + 1);
   bytes.resize(9);
-  EXPECT_EQ(bytes.get_view(), "preserved"_view);
+  EXPECT_EQ(bytes.get_view(), "pr\0\0\0\0\0\0\0"_view);
+
+  const U8* allocation = bytes.get_data();
+  const Count retained_capacity = bytes.get_capacity();
+  bytes.resize(0);
+  EXPECT(bytes.is_empty());
+  EXPECT_EQ(bytes.get_capacity(), retained_capacity);
+  EXPECT(bytes.get_data() == allocation);
 }
 
 VALIDATION_TEST(ThreadBytes, forgetful_resize) {
@@ -227,6 +243,10 @@ VALIDATION_TEST(ThreadBytes, forgetful_resize) {
   bytes.forgetful_resize(capacity - 1);
   EXPECT(bytes.get_view().get_data() == allocation);
   EXPECT_EQ(bytes.get_size(), capacity - 1);
+
+  bytes.forgetful_resize(capacity >> 1);
+  EXPECT_EQ(bytes.get_size(), capacity >> 1);
+  EXPECT(bytes.get_capacity() < capacity);
 
   bytes.forgetful_resize(0);
   EXPECT(bytes.is_empty());

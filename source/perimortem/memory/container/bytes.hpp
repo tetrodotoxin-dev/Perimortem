@@ -5,19 +5,20 @@
 
 #include "perimortem/core/access/bytes.h"
 #include "perimortem/core/hash.hpp"
+#include "perimortem/core/option.hpp"
 #include "perimortem/core/view/bytes.h"
 
 namespace Perimortem::Memory::Container {
 
-// Bytes provides contiguous byte storage to a policy that defines allocation
-// and release. The policy owns construction, copy and transfer contracts while
-// this capability owns byte behavior and storage invariants.
+// Bytes owns contiguous mutable U8 values with independent size and allocation
+// capacity. It separates range and overlap behavior from
+// `policy_type` allocation, growth and release so storage policies can change
+// ownership and lifetime without reimplementing value operations.
 //
-// The null representation has no allocation, zero size and zero capacity. A
-// policy that exposes default construction evaluates in constexpr O(1) time.
-// Replacing any value with empty bytes performs no allocation, but that
-// operation may retain or release existing storage according to its purpose.
-// `clear` retains storage for reuse while `reset` releases policy ownership.
+// The empty representation is guaranteed to be allocation free. A wrapper that
+// exposes default construction produces it in constexpr O(1) time. `clear()`
+// retains storage for reuse while `reset()` detaches the current allocation.
+// The policy decides when detached storage can be reclaimed.
 template <typename policy_type>
 class Bytes {
  public:
@@ -34,37 +35,60 @@ class Bytes {
 
   EXPORTED(PERIMORTEM) auto append(U8 byte) -> void;
   EXPORTED(PERIMORTEM) auto append(U8 byte, Count amount) -> void;
-  // Appends a copy of `view`. A View over the current visible bytes remains
-  // supported when growth replaces its allocation.
+
+  // Appends a copy of the provided view to the end of the current view.
   EXPORTED(PERIMORTEM) auto concat(Core::View::Bytes view) -> void;
 
-  // Replaces the visible bytes with a copy. The source may overlap the current
-  // allocation because replacement keeps those bytes valid until copying ends.
+  // Replaces the current values with a copy. The source may overlap the current
+  // allocation because replacement keeps those values valid until copying ends.
   EXPORTED(PERIMORTEM) auto copy(Core::View::Bytes view) -> void;
 
-  // Changes the visible size while preserving retained bytes. Callers
-  // initialize bytes exposed from previously unused capacity.
+  // Changes size while preserving values that remain within the new range.
+  // Growth within the current capacity does not allocate. Every added value is
+  // initialized to zero. Shrinking, including to zero, neither allocates nor
+  // releases storage so repeated stack operations can reuse the capacity.
   EXPORTED(PERIMORTEM) auto resize(Count new_size) -> void;
 
-  // Changes size without preserving storage outside the requested extent.
-  EXPORTED(PERIMORTEM) auto forgetful_resize(Count required_size) -> void;
+  // Changes size without preserving current values. The allocation is reused
+  // only when the requested size is greater than half capacity and does not
+  // exceed capacity. Every other nonzero size resets the Bytes object before
+  // asking its policy for replacement capacity, avoiding a copy and allowing
+  // the policy to select storage for the new size.
+  //
+  // A requested size of zero sets the Bytes object to its empty representation.
+  // Repeating that request does not change its state. Reclaiming the underlying
+  // storage remains a policy decision. New values have unspecified state and
+  // must be completely overwritten before they are read.
+  EXPORTED(PERIMORTEM) auto forgetful_resize(Count new_size) -> void;
 
-  // Replaces the visible bytes with a window over their previous contents.
-  // Result index zero maps to previous index `start`. Positions outside the
-  // previous range become zero, so a negative start adds leading padding and a
-  // window past the end adds trailing padding. Storage is reused when
-  // `new_size` fits capacity.
+  // Destructively slices and extends the stored values. A positive `start`
+  // removes values from the front, while a negative `start` shifts them right.
+  // Either shift moves retained values at O(n) cost. Positions introduced by
+  // shifting or extension are initialized to zero.
+  //
+  // A reframe is allocation free unless the newly requested size is larger than
+  // the current capacity.
   EXPORTED(PERIMORTEM) auto reframe(S64 start, Count new_size) -> void;
 
-  EXPORTED(PERIMORTEM) auto operator[](Count index) const -> U8;
-  EXPORTED(PERIMORTEM) auto at(Count index) const -> U8;
-  EXPORTED(PERIMORTEM) auto set(U8 target) -> void;
-  EXPORTED(PERIMORTEM) auto convert(U8 source, U8 target) -> void;
+  // Returns the byte at `index`, or None when the index is outside the current
+  // size. The returned reference remains current until an operation changes
+  // the size or replaces the allocation.
+  EXPORTED(PERIMORTEM) auto operator[](Count index) -> Core::Option<U8&>;
+  EXPORTED(PERIMORTEM) auto operator[](Count index) const
+      -> Core::Option<const U8&>;
+  // Writes `value` to every value within the current size. The size bounds this
+  // safe `memset` operation, so no separate byte count is accepted.
+  EXPORTED(PERIMORTEM) auto set(U8 value) -> void;
   EXPORTED(PERIMORTEM) auto slice(Count start, Count size) const
       -> Core::View::Bytes;
 
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_capacity() const -> Count { return capacity; }
+  // Exposes the allocation start for unchecked pointer access. The caller
+  // keeps every index below the current size and reacquires the pointer after
+  // an operation that can replace or reset storage.
+  constexpr auto get_data() -> U8* { return source_block; }
+  constexpr auto get_data() const -> const U8* { return source_block; }
   constexpr auto get_view() const -> Core::View::Bytes {
     return Core::View::Bytes(source_block, size);
   }

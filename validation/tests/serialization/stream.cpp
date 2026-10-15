@@ -29,14 +29,14 @@ VALIDATION_TEST(SerializationStream, binary_endian) {
   writer << U16(0x1234) << U32(0xAABBCCDD) << "OK"_view;
 
   ASSERT_EQ(output.get_size(), Count(8));
-  EXPECT_EQ(output[0], U8(0x34));
-  EXPECT_EQ(output[1], U8(0x12));
-  EXPECT_EQ(output[2], U8(0xDD));
-  EXPECT_EQ(output[3], U8(0xCC));
-  EXPECT_EQ(output[4], U8(0xBB));
-  EXPECT_EQ(output[5], U8(0xAA));
-  EXPECT_EQ(output[6], U8('O'));
-  EXPECT_EQ(output[7], U8('K'));
+  EXPECT_EQ(output.get_data()[0], U8(0x34));
+  EXPECT_EQ(output.get_data()[1], U8(0x12));
+  EXPECT_EQ(output.get_data()[2], U8(0xDD));
+  EXPECT_EQ(output.get_data()[3], U8(0xCC));
+  EXPECT_EQ(output.get_data()[4], U8(0xBB));
+  EXPECT_EQ(output.get_data()[5], U8(0xAA));
+  EXPECT_EQ(output.get_data()[6], U8('O'));
+  EXPECT_EQ(output.get_data()[7], U8('K'));
 }
 
 VALIDATION_TEST(SerializationStream, big_endian) {
@@ -46,12 +46,12 @@ VALIDATION_TEST(SerializationStream, big_endian) {
   writer << U16(0x1234) << U32(0xAABBCCDD);
 
   ASSERT_EQ(output.get_size(), Count(6));
-  EXPECT_EQ(output[0], U8(0x12));
-  EXPECT_EQ(output[1], U8(0x34));
-  EXPECT_EQ(output[2], U8(0xAA));
-  EXPECT_EQ(output[3], U8(0xBB));
-  EXPECT_EQ(output[4], U8(0xCC));
-  EXPECT_EQ(output[5], U8(0xDD));
+  EXPECT_EQ(output.get_data()[0], U8(0x12));
+  EXPECT_EQ(output.get_data()[1], U8(0x34));
+  EXPECT_EQ(output.get_data()[2], U8(0xAA));
+  EXPECT_EQ(output.get_data()[3], U8(0xBB));
+  EXPECT_EQ(output.get_data()[4], U8(0xCC));
+  EXPECT_EQ(output.get_data()[5], U8(0xDD));
 }
 
 VALIDATION_TEST(SerializationStream, binary_reals) {
@@ -75,8 +75,8 @@ VALIDATION_TEST(SerializationStream, binary_appends) {
 
   ASSERT_EQ(output.get_size(), Count(8));
   EXPECT_TEXT(output.slice(0, 6), "prefix"_view);
-  EXPECT_EQ(output[6], U8(0x34));
-  EXPECT_EQ(output[7], U8(0x12));
+  EXPECT_EQ(output.get_data()[6], U8(0x34));
+  EXPECT_EQ(output.get_data()[7], U8(0x12));
 }
 
 VALIDATION_TEST(SerializationStream, managed_write) {
@@ -87,9 +87,9 @@ VALIDATION_TEST(SerializationStream, managed_write) {
   writer << U8(0x7F) << U16(0x1234);
 
   ASSERT_EQ(output.get_size(), Count(3));
-  EXPECT_EQ(output[0], U8(0x7F));
-  EXPECT_EQ(output[1], U8(0x34));
-  EXPECT_EQ(output[2], U8(0x12));
+  EXPECT_EQ(output.get_data()[0], U8(0x7F));
+  EXPECT_EQ(output.get_data()[1], U8(0x34));
+  EXPECT_EQ(output.get_data()[2], U8(0x12));
 }
 
 VALIDATION_TEST(SerializationStream, vector_write) {
@@ -104,12 +104,12 @@ VALIDATION_TEST(SerializationStream, vector_write) {
   writer << values.get_view();
 
   ASSERT_EQ(output.get_size(), Count(6));
-  EXPECT_EQ(output[0], U8(0x01));
-  EXPECT_EQ(output[1], U8(0x02));
-  EXPECT_EQ(output[2], U8(0x03));
-  EXPECT_EQ(output[3], U8(0x04));
-  EXPECT_EQ(output[4], U8(0x05));
-  EXPECT_EQ(output[5], U8(0x06));
+  EXPECT_EQ(output.get_data()[0], U8(0x01));
+  EXPECT_EQ(output.get_data()[1], U8(0x02));
+  EXPECT_EQ(output.get_data()[2], U8(0x03));
+  EXPECT_EQ(output.get_data()[3], U8(0x04));
+  EXPECT_EQ(output.get_data()[4], U8(0x05));
+  EXPECT_EQ(output.get_data()[5], U8(0x06));
 }
 
 VALIDATION_TEST(SerializationStream, native_vector) {
