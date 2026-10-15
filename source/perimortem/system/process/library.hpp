@@ -34,6 +34,9 @@ class Library {
       -> Perimortem::Utility::Result<void*, Perimortem::Core::View::Bytes>;
 
  private:
+  // Only `open()` can produce an admitted native handle. Explicit private
+  // construction prevents conversion from an arbitrary pointer and keeps loader
+  // failure in the returned Result.
   explicit Library(void* handle) : handle(handle) {}
   void* handle;
 };

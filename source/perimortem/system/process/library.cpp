@@ -78,7 +78,9 @@ auto Library::open(View::Bytes path, Allocator::Arena& errors)
   }
 
   Thread::Vector<wchar_t> wide;
-  wide.resize(size);
+  // `MultiByteToWideChar` writes the complete requested range or reports
+  // failure. The temporary buffer needs no initialized value before that call.
+  wide.forgetful_resize(size);
 
   const S32 written = MultiByteToWideChar(
       CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, wide.get_data(), size);

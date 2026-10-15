@@ -8,23 +8,28 @@
 
 namespace Perimortem::Core::Writer {
 
-// Reads human readable values from a text byte buffer. Reads are greedy so
-// numeric values must be whitespace seperated to be read appropriately.
+// Textual writes primitive values into a caller supplied mutable byte range
+// without allocating or appending a null terminator. Each write begins at the
+// current cursor. Conversion to View exposes exactly the prefix through that
+// cursor.
 //
-// Numeric and boolean reads automatically skip leading whitespace except for
-// read_byte() which never skips whitespace and always consume exactly one byte
-// from the current position.
+// A write that cannot fit marks the writer invalid. Integer and text writes
+// reserve their complete output before changing storage. Real formatting can
+// leave a partial prefix. Once invalid, later writes perform no work and
+// `is_valid()` remains False.
 //
-// On overflow the writer enters an invalid state and subsequent writes are safe
-// but treated as undefined behavior.
+// Real formatting accepts finite values whose integer portion fits S64. Other
+// values mark the writer invalid. Supported values use fixed notation with at
+// most 32 characters and stop at the precision of their source type. This is a
+// bounded readable representation rather than a shortest or exact round trip
+// decimal.
 class Textual {
  public:
   Textual(Core::Access::Bytes source) : source(source) {};
   Textual(const Textual& rhs) : source(rhs.source) {};
 
-  // Sets the location of the read/write cursor.
-  // If the index is out of range then the cursor is put to the end of the
-  // buffer.
+  // Moves the write cursor to `location`, clamped to the buffer size. Existing
+  // values and the current validity state remain unchanged.
   EXPORTED(PERIMORTEM) auto set_pointer(Count location) -> void;
 
   EXPORTED(PERIMORTEM) auto operator<<(char character) -> Textual&;
@@ -41,8 +46,9 @@ class Textual {
   EXPORTED(PERIMORTEM) auto operator<<(const R64 value) -> Textual&;
   EXPORTED(PERIMORTEM) auto operator<<(const View::Bytes raw) -> Textual&;
 
-  // Don't let C++ promote or do anything funky with C Strings.
-  // They aren't part of the ABI so we explicitly delete them.
+  // C strings do not carry an extent and would make a bounded write depend on a
+  // terminator search. Callers provide View::Bytes so embedded nulls and the
+  // exact value count remain explicit.
   auto operator<<(const char* raw) -> Textual& = delete;
 
   constexpr auto get_size() const -> Count { return source.get_size(); }

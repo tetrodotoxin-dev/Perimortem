@@ -6,15 +6,25 @@
 #include "perimortem/core/option.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/thread/bytes.hpp"
+#include "perimortem/memory/global/bytes.hpp"
 
 namespace Perimortem::System::Filesystem {
 
-// File owns native filesystem transactions. Root supplies a directory location
-// for relative operations. A host without filesystem access rejects these
-// operations through their ordinary failure results. Reads and Root
-// acquisition return None, while boolean operations return False. This lets
-// callers select another source without a platform dependent interface.
+// File performs synchronous transactions through bounded host paths. One
+// trailing null is accepted but embedded nulls are rejected. Separators are
+// normalized before the host resolves parent segments and links.
+//
+// Reads load regular files up to 64 GiB into one Global Bytes object. This
+// permits ownership to cross thread boundaries but still requires enough
+// process memory for the complete file and per thread locks when accessing data
+// from multiple threads. Paging and streaming aren't supported. Metadata and
+// content come from one open stream so concurrent path replacement cannot
+// combine two files into one result.
+//
+// A host without filesystem access rejects every transaction through its
+// ordinary failure result with reads and root acquisition returning `None`.
+// Reads, writes and replacements log additional diagnostics for the failed
+// transaction stage.
 class File {
  public:
   // Fingerprint identifies the exact regular filesystem object observed by a
@@ -58,20 +68,21 @@ class File {
     S64 changed_nanoseconds;
   };
 
-  // Snapshot couples owned bytes with metadata taken from the same opened
-  // object. Callers may probe the Fingerprint before reusing those bytes.
+  // Snapshot couples globally owned values with metadata taken from the same
+  // opened object. Callers may probe the Fingerprint before reusing those
+  // values or transferring them to another thread.
   class Snapshot {
    public:
-    Snapshot(Memory::Thread::Bytes&& contents, Fingerprint fingerprint)
-        : contents(static_cast<Memory::Thread::Bytes&&>(contents)),
+    Snapshot(Memory::Global::Bytes&& contents, Fingerprint fingerprint)
+        : contents(static_cast<Memory::Global::Bytes&&>(contents)),
           fingerprint(fingerprint) {}
 
     constexpr auto get_contents() const -> Core::View::Bytes {
       return contents.get_view();
     }
 
-    auto take_contents() -> Memory::Thread::Bytes {
-      return static_cast<Memory::Thread::Bytes&&>(contents);
+    auto take_contents() -> Memory::Global::Bytes {
+      return static_cast<Memory::Global::Bytes&&>(contents);
     }
 
     constexpr auto get_fingerprint() const -> Fingerprint {
@@ -79,7 +90,7 @@ class File {
     }
 
    private:
-    Memory::Thread::Bytes contents;
+    Memory::Global::Bytes contents;
     Fingerprint fingerprint;
   };
 
@@ -99,52 +110,100 @@ class File {
     auto operator=(Root&& source) -> Root& = default;
     ~Root() = default;
 
+    // Copies a directory path into Global storage. None reports an invalid
+    // path, an absent location or a location that is not a directory. Root
+    // retains no directory handle and resolves the copied path for every later
+    // transaction.
     static EXPORTED(PERIMORTEM) auto open(Core::View::Bytes location)
         -> Core::Option<Root>;
-    // Member reads and fingerprints return None for absence and I/O failure.
-    // The caller that requested the path decides whether and how to log them.
+
+    // Returns independently owned Global values from a regular file. Some empty
+    // Bytes represents an empty file. None silently reports path, open,
+    // metadata, content or close failure.
     EXPORTED(PERIMORTEM) auto read(Core::View::Bytes relative_path) const
-        -> Core::Option<Memory::Thread::Bytes>;
+        -> Core::Option<Memory::Global::Bytes>;
+
+    // Couples Global values with the Fingerprint from the same open stream so a
+    // path replacement cannot mix metadata from another file. None silently
+    // reports any transaction failure.
     EXPORTED(PERIMORTEM) auto read_snapshot(
         Core::View::Bytes relative_path) const -> Core::Option<Snapshot>;
+
+    // Observes metadata through an open regular file without reading content.
+    // None silently reports path, open, metadata or close failure.
     EXPORTED(PERIMORTEM) auto fingerprint(Core::View::Bytes relative_path) const
         -> Core::Option<Fingerprint>;
+
     // Reads into the caller Arena and returns a View over that allocation. The
-    // View remains valid until the Arena resets or is destroyed.
+    // View remains accessible until the Arena resets or is destroyed. Some
+    // empty View represents an empty file. None silently reports failure.
     EXPORTED(PERIMORTEM) auto read(
         Memory::Allocator::Arena& arena,
         Core::View::Bytes relative_path) const
         -> Core::Option<Core::View::Bytes>;
+
+    // Creates or truncates the selected file and writes the complete source.
+    // Success includes stream closure, including an empty write that truncates
+    // the file. False reports any path, open, content or close failure.
     EXPORTED(PERIMORTEM) auto write(
         Core::View::Bytes data,
         Core::View::Bytes relative_path) const -> Bool;
+
+    // Delegates removal to the host without preclassifying the selected
+    // filesystem entry. This preserves native link and directory behavior. The
+    // host decides which entry types are removable and False reports rejection.
     EXPORTED(PERIMORTEM) auto remove(Core::View::Bytes relative_path) const
         -> Bool;
+
+    // Returns True only when the selected location resolves to a regular file.
+    // Directories, other entry types, missing paths and host errors return
+    // False.
     EXPORTED(PERIMORTEM) auto exists(Core::View::Bytes relative_path) const
         -> Bool;
 
    private:
     Root(Core::View::Bytes location) : location(location) {}
 
-    Memory::Thread::Bytes location;
+    Memory::Global::Bytes location;
   };
 
+  // Returns independently owned Global values from a regular file. Some empty
+  // Bytes represents an empty file. None reports a logged path, open, metadata,
+  // content or close failure.
   static EXPORTED(PERIMORTEM) auto read(Core::View::Bytes location)
-      -> Core::Option<Memory::Thread::Bytes>;
+      -> Core::Option<Memory::Global::Bytes>;
+
   // Reads into the caller Arena and returns a View over that allocation. The
-  // View remains valid until the Arena resets or is destroyed.
+  // View remains accessible until the Arena resets or is destroyed. Some empty
+  // View represents an empty file. None reports a logged transaction failure.
   static EXPORTED(PERIMORTEM) auto read(
       Memory::Allocator::Arena& arena,
       Core::View::Bytes location) -> Core::Option<Core::View::Bytes>;
+
+  // Creates or truncates the selected file and writes the complete source.
+  // Success includes stream closure, including an empty write that truncates
+  // the file. False reports a logged path, open, content or close failure.
   static EXPORTED(PERIMORTEM) auto write(
       Core::View::Bytes data,
       Core::View::Bytes location) -> Bool;
-  // Atomically replaces the destination name when the host filesystem permits
-  // one native rename transaction.
+
+  // Renames the filesystem entry at `source` onto `destination` through one
+  // native host operation. On success `destination` resolves to the prior
+  // source entry. Distinct source and destination directory entries leave no
+  // source entry behind. False reports a logged path conversion or rename
+  // failure, including a host refusal to rename across filesystems.
   static EXPORTED(PERIMORTEM) auto replace(
       Core::View::Bytes source,
       Core::View::Bytes destination) -> Bool;
+
+  // Delegates removal to the host without preclassifying the selected
+  // filesystem entry. This preserves native link and directory behavior. The
+  // host decides which entry types are removable and False reports rejection
+  // without logging.
   static EXPORTED(PERIMORTEM) auto remove(Core::View::Bytes location) -> Bool;
+
+  // Returns True only when the location resolves to a regular file.
+  // Directories, other entry types, missing paths and host errors return False.
   static EXPORTED(PERIMORTEM) auto exists(Core::View::Bytes location) -> Bool;
 };
 

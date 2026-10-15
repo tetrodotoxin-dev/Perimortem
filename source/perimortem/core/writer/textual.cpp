@@ -50,8 +50,8 @@ static constexpr auto decimal_length(storage_type value) -> Count {
 
   unsigned_type magnitude = Scalar::magnitude<unsigned_type>(value);
 
-  // A comparision ladder seems to perform quite a bit better (~20%) than the
-  // general path with dividing down the value to caculate log10.
+  // Measurements show the comparison ladder about 20% faster than repeatedly
+  // dividing the value to derive its decimal length.
   if (magnitude < 10ULL) {
     return sign + 1;
   } else if (magnitude < 100ULL) {
@@ -147,7 +147,7 @@ auto Writer::Textual::set_pointer(Count location) -> void {
 }
 
 auto Writer::Textual::operator<<(char character) -> Writer::Textual& {
-  valid_state &= cursor < source.get_size();
+  valid_state = valid_state && cursor < source.get_size();
   if (valid_state) {
     auto* data = source.get_data();
     data[cursor++] = U8(character);
@@ -158,59 +158,83 @@ auto Writer::Textual::operator<<(char character) -> Writer::Textual& {
 
 auto Writer::Textual::operator<<(const Bool flag) -> Writer::Textual& {
   if (flag) {
-    valid_state &= write_text(source, cursor, "true"_view);
+    valid_state = valid_state && write_text(source, cursor, "true"_view);
   } else {
-    valid_state &= write_text(source, cursor, "false"_view);
+    valid_state = valid_state && write_text(source, cursor, "false"_view);
   }
 
   return *this;
 }
 
 auto Writer::Textual::operator<<(const U8 value) -> Writer::Textual& {
-  valid_state &= write_decimal<U8, U8>(
-      source, cursor, value, decimal_length<U8, U8>(value));
+  if (valid_state) {
+    valid_state = write_decimal<U8, U8>(
+        source, cursor, value, decimal_length<U8, U8>(value));
+  }
+
   return *this;
 }
 
 auto Writer::Textual::operator<<(const U16 value) -> Writer::Textual& {
-  valid_state &= write_decimal<U16, U16>(
-      source, cursor, value, decimal_length<U16, U16>(value));
+  if (valid_state) {
+    valid_state = write_decimal<U16, U16>(
+        source, cursor, value, decimal_length<U16, U16>(value));
+  }
+
   return *this;
 }
 
 auto Writer::Textual::operator<<(const U32 value) -> Writer::Textual& {
-  valid_state &= write_decimal<U32, U32>(
-      source, cursor, value, decimal_length<U32, U32>(value));
+  if (valid_state) {
+    valid_state = write_decimal<U32, U32>(
+        source, cursor, value, decimal_length<U32, U32>(value));
+  }
+
   return *this;
 }
 
 auto Writer::Textual::operator<<(const U64 value) -> Writer::Textual& {
-  valid_state &= write_decimal<U64, U64>(
-      source, cursor, value, decimal_length<U64, U64>(value));
+  if (valid_state) {
+    valid_state = write_decimal<U64, U64>(
+        source, cursor, value, decimal_length<U64, U64>(value));
+  }
+
   return *this;
 }
 
 auto Writer::Textual::operator<<(const S8 value) -> Writer::Textual& {
-  valid_state &= write_decimal<S8, U8>(
-      source, cursor, value, decimal_length<S8, U8>(value));
+  if (valid_state) {
+    valid_state = write_decimal<S8, U8>(
+        source, cursor, value, decimal_length<S8, U8>(value));
+  }
+
   return *this;
 }
 
 auto Writer::Textual::operator<<(const S16 value) -> Writer::Textual& {
-  valid_state &= write_decimal<S16, U16>(
-      source, cursor, value, decimal_length<S16, U16>(value));
+  if (valid_state) {
+    valid_state = write_decimal<S16, U16>(
+        source, cursor, value, decimal_length<S16, U16>(value));
+  }
+
   return *this;
 }
 
 auto Writer::Textual::operator<<(const S32 value) -> Writer::Textual& {
-  valid_state &= write_decimal<S32, U32>(
-      source, cursor, value, decimal_length<S32, U32>(value));
+  if (valid_state) {
+    valid_state = write_decimal<S32, U32>(
+        source, cursor, value, decimal_length<S32, U32>(value));
+  }
+
   return *this;
 }
 
 auto Writer::Textual::operator<<(const S64 value) -> Writer::Textual& {
-  valid_state &= write_decimal<S64, U64>(
-      source, cursor, value, decimal_length<S64, U64>(value));
+  if (valid_state) {
+    valid_state = write_decimal<S64, U64>(
+        source, cursor, value, decimal_length<S64, U64>(value));
+  }
+
   return *this;
 }
 
@@ -224,10 +248,18 @@ auto Writer::Textual::operator<<(const R64 r64) -> Writer::Textual& {
   return *this;
 }
 
-// TODO: This code is awful and should be optimized but it does a decent enough
-// job without having to pull in bulky headers.
+// Fixed notation avoids locale state and runtime allocation. The supplied type
+// precision bounds the fractional loop, while `max_length` prevents a long
+// binary fraction from consuming the remaining output buffer.
 auto Writer::Textual::write_real(R64 real, R64 precision) -> void {
   if (!valid_state) {
+    return;
+  }
+
+  constexpr R64 signed_limit = 9'223'372'036'854'775'808.0;
+  if (!__builtin_isfinite(real) || real >= signed_limit ||
+      real < -signed_limit) {
+    valid_state = False;
     return;
   }
 
@@ -242,14 +274,16 @@ auto Writer::Textual::write_real(R64 real, R64 precision) -> void {
     return;
   }
 
-  // Always write a decimal point.
+  // Keep the radix point for integral inputs so real output remains distinct
+  // from integer output.
   auto data = source.get_data();
   data[cursor++] = '.';
   length += 1;
 
   auto fract = real - decimal_portion;
 
-  // Trailing zero and negative values.
+  // Convert a negative fractional remainder to its magnitude. An integral value
+  // still receives one zero after the radix point.
   if (fract <= 0) {
     fract *= -1;
     if (fract < precision) {
@@ -263,7 +297,8 @@ auto Writer::Textual::write_real(R64 real, R64 precision) -> void {
     }
   }
 
-  // Slowly write the rest of fractional part until we hit a limit.
+  // Emit successive base 10 digits until the remaining fraction falls below the
+  // source precision or the bounded representation reaches `max_length`.
   while (length < max_length && fract > precision) {
     if (cursor >= source.get_size()) {
       valid_state &= cursor < source.get_size();
@@ -274,17 +309,21 @@ auto Writer::Textual::write_real(R64 real, R64 precision) -> void {
     precision *= 10;
     length += 1;
 
-    U8 value = U8(fract);
-    fract -= value;
-
-    // Deal with percision rolloff.
-    if (fract > 0.99999) {
+    // Binary scaling can round a value below ten up to ten. Clamp that
+    // representation rather than emit a nondecimal byte.
+    U8 value;
+    if (fract >= 10) {
+      value = 9;
       fract = 0;
-      value++;
-
-      // If we some how are rounding a 9 due to percision issues.
-      if (value > 10) {
-        return;
+    } else {
+      value = U8(fract);
+      fract -= value;
+      // A remainder just below one belongs to the current digit when increment
+      // does not require carrying through earlier output. A nine keeps that
+      // remainder for the next digit instead.
+      if (fract > 0.99999 && value < 9) {
+        value++;
+        fract = 0;
       }
     }
 
@@ -293,6 +332,6 @@ auto Writer::Textual::write_real(R64 real, R64 precision) -> void {
 }
 
 auto Writer::Textual::operator<<(const View::Bytes raw) -> Writer::Textual& {
-  valid_state &= write_text(source, cursor, raw);
+  valid_state = valid_state && write_text(source, cursor, raw);
   return *this;
 }

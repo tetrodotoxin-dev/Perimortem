@@ -523,7 +523,7 @@ auto Json::Node::parse(
         return position;
       }
 
-      position++;  // consume '.'
+      position++;
       R64 float_value = value;
       U64 divisor = 1;
 

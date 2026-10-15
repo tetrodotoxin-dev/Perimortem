@@ -17,8 +17,8 @@
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
+#include "perimortem/memory/global/bytes.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
-#include "perimortem/memory/thread/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -31,7 +31,7 @@ using Filesystem::File;
 // boundary, while Linux consumes its bytes directly.
 static constexpr Count max_path_size = 512;
 static constexpr Count max_warning_size = max_path_size + 256;
-static constexpr Count max_read_size = Count(1) << 35;
+static constexpr Count max_read_size = Count(1) << 36;
 
 enum class FileKind {
   Missing,
@@ -282,9 +282,9 @@ static auto report_file_warning(
   }
 }
 
-// Classifies and sizes the same opened object that will provide the content.
-// Reading metadata from the open stream couples the fingerprint to that object
-// when pathname replacement occurs concurrently.
+// Read type and size from the same open stream later consumed for content. A
+// concurrent pathname replacement cannot switch objects between metadata
+// inspection and the file read.
 static auto get_file_fingerprint(
     FILE* file,
     View::Bytes operation,
@@ -307,9 +307,9 @@ static auto get_file_fingerprint(
   return fingerprint;
 }
 
-// Both byte owners receive content directly into their final allocation. The
-// Arena overload returns a View over that allocation which remains valid until
-// its Arena resets or is destroyed.
+// Global and Managed destinations receive file values directly into their final
+// allocation. The Arena overload returns a View over that allocation which
+// remains accessible until its Arena resets or is destroyed.
 template <typename bytes_type>
 static auto read_file(
     FILE* file,
@@ -326,7 +326,9 @@ static auto read_file(
   fingerprint = *selected;
 
   Count size = selected->get_size();
-  data.resize(size);
+  // The file read replaces every requested byte. Forgetful resize avoids
+  // clearing storage that cannot be observed before that overwrite completes.
+  data.forgetful_resize(size);
   if (size == 0) {
     return True;
   }
@@ -502,17 +504,17 @@ auto File::Root::open(View::Bytes location) -> Option<Root> {
 }
 
 auto File::Root::read(View::Bytes relative_path) const
-    -> Option<Thread::Bytes> {
+    -> Option<Global::Bytes> {
   auto snapshot = read_snapshot(relative_path);
-  return snapshot ? Option<Thread::Bytes>(snapshot->take_contents())
-                  : Option<Thread::Bytes>();
+  return snapshot ? Option<Global::Bytes>(snapshot->take_contents())
+                  : Option<Global::Bytes>();
 }
 
 auto File::Root::read_snapshot(View::Bytes relative_path) const
     -> Option<File::Snapshot> {
   Static::Bytes<max_path_size> buffer;
   auto path = member_path(buffer, location, relative_path);
-  Thread::Bytes data{};
+  Global::Bytes data{};
   File::Fingerprint fingerprint;
   if (!path || !read_file(*path, data, fingerprint, FailureReporting::Silent)) {
     return {};
@@ -572,22 +574,22 @@ auto File::Root::exists(View::Bytes relative_path) const -> Bool {
   return path && File::exists(*path);
 }
 
-auto File::read(View::Bytes location) -> Option<Thread::Bytes> {
-  // Thread storage gives this overload an independently owned result in the
-  // calling thread.
-  Thread::Bytes data{};
+auto File::read(View::Bytes location) -> Option<Global::Bytes> {
+  Global::Bytes data{};
   File::Fingerprint fingerprint;
   Bool read = read_file(location, data, fingerprint);
   if (!read) {
     return {};
   }
 
-  return Option<Thread::Bytes>(static_cast<Thread::Bytes&&>(data));
+  return Option<Global::Bytes>(static_cast<Global::Bytes&&>(data));
 }
 
 auto File::read(Allocator::Arena& arena, View::Bytes location)
     -> Option<View::Bytes> {
-  // Arena storage returns stable bytes without introducing another owner.
+  // The caller selects Arena storage when the file values join an existing
+  // transaction lifetime. Reading directly into that Arena avoids another
+  // independently owned allocation.
   Managed::Bytes data{arena};
   File::Fingerprint fingerprint;
   Bool read = read_file(location, data, fingerprint);

@@ -83,8 +83,9 @@ struct ImageInfo {
   U8 interlace_method = 0;
 };
 
-// A parsed PNG chunk. PNG files are made of sequential chunks, each with a
-// type tag, a payload, and a CRC32 checksum for integrity verification.
+// Chunk retains a View of one validated PNG payload together with copied type
+// and length metadata. The payload remains accessible only while the source
+// stream remains accessible. A default Chunk represents parse failure.
 class Chunk {
  public:
   constexpr Chunk() = default;
@@ -103,11 +104,10 @@ class Chunk {
   Bool valid = False;
 };
 
-// The eight byte magic signature that begins every valid PNG file.
 constexpr Static::Bytes<8> png_signature = {
   {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}};
 
-// Each chunk: 4 bytes length + 4 bytes type + data + 4 bytes CRC32.
+// Length, type and CRC32 each contribute four bytes (U32) to the chunk payload.
 constexpr Count chunk_metadata_size = 12;
 
 constexpr auto number_of_color_channels(ColorType color_type) -> Count {
@@ -127,9 +127,9 @@ constexpr auto number_of_color_channels(ColorType color_type) -> Count {
 }
 
 constexpr auto populate_crc_table() -> Static::Vector<U32, 256> {
-  // CRC32 (Cyclic Redundancy Check): a 32 bit error detection hash used by the
-  // PNG specification to verify each chunk has not been corrupted in transit.
-  // The IEEE 802.3 polynomial (0xEDB88320) is the standard choice for CRC32.
+  // PNG chunk CRC32 uses the reflected IEEE polynomial. Constant evaluation
+  // expands each possible byte prefix so payload checks need one lookup per
+  // byte instead of eight polynomial steps.
   constexpr U32 ieee_crc32_polynomial = 0xEDB88320;
 
   Static::Vector<U32, 256> table;
@@ -147,7 +147,6 @@ constexpr auto populate_crc_table() -> Static::Vector<U32, 256> {
 }
 
 constexpr auto calculate_crc32(View::Bytes data) -> U32 {
-  // The 256 entry CRC32 look up table is prepopulated at compile time.
   constexpr Static::Vector<U32, 256> crc_table = populate_crc_table();
 
   // PNG initializes CRC32 to all ones and complements it after the final byte.
@@ -185,10 +184,10 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
   Static::Bytes<4> type(source.slice(offset + 4, 4));
   View::Bytes data = source.slice(offset + 8, length);
 
-  // Caculating the CRC from the buffer is slow and is unnecessary for files
-  // from a trusted source. The check is still used in debug builds, but in
-  // release builds removing the CRC check improves throughput by as much as
-  // 20% for large images.
+  // CRC32 requires another complete pass over the chunk payload. Trusted
+  // release inputs skip that pass because measurements on large images showed
+  // as much as 20% greater decode throughput. Debug builds retain corruption
+  // detection.
 
 #if PERI_DEBUG
 
@@ -245,9 +244,10 @@ constexpr auto write_chunk(
   write_position += 4;
 }
 
-// The Paeth predictor estimates the next sample by computing a linear
-// extrapolation using the left, upper, and upper left pixels and returning the
-// value closest to the current pixel.
+// Paeth predicts the current sample as left plus upper minus upper left, then
+// returns the neighboring sample closest to that prediction. PNG uses this
+// selection so encoding and reconstruction derive the same predictor without
+// reading the current sample.
 constexpr auto paeth_predictor(U8 left, U8 up, U8 upper_left) -> U8 {
   S16 signed_left = S16(left);
   S16 signed_up = S16(up);
@@ -269,9 +269,9 @@ constexpr auto paeth_predictor(U8 left, U8 up, U8 upper_left) -> U8 {
   return upper_left;
 }
 
-// Smaller residuals _generally_ compress better under DEFLATE.
-// We treat each byte as a signed value and sum the magnitudes as a cheap
-// estimate for compressibility.
+// DEFLATE commonly represents smaller residuals with fewer bits. Treating each
+// byte as signed and summing its magnitude provides a cheap score without
+// compressing every possible filtered row.
 template <Bool first_row>
 auto score_row(View::Bytes current_row, View::Bytes previous_row)
     -> FilterType {
@@ -338,8 +338,8 @@ constexpr auto apply_row_filter(
 
 #if PERI_DEBUG
 
-  // All of the buffers should be appropriately sized so just work on the raw
-  // data directly since this is hot path code.
+  // Reject mismatched rows before the raw pointer loop so each sample can use
+  // the shared extent without repeating bounds checks.
   if (output_row.get_size() != size || previous_row.get_size() != size) {
     Diagnostics::Log::fatal(
         "PNG: apply_filter_row was called with one or more invalid rows."_view);
@@ -436,8 +436,9 @@ constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
 
   auto* output_data = output.get_access().get_data();
 
-  // The first row supports two filters, so scoring covers exactly that pair.
-  // We use the current row as the previous row since it's not used.
+  // The first row specialization scores only None and Sub and never reads its
+  // second View. Passing `current_row` supplies a valid placeholder without a
+  // separate empty View path.
   View::Bytes current_row(raw_bytes, row_stride);
   FilterType best_filter = score_row<True>(current_row, current_row);
 
@@ -447,7 +448,6 @@ constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
 
   output_data[0] = U8(best_filter);
 
-  // The rest of the rows after the first are scored against all filters.
   for (Count row = 1; row < image.get_row_count(); row++) {
     View::Bytes previous_row = current_row;
     current_row = View::Bytes(raw_bytes + row * row_stride, row_stride);
@@ -512,12 +512,10 @@ auto reconstruct_row(
             filtered_row[i] + U8(U32(output_row[i - bytes_per_pixel]) / 2);
       }
     } else {
-      // First column
       for (Count i = 0; i < bytes_per_pixel; i++) {
         output_row[i] = filtered_row[i] + U8(U32(previous_row[i]) / 2);
       }
 
-      // Rest of the row
       for (Count i = bytes_per_pixel; i < stride; i++) {
         output_row[i] =
             filtered_row[i] +
@@ -529,20 +527,19 @@ auto reconstruct_row(
     break;
 
   case FilterType::Paeth:
-    // PNG substitutes zero for upper samples on the first row. Paeth then
-    // selects the left sample and becomes Sub.
+    // PNG substitutes zero for unavailable upper samples. Paeth therefore
+    // becomes Sub on the first row. On later rows the first pixel has no left
+    // sample, so its predictor becomes the upper sample.
     if constexpr (first_row) {
       Data::copy(output_row, filtered_row, bytes_per_pixel);
       for (Count i = bytes_per_pixel; i < stride; i++) {
         output_row[i] = filtered_row[i] + output_row[i - bytes_per_pixel];
       }
     } else {
-      // First column
       for (Count i = 0; i < bytes_per_pixel; i++) {
         output_row[i] = filtered_row[i] + previous_row[i];
       }
 
-      // Rest of the row
       for (Count i = bytes_per_pixel; i < stride; i++) {
         output_row[i] = filtered_row[i] +
                         paeth_predictor(
@@ -681,7 +678,6 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
     return ImageInfo();
   }
 
-  // Validate the PNG signiture
   if (source.slice(0, png_signature.get_size()) != png_signature.get_view())
       [[unlikely]] {
     Diagnostics::Log::error("Png: Invalid file signature"_view);
@@ -830,15 +826,13 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
     return Matrix<Rgba8>();
   }
 
-  // For PNGs with a single IDAT chunk (the common case) we hold a view to avoid
-  // copying the entire compressed stream, but if any additional IDAT chunks are
-  // found we switch to merging them into a dynamic buffer.
+  // Keep the first IDAT payload as a source View to avoid an unconditional
+  // copy. A later IDAT requires owned Thread Bytes so every payload becomes one
+  // contiguous DEFLATE stream.
   View::Bytes binary_data{};
   Thread::Bytes merged_data{};
   View::Bytes palette{};
 
-  // Walk the chunk sequence collecting all IDAT payloads plus the optional
-  // PLTE (palette) chunk needed for indexed color images.
   Count chunk_offset = png_signature.get_size();
   while (chunk_offset < source.get_size()) {
     Chunk chunk = read_chunk(source, chunk_offset);
@@ -902,10 +896,8 @@ auto Png::encode(const Matrix<Rgba8>& image) -> Thread::Bytes {
     return Thread::Bytes();
   }
 
-  // Filter the rows using adaptive PNG filtering then deflate the output.
   Thread::Bytes filtered_rows = apply_adaptive_filtering(image);
 
-  // Compress using the default compression level for balanced speed vs size.
   Thread::Bytes compressed = Deflate::deflate(filtered_rows.get_view());
   if (compressed.is_empty()) [[unlikely]] {
     return Thread::Bytes();

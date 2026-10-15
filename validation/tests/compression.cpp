@@ -277,7 +277,6 @@ VALIDATION_TEST(CompressionTests, deflate_empty_input) {
   // A valid zlib stream must still have a header and a footer.
   EXPECT(compressed.get_size() >= 6);
 
-  // Round tripping inflate should properly produce an empty buffer.
   auto recovered = Deflate::inflate(compressed);
   EXPECT_EQ(recovered.get_size(), 0);
 }
@@ -304,7 +303,8 @@ VALIDATION_TEST(CompressionTests, roundtrip_short) {
 }
 
 VALIDATION_TEST(CompressionTests, roundtrip_binary) {
-  // Binary data with all 256 byte values present.
+  // Every possible byte value prevents a text only round trip from masking
+  // signed conversion or lookup table errors.
   Static::Bytes<256> all_bytes;
   for (Count i = 0; i < 256; i++) {
     all_bytes[i] = U8(i);

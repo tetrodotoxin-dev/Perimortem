@@ -44,6 +44,15 @@ using namespace Toolchain::Validation;
 using Filesystem::File;
 using Filesystem::Path;
 
+static_assert(
+    __is_same(decltype(File::read(View::Bytes())), Option<Global::Bytes>));
+static_assert(__is_same(
+    decltype(static_cast<const File::Root*>(nullptr)->read(View::Bytes())),
+    Option<Global::Bytes>));
+static_assert(__is_same(
+    decltype(static_cast<File::Snapshot*>(nullptr)->take_contents()),
+    Global::Bytes));
+
 constexpr auto test_file = "system_file_test.json"_view;
 constexpr auto test_output = "system_file_test_out.json"_view;
 constexpr auto test_replacement = "system_file_test_replacement.json"_view;
@@ -545,7 +554,7 @@ class TemporaryRoot {
     return File::write(data, NullTerminated(path, sizeof(path)).get_view());
   }
 
-  auto read_outside_member(const char* member) const -> Option<Thread::Bytes> {
+  auto read_outside_member(const char* member) const -> Option<Global::Bytes> {
     char path[temporary_path_capacity];
     Bool built =
         build_member_path(path, sizeof(path), outside_directory_path, member);
@@ -627,6 +636,7 @@ static Harness SystemFile = {
 
         File::write(test_contents, test_file);
       },
+
   .teardown =
       [] {
         if (!native_change_directory(original_directory)) {
@@ -762,7 +772,7 @@ VALIDATION_TEST(SystemFile, oversized) {
   }
 
   LARGE_INTEGER size;
-  size.QuadPart = (S64(1) << 35) + 1;
+  size.QuadPart = (S64(1) << 36) + 1;
 
   const bool sized =
       SetFilePointerEx(file, size, nullptr, FILE_BEGIN) && SetEndOfFile(file);
@@ -775,7 +785,7 @@ VALIDATION_TEST(SystemFile, oversized) {
       open(test_output_path, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
   ASSERT(file >= 0);
 
-  constexpr off_t oversized_file = (off_t(1) << 35) + 1;
+  constexpr off_t oversized_file = (off_t(1) << 36) + 1;
   S32 truncated = ftruncate(file, oversized_file);
   S32 closed = close(file);
   ASSERT_EQ(truncated, 0);

@@ -198,7 +198,8 @@ VALIDATION_TEST(CoreTextualReader, set_location) {
 }
 
 VALIDATION_TEST(CoreTextualReader, multiple_readers) {
-  // Both readers operate independently over the same source.
+  // Sharing source storage does not share cursor or validity state. Advancing
+  // either reader therefore leaves the other reader at its own location.
   View::Bytes source = "a12 true"_view;
   Reader::Textual readers[] = {
     Reader::Textual(source), Reader::Textual(source)};
@@ -285,6 +286,22 @@ VALIDATION_TEST(CoreTextual, pointer_bounds) {
   EXPECT_NOT(writer.is_valid());
 }
 
+VALIDATION_TEST(CoreTextual, invalid_writer_stops_writes) {
+  Static::Bytes<8> buffer;
+  for (Count index = 0; index < buffer.get_size(); index++) {
+    buffer[index] = '?';
+  }
+
+  Writer::Textual writer(buffer.get_access());
+
+  writer << __builtin_inf();
+  EXPECT_NOT(writer.is_valid());
+
+  writer << U32(42) << "text"_view;
+  EXPECT_EQ(writer.get_location(), Count(0));
+  EXPECT_TEXT(buffer, "????????"_view);
+}
+
 VALIDATION_TEST(CoreTextual, integers_and_text) {
   Static::Bytes<24> buffer;
   Writer::Textual writer(buffer.get_access());
@@ -321,6 +338,18 @@ VALIDATION_TEST(CoreTextual, floats) {
   EXPECT(writer.is_valid());
   EXPECT_TEXT(
       buffer.get_view(), "12.080.0000812-2012.7810058-2012.78102\0\0"_view);
+}
+
+VALIDATION_TEST(CoreTextual, fractional_digits) {
+  Static::Bytes<32> buffer;
+  Writer::Textual writer(buffer.get_access());
+
+  writer << R64(0.9999999999999999);
+  EXPECT(writer.is_valid());
+  for (Count index = 0; index < writer.get_location(); index++) {
+    const U8 value = buffer[index];
+    EXPECT(value == '.' || (value >= '0' && value <= '9'));
+  }
 }
 
 VALIDATION_TEST(CoreTextual, multiple_writers) {

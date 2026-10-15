@@ -26,8 +26,9 @@ Allocator::Arena::~Arena() {
 }
 
 auto Allocator::Arena::reset() -> void {
-  // Return all blocks we've rented from the Bibliotheca until we only have a
-  // single block left.
+  // Retain the oldest page so the next transaction can allocate without another
+  // Bibliotheca checkout. Newer pages are remitted and allocation resumes after
+  // the embedded link in the retained page.
   U8* previous = *Data::cast<U8*>(rented_block);
   while (previous != nullptr) {
     auto rented = rented_block;
@@ -37,7 +38,6 @@ auto Allocator::Arena::reset() -> void {
     previous = *Data::cast<U8*>(rented_block);
   }
 
-  // Reset our usage since we are reusing the last block.
   usage = arena_alignment;
 }
 
@@ -53,10 +53,9 @@ auto Allocator::Arena::fetch_page(Count bytes_requested) -> void {
       Scalar::max(page_size, bytes_requested + arena_alignment);
   auto alloc = Allocator::Bibliotheca::check_out(alloc_size);
 
-  // Store the previous pointer in the arena itself.
+  // The aligned prefix stores a link to the former page. Reset and destruction
+  // can then remit every page without a separate allocation for bookkeeping.
   U8** previous = Data::cast<U8*>(alloc.get_data());
-
-  // Store and swap the blocks.
   *previous = rented_block;
   rented_block = alloc.get_data();
 

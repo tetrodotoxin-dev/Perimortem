@@ -95,7 +95,6 @@ VALIDATION_TEST(SerializationJson, access_is_value_type) {
   EXPECT_NOT(new_node.is_null());
   EXPECT_TEXT(new_node.get_string(), "valid"_view);
 
-  // Original value node should remain unchanged.
   EXPECT(value.is_null());
   EXPECT(value["invalid"_view].is_null());
 }
@@ -250,17 +249,14 @@ VALIDATION_TEST(SerializationJson, parse_null) {
   Allocator::Arena arena;
   Json::Node value;
 
-  // A root null literal parses to a null node.
   value.parse(arena, "null"_view);
   EXPECT(value.is_null());
 
-  // An object retains a null member as a visible null node.
   value.parse(arena, "{\"key\":null}"_view);
   ASSERT(value.is_object());
   EXPECT_EQ(value.get_size(), 1);
   EXPECT(value["key"_view].is_null());
 
-  // Members surrounding a null retain their authored values.
   value.parse(arena, "{\"a\":1,\"b\":null,\"c\":3}"_view);
   ASSERT(value.is_object());
   EXPECT_EQ(value.get_size(), 3);
@@ -398,11 +394,9 @@ VALIDATION_TEST(SerializationJson, format_null) {
   Allocator::Arena arena;
   Json::Node value;
 
-  // A root null serializes to "null".
   value.parse(arena, "null"_view);
   ASSERT_TEXT(value.format(arena), "null"_view);
 
-  // An object with a null member reproduces its exact text.
   value.parse(arena, "{\"a\":1,\"b\":null,\"c\":3}"_view);
   ASSERT_TEXT(value.format(arena), "{\"a\":1,\"b\":null,\"c\":3}"_view);
 }

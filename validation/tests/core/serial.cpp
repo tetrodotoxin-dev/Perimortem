@@ -209,10 +209,10 @@ VALIDATION_TEST(CoreSerialWriter, negative_values) {
   // bytes also prove that each value carries the sign flag.
   writer << -0xAB << -0x1234 << -'PERI' << -0x0123456789ABCDEF;
 
-  // Negative values should compress to their smaller unsigned representation.
-  // 0xFFFFFFFFFFFFFF9C gets converted to 100 and uses only 1 byte for the value
-  // while storing the negate flag (0x10).
-  writer << /* negative 100 */ 0xFFFFFFFFFFFFFF9C;
+  // Converting minus 100 to U64 preserves its bit pattern. Serial recovers the
+  // magnitude and emits one payload byte together with the negate flag.
+  constexpr U64 negative_100 = U64(S64(-100));
+  writer << negative_100;
 
   EXPECT(writer.is_valid());
   EXPECT_HEX(

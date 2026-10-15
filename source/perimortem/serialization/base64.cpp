@@ -436,7 +436,8 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
     source_data += source_stride;
   }
 
-  // One remaining byte produces two symbols and two padding bytes. Two
+  // Padding records values absent from the final three byte group. One
+  // remaining byte therefore produces two symbols and two padding bytes. Two
   // remaining bytes produce three symbols and one padding byte.
   switch (left_over) {
   case 1:
