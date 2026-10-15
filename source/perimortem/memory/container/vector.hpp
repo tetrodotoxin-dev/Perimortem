@@ -7,54 +7,114 @@
 
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/option.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/memory/allocation.hpp"
 
 namespace Perimortem::Memory::Container {
 
-// Vector separates contiguous sequence operations from allocation and element
-// lifetime policy. Policy wrappers can therefore impose ownership, reclamation,
-// and growth invariants without duplicating the shared sequence logic.
+// Vector owns contiguous mutable values with independent size and allocation
+// capacity. It separates sequence behavior from `policy_type` allocation,
+// growth and release so storage policies can change ownership and lifetime
+// without reimplementing value operations.
 //
-// The policy owns allocation, capacity growth, element construction,
-// replacement, retirement and release. Another wrapper can define different
-// storage and lifetime invariants without changing this sequence capability.
+// The empty representation is guaranteed to be allocation free. A wrapper that
+// exposes default construction produces it in constexpr O(1) time. `clear()`
+// retains storage for reuse while `reset()` detaches the current allocation.
+// The policy decides when detached storage can be reclaimed.
 //
-// Copies receive an independent current block. Moves transfer the current block
-// and leave their source empty and reusable under its original policy.
+// Arbitrary values can require nontrivial construction and retirement. Vector
+// routes those lifetime transitions through the policy instead of assuming
+// every retired value is immediately destroyed.
 //
-// Both the policy and element type are open template arguments. The
+// Copies receive an independent current allocation. Moves transfer the current
+// allocation and leave their source empty and reusable under its original
+// policy.
+//
+// A returned reference identifies the same current value until an operation
+// replaces the allocation or relocates or replaces the value at that address.
+// Direct value mutation is supported.
+//
+// Both the policy and value type are open template arguments. The
 // implementation remains in this header because those open arguments prevent
 // the explicit instantiation boundary used by `Container::Bytes`.
+//
+// A policy supplies the complete storage and value lifetime extension
+// contract. Growth calls `next_capacity(current, required)` before
+// `allocate(requested)`. The returned allocation provides its data and
+// capacity. After publishing that allocation, Vector passes it to `adopt` so
+// the policy can retain any ownership state.
+//
+// Admission passes a destination and factory to `construct`, which establishes
+// the new current value. Allocation replacement passes a destination and live
+// source to `relocate`. Changing an occupied position calls
+// `replace(destination, source)`. Removal calls `retire(data, count)` while
+// retaining the allocation. Reset and allocation replacement call
+// `release(data, count)` before detaching the former allocation.
+//
+// Policies deliberately inject stronger invariants through those operations.
+// Thread affinity, process ownership and Arena lifetime rules belong to their
+// policy wrappers while the meanings of Vector operations remain shared.
 template <typename policy_type, typename type>
 class Vector {
  public:
   constexpr operator Core::View::Vector<type>() const { return get_view(); }
   constexpr operator Core::Access::Vector<type>() { return get_access(); }
 
+  // Appends a copy of `data` and returns its stored value. `data` may refer to
+  // a current value because growth constructs the copy before relocating
+  // storage.
   constexpr auto insert(const type& data) -> type& {
-    if (!ensure_capacity(size + 1, data)) {
-      construct_at(source_block + size, [&data] { return type(data); });
-    }
-
-    return source_block[size++];
+    return insert_value([&data] { return type(data); });
   }
 
-  constexpr auto emplace(type&& data) -> type& {
-    if (!ensure_capacity(size + 1, static_cast<type&&>(data))) {
-      construct_at(source_block + size, [&data] {
-        return type(static_cast<type&&>(data));
-      });
-    }
-
-    return source_block[size++];
+  // Appends by moving `data` and returns its stored value. `data` may refer to
+  // a current value because growth transfers it before relocating storage. That
+  // current value remains alive in its moved from state until relocation.
+  constexpr auto insert(type&& data) -> type& {
+    return insert_value([&data] { return type(static_cast<type&&>(data)); });
   }
 
-  // Removes the selected element in O(1) element operations by sacrificing
-  // relative order. The last element replaces it before the logical size
-  // decreases by one. Pointers and references to every other element except
-  // the former last element remain valid. An index outside the current size
-  // leaves the vector unchanged and returns False.
+  // Appends copies of `view`. The source may refer to the current Vector
+  // because growth constructs the appended values before relocating the
+  // current allocation.
+  constexpr auto concat(Core::View::Vector<type> view) -> void
+    requires(__is_constructible(type, const type&))
+  {
+    if (view.is_empty()) {
+      return;
+    }
+
+    const Count previous_size = size;
+    const Count required_size = size + view.get_size();
+    if (required_size <= capacity) {
+      for (Count index = 0; index < view.get_size(); index++) {
+        get_policy().construct(
+            source_block + previous_size + index,
+            [&view, index] { return type(view.get_data()[index]); });
+      }
+    } else {
+      const Count requested_capacity =
+          get_policy().next_capacity(capacity, required_size);
+      auto allocation = get_policy().allocate(requested_capacity);
+      for (Count index = 0; index < view.get_size(); index++) {
+        get_policy().construct(
+            allocation.get_data() + previous_size + index,
+            [&view, index] { return type(view.get_data()[index]); });
+      }
+
+      replace_allocation(static_cast<decltype(allocation)&&>(allocation));
+    }
+
+    size = required_size;
+  }
+
+  // Removes the selected value in O(1) value operations by sacrificing relative
+  // order. The last value replaces it before the size decreases by one.
+  // Every other current value keeps its address and identity. References to the
+  // selected value or former last value no longer identify the same current
+  // value. An index outside the current size leaves the Vector unchanged and
+  // returns False.
   constexpr auto remove(Count index) -> Bool {
     if (index >= size) {
       return False;
@@ -64,14 +124,14 @@ class Vector {
     if constexpr (__is_trivially_copyable(type)) {
       if (index != last_index) {
         if consteval {
-          replace_relocated(source_block + index, source_block[last_index]);
+          get_policy().replace(source_block + index, source_block[last_index]);
         } else {
           memcpy(source_block + index, source_block + last_index, sizeof(type));
         }
       }
     } else {
       if (index != last_index) {
-        replace_relocated(source_block + index, source_block[last_index]);
+        get_policy().replace(source_block + index, source_block[last_index]);
       }
     }
 
@@ -80,12 +140,12 @@ class Vector {
     return True;
   }
 
-  // Removes the selected element in O(n) element operations to preserve
-  // relative order. Each later element moves one position toward the front
-  // before the logical size decreases by one. Pointers and references at or
-  // after the selected index become invalid. Earlier pointers and references
-  // remain valid. An index outside the current size leaves the vector unchanged
-  // and returns False.
+  // Removes the selected value in O(n) value operations to preserve relative
+  // order. Each later value moves one position toward the front before the size
+  // decreases by one. Values before the selected index keep their
+  // address and identity. References at or after that index no longer identify
+  // the same current value. An index outside the current size leaves the Vector
+  // unchanged and returns False.
   constexpr auto remove_stable(Count index) -> Bool {
     if (index >= size) {
       return False;
@@ -96,7 +156,7 @@ class Vector {
       if (index != last_index) {
         if consteval {
           for (Count shift = index; shift < last_index; shift++) {
-            replace_relocated(source_block + shift, source_block[shift + 1]);
+            get_policy().replace(source_block + shift, source_block[shift + 1]);
           }
         } else {
           memmove(
@@ -106,7 +166,7 @@ class Vector {
       }
     } else {
       for (Count shift = index; shift < last_index; shift++) {
-        replace_relocated(source_block + shift, source_block[shift + 1]);
+        get_policy().replace(source_block + shift, source_block[shift + 1]);
       }
     }
 
@@ -115,9 +175,13 @@ class Vector {
     return True;
   }
 
-  // Changes the live element count while preserving retained values. The
-  // element type must support default construction because a larger size can
-  // expose new values. Use `retain` when only shrinking is required.
+  // Changes size while preserving values that remain within the new range.
+  // Growth within the current capacity does not replace the allocation. Every
+  // added value is value initialized. Shrinking, including to zero, retains the
+  // allocation while the policy retires each removed value.
+  //
+  // The value type must support default construction because this operation can
+  // grow. `retain()` supports shrinking types without a default constructor.
   constexpr auto resize(Count new_size) -> void
     requires(__is_constructible(type))
   {
@@ -131,20 +195,45 @@ class Vector {
     }
 
     ensure_capacity(new_size);
-    if constexpr (!__is_trivially_constructible(type)) {
-      for (Count index = size; index < new_size; index++) {
-        construct_at(source_block + index, [] { return type(); });
-      }
+    for (Count index = size; index < new_size; index++) {
+      get_policy().construct(source_block + index, [] { return type(); });
     }
 
     size = new_size;
   }
 
-  // Keeps a clipped subrange without allocating or requiring a default value.
-  // The retained element at `start` becomes index zero. A nonzero start
-  // relocates every retained value, so existing pointers and references no
-  // longer designate vector elements. A zero start preserves access to the
-  // retained prefix and retires only its former tail.
+  // Changes size without preserving current values. The allocation is reused
+  // only when `new_size` is greater than half capacity and does not exceed
+  // capacity. Every other nonzero size resets the Vector before asking its
+  // policy for replacement capacity, avoiding a copy and allowing the policy to
+  // select storage for the new size.
+  //
+  // A requested size of zero sets the Vector to its empty representation. The
+  // operation is limited to trivial value lifetimes so policies can discard or
+  // expose storage without an observable lifetime transition. Added values
+  // have unspecified state and must be completely overwritten before they are
+  // read.
+  constexpr auto forgetful_resize(Count new_size) -> void
+    requires(
+        __is_trivially_constructible(type) && __is_trivially_destructible(type))
+  {
+    if (new_size <= capacity && new_size > (capacity >> 1)) {
+      size = new_size;
+      return;
+    }
+
+    reset();
+    ensure_capacity(new_size);
+    size = new_size;
+  }
+
+  // Destructively slices the stored values without supporting extension.
+  // `start` removes values from the front and `count` is clipped to the
+  // remaining range. A start outside the current size or a count of zero clears
+  // the Vector while retaining its allocation.
+  //
+  // A nonzero start moves retained values at O(n) cost. No allocation occurs
+  // and capacity remains unchanged. The policy retires every omitted value.
   constexpr auto retain(Count start, Count count) -> void {
     if (start >= size || count == 0) {
       clear();
@@ -157,7 +246,7 @@ class Vector {
       if constexpr (__is_trivially_copyable(type)) {
         if consteval {
           for (Count index = 0; index < retained; index++) {
-            replace_relocated(
+            get_policy().replace(
                 source_block + index, source_block[start + index]);
           }
         } else {
@@ -165,7 +254,8 @@ class Vector {
         }
       } else {
         for (Count index = 0; index < retained; index++) {
-          replace_relocated(source_block + index, source_block[start + index]);
+          get_policy().replace(
+              source_block + index, source_block[start + index]);
         }
       }
     }
@@ -174,25 +264,62 @@ class Vector {
     size = retained;
   }
 
+  // Removes every current value while retaining capacity for reuse. Each policy
+  // applies its own retirement semantics.
   constexpr auto clear() -> void {
     retire_range(0, size);
     size = 0;
+  }
+
+  // Returns the Vector to its allocation free empty representation. The policy
+  // handles every current value lifetime and decides when detached storage can
+  // be reclaimed.
+  constexpr auto reset() -> void {
+    if (source_block) {
+      get_policy().release(source_block, size);
+    }
+
+    source_block = nullptr;
+    size = 0;
+    capacity = 0;
+  }
+
+  // Reserves capacity for at least `required_size` values without changing size
+  // or values. Existing references remain current when the request fits the
+  // present allocation. Growth relocates every current value.
+  constexpr auto ensure_capacity(Count required_size) -> void {
+    if (required_size <= capacity) {
+      return;
+    }
+
+    const Count requested_capacity =
+        get_policy().next_capacity(capacity, required_size);
+    auto allocation = get_policy().allocate(requested_capacity);
+    replace_allocation(static_cast<decltype(allocation)&&>(allocation));
   }
 
   constexpr auto contains(const type& data) const -> Bool {
     return get_view().contains(data);
   }
 
-  constexpr auto at(Count index) const -> const type& {
+  // Returns the value at `index`, or None when the index is outside the current
+  // size. The returned reference remains current until an operation replaces
+  // the allocation or relocates or replaces the value at that address.
+  constexpr auto operator[](Count index) const -> Core::Option<const type&> {
+    if (index >= size) {
+      return {};
+    }
+
     return source_block[index];
   }
 
-  constexpr auto at(Count index) -> type& { return source_block[index]; }
-  constexpr auto operator[](Count index) const -> const type& {
-    return at(index);
-  }
+  constexpr auto operator[](Count index) -> Core::Option<type&> {
+    if (index >= size) {
+      return {};
+    }
 
-  constexpr auto operator[](Count index) -> type& { return at(index); }
+    return source_block[index];
+  }
 
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_capacity() const -> Count { return capacity; }
@@ -200,6 +327,10 @@ class Vector {
     return Core::View::Vector<type>(source_block, size);
   }
 
+  // Exposes the allocation start for unchecked pointer access. The caller keeps
+  // every index below the current size and reacquires the pointer after an
+  // operation that can replace or reset storage. Value removal can also change
+  // the value represented at an existing address.
   constexpr auto get_data() const -> const type* { return source_block; }
   constexpr auto get_data() -> type* { return source_block; }
   constexpr auto get_access() -> Core::Access::Vector<type> {
@@ -222,14 +353,23 @@ class Vector {
   constexpr ~Vector() = default;
 
   constexpr auto copy_from(const Vector& rhs) -> void {
-    ensure_capacity(rhs.size);
-    for (Count index = 0; index < rhs.size; index++) {
-      construct_at(source_block + index, [&rhs, index] {
-        return type(rhs.source_block[index]);
+    copy_from(rhs.get_view());
+  }
+
+  constexpr auto copy_from(Core::View::Vector<type> rhs) -> void {
+    if (rhs.get_size() == 0) {
+      reset();
+      return;
+    }
+
+    ensure_capacity(rhs.get_size());
+    for (Count index = 0; index < rhs.get_size(); index++) {
+      get_policy().construct(source_block + index, [&rhs, index] {
+        return type(rhs.get_data()[index]);
       });
     }
 
-    size = rhs.size;
+    size = rhs.get_size();
   }
 
   constexpr auto take(Vector&& rhs) -> void {
@@ -239,55 +379,6 @@ class Vector {
     rhs.source_block = nullptr;
     rhs.size = 0;
     rhs.capacity = 0;
-  }
-
-  constexpr auto reset_storage() -> void { release_storage(); }
-
-  constexpr auto reset_storage(Count requested_capacity) -> void {
-    release_storage();
-    if (requested_capacity == 0) {
-      return;
-    }
-
-    auto allocation = get_policy().allocate(requested_capacity);
-    source_block = allocation.get_data();
-    capacity = allocation.get_capacity();
-    get_policy().adopt(static_cast<decltype(allocation)&&>(allocation));
-  }
-
-  // Publishes a logical extent without invoking element lifetime operations.
-  // A policy exposes this primitive only when trivial values and its storage
-  // strategy make destructive resizing part of that policy's public contract.
-  constexpr auto set_forgetful_size(Count new_size) -> void
-    requires(
-        __is_trivially_constructible(type) && __is_trivially_destructible(type))
-  {
-    size = new_size;
-  }
-
-  constexpr auto prepend_copy(const type& data) -> type& {
-    if (size == 0) {
-      return insert(data);
-    }
-
-    // Moving a nonempty range in place would overlap live objects and require
-    // assignment. A new block supports nonassignable values and keeps every
-    // source alive until its replacement has been constructed.
-    const Count required = size + 1;
-    const Count requested =
-        required <= capacity ? capacity
-                             : get_policy().next_capacity(capacity, required);
-    auto allocation = get_policy().allocate(requested);
-
-    construct_at(allocation.get_data(), [&data] { return type(data); });
-    relocate_values(allocation.get_data() + 1, source_block, size);
-    retire_replaced_storage();
-
-    source_block = allocation.get_data();
-    capacity = allocation.get_capacity();
-    size = required;
-    get_policy().adopt(static_cast<decltype(allocation)&&>(allocation));
-    return source_block[0];
   }
 
   // Preserve impossible counts until the allocator reports failure. Wrapping
@@ -301,27 +392,37 @@ class Vector {
     return static_cast<policy_type&>(*this);
   }
 
-  template <typename factory_type>
-  constexpr auto construct_at(type* destination, factory_type&& factory)
-      -> type& {
-    return get_policy().construct(
-        destination, static_cast<factory_type&&>(factory));
-  }
-
-  constexpr auto construct_relocated(type* destination, type& source) -> void {
-    get_policy().relocate(destination, source);
-  }
-
-  constexpr auto replace_relocated(type* destination, type& source) -> void {
-    get_policy().replace(destination, source);
-  }
-
   constexpr auto retire_range(Count begin, Count end) -> void {
     if (begin == end) {
       return;
     }
 
+    // The nonempty range guarantees `source_block` designates current storage.
+    // Its policy decides whether retirement destroys or only detaches values.
     get_policy().retire(source_block + begin, end - begin);
+  }
+
+  template <typename factory_type>
+  constexpr auto insert_value(factory_type&& factory) -> type& {
+    const Count index = size;
+    const Count required_size = size + 1;
+    if (required_size <= capacity) {
+      get_policy().construct(
+          source_block + index, static_cast<factory_type&&>(factory));
+    } else {
+      const Count requested_capacity =
+          get_policy().next_capacity(capacity, required_size);
+      auto allocation = get_policy().allocate(requested_capacity);
+
+      // The source used by `factory` may be a current value. Construct the
+      // insertion before relocation can move from or retire that source.
+      get_policy().construct(
+          allocation.get_data() + index, static_cast<factory_type&&>(factory));
+      replace_allocation(static_cast<decltype(allocation)&&>(allocation));
+    }
+
+    size++;
+    return source_block[index];
   }
 
   constexpr auto relocate_values(type* destination, type* source, Count count)
@@ -335,56 +436,30 @@ class Vector {
     if constexpr (__is_trivially_copyable(type)) {
       if consteval {
         for (Count index = 0; index < count; index++) {
-          construct_relocated(destination + index, source[index]);
+          get_policy().relocate(destination + index, source[index]);
         }
       } else {
         memcpy(destination, source, sizeof(type) * count);
       }
     } else {
       for (Count index = 0; index < count; index++) {
-        construct_relocated(destination + index, source[index]);
+        get_policy().relocate(destination + index, source[index]);
       }
     }
   }
 
-  constexpr auto retire_replaced_storage() -> void {
+  template <typename allocation_type>
+  constexpr auto replace_allocation(allocation_type&& allocation) -> void {
+    // Relocation completes before the policy can reclaim the former allocation.
+    // Publish the replacement only after every current value has reached it.
+    relocate_values(allocation.get_data(), source_block, size);
     if (source_block) {
       get_policy().release(source_block, size);
     }
-  }
 
-  constexpr auto release_storage() -> void {
-    retire_replaced_storage();
-    source_block = nullptr;
-    size = 0;
-    capacity = 0;
-  }
-
-  template <typename... argument_types>
-  constexpr auto ensure_capacity(
-      Count required_size,
-      argument_types&&... arguments) -> Bool {
-    if (required_size <= capacity) {
-      return False;
-    }
-
-    const Count requested = get_policy().next_capacity(capacity, required_size);
-    auto allocation = get_policy().allocate(requested);
-    if constexpr (sizeof...(arguments) != 0) {
-      // An inserted argument may refer to a current element. Constructing the
-      // pending value first keeps its source alive until it reaches the new
-      // block, before relocation can destroy or move from that source.
-      construct_at(allocation.get_data() + size, [&arguments...] {
-        return type(static_cast<argument_types&&>(arguments)...);
-      });
-    }
-
-    relocate_values(allocation.get_data(), source_block, size);
-    retire_replaced_storage();
     source_block = allocation.get_data();
     capacity = allocation.get_capacity();
-    get_policy().adopt(static_cast<decltype(allocation)&&>(allocation));
-    return True;
+    get_policy().adopt(static_cast<allocation_type&&>(allocation));
   }
 
   type* source_block = nullptr;

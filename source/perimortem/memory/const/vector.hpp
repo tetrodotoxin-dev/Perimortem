@@ -33,7 +33,7 @@ class Vector final : public Container::Vector<Vector<type>, type> {
   constexpr ~Vector() = default;
 
   consteval auto insert(type value) -> type& {
-    return Base::emplace(static_cast<type&&>(value));
+    return Base::insert(static_cast<type&&>(value));
   }
 
   consteval auto operator=(const Vector& rhs) -> Vector& {
@@ -47,7 +47,7 @@ class Vector final : public Container::Vector<Vector<type>, type> {
 
   consteval auto operator=(Vector&& rhs) -> Vector& {
     if (this != &rhs) {
-      Base::reset_storage();
+      Base::reset();
       allocation = static_cast<Toolchain::Memory::ConstAllocation<type>&&>(
           rhs.allocation);
       Base::take(static_cast<Base&&>(rhs));
@@ -56,10 +56,8 @@ class Vector final : public Container::Vector<Vector<type>, type> {
     return *this;
   }
 
-  consteval auto reset() -> void { Base::reset_storage(); }
-
  private:
-  // ConstAllocation returns the requested element count exactly. Geometric
+  // ConstAllocation returns the requested value count exactly. Geometric
   // growth limits repeated allocation during constant evaluation.
   static constexpr auto next_capacity(Count current, Count required) -> Count {
     const Count doubled = current > Count(-1) / 2 ? Count(-1) : current * 2;
@@ -84,22 +82,30 @@ class Vector final : public Container::Vector<Vector<type>, type> {
     return *destination;
   }
 
-  // Moving transfers nested constant allocations before the old capacity is
-  // deleted. Copying here would replace the stable pointees retained by users.
+  // ConstAllocation keeps every capacity slot alive. Moving from `source` into
+  // `destination` transfers nested constant allocations before the old
+  // capacity is deleted. Copying would duplicate ownership of pointees retained
+  // by users.
   static consteval auto relocate(type* destination, type& source) -> void {
     *destination = static_cast<type&&>(source);
   }
 
+  // Both locations already contain live values. Move assignment updates
+  // `destination` without beginning another lifetime in the capacity slot.
   static consteval auto replace(type* destination, type& source) -> void {
     *destination = static_cast<type&&>(source);
   }
 
+  // Every capacity slot remains live until ConstAllocation is deleted. Restore
+  // retired values to their default state instead of ending their lifetimes.
   static consteval auto retire(type* data, Count size) -> void {
     for (Count index = 0; index < size; index++) {
       data[index] = type();
     }
   }
 
+  // ConstAllocation owns the complete capacity, so releasing the Vector resets
+  // that one owner rather than retiring values individually.
   consteval auto release(type*, Count) -> void {
     allocation = Toolchain::Memory::ConstAllocation<type>();
   }

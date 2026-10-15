@@ -9,10 +9,14 @@
 
 namespace Perimortem::Memory::Thread {
 
-// Thread Vector owns values in the current thread's Bibliotheca archive. Every
-// element lifetime ends before its block is remitted. The vector remains in its
-// allocating thread through access, growth and destruction. Crossing a thread
-// boundary requires copying its values into Global storage.
+// Thread Vector uses the current thread's Bibliotheca archive. This avoids
+// process wide allocation synchronization and reuses the archive's size class
+// blocks. Every value lifetime ends before its block is remitted. A Vector
+// holding storage remains in its allocating thread through access, growth and
+// destruction. Crossing a thread boundary requires copying its values into
+// Global storage.
+//
+// Default construction uses the capability's empty representation.
 template <typename type>
 class Vector final : public Container::Vector<Vector<type>, type> {
   using Base = Container::Vector<Vector<type>, type>;
@@ -20,17 +24,27 @@ class Vector final : public Container::Vector<Vector<type>, type> {
 
  public:
   constexpr Vector() = default;
-  // Capacity construction allocates without creating elements. Explicit
-  // construction prevents an integer from silently reserving storage.
+  // Capacity construction can allocate without changing size or creating
+  // values. Explicit construction prevents an integer from silently reserving
+  // storage.
   explicit Vector(Count reserved_capacity) {
-    Base::reset_storage(reserved_capacity);
+    Base::ensure_capacity(reserved_capacity);
   }
 
   Vector(const Vector& rhs) { Base::copy_from(rhs); }
 
+  // The caller keeps the View storage valid until construction returns. Vector
+  // copies those values into independent storage that it owns. Explicit
+  // construction exposes the possible allocation at the call site.
+  explicit Vector(Core::View::Vector<type> source)
+    requires(__is_constructible(type, const type&))
+  {
+    Base::copy_from(source);
+  }
+
   constexpr Vector(Vector&& rhs) { Base::take(static_cast<Base&&>(rhs)); }
 
-  constexpr ~Vector() { Base::reset_storage(); }
+  constexpr ~Vector() { Base::reset(); }
 
   auto operator=(const Vector& rhs) -> Vector& {
     if (this != &rhs) {
@@ -43,30 +57,21 @@ class Vector final : public Container::Vector<Vector<type>, type> {
 
   auto operator=(Vector&& rhs) -> Vector& {
     if (this != &rhs) {
-      Base::reset_storage();
+      Base::reset();
       Base::take(static_cast<Base&&>(rhs));
     }
 
     return *this;
   }
 
-  auto reset() -> void { Base::reset_storage(); }
-
-  // Changes size without preserving the allocation or its existing values.
-  // Retaining a block above half capacity avoids Bibliotheca checkout churn.
-  // Crossing capacity or falling to half requests a better fitting size class.
-  constexpr auto forgetful_resize(Count required_size) -> void
-    requires(
-        __is_trivially_constructible(type) && __is_trivially_destructible(type))
+  auto operator=(Core::View::Vector<type> source) -> Vector&
+    requires(__is_constructible(type, const type&))
   {
-    const Count capacity = Base::get_capacity();
-    if (required_size <= capacity && required_size > (capacity >> 1)) {
-      Base::set_forgetful_size(required_size);
-      return;
-    }
-
-    Base::reset_storage(required_size);
-    Base::set_forgetful_size(required_size);
+    // Materialize the borrowed values before releasing this block so `source`
+    // may refer to this Vector.
+    Vector replacement(source);
+    *this = static_cast<Vector&&>(replacement);
+    return *this;
   }
 
  private:
@@ -95,9 +100,10 @@ class Vector final : public Container::Vector<Vector<type>, type> {
         destination, static_cast<factory_type&&>(factory));
   }
 
-  // Bibliotheca reclaims the source block immediately after relocation. Moving
-  // can therefore transfer an available owner without preserving its old state.
-  // A type that cannot be constructed from an rvalue falls back to copying.
+  // Growth constructs each current value in uninitialized storage at
+  // `destination`. `source` remains alive in the old Bibliotheca block until
+  // migration completes. Moving transfers owned state before that block is
+  // remitted. A value that cannot move is copied without changing `source`.
   static constexpr auto relocate(type* destination, type& source) -> void {
     if constexpr (__is_constructible(type, type&&)) {
       construct(
@@ -107,11 +113,15 @@ class Vector final : public Container::Vector<Vector<type>, type> {
     }
   }
 
+  // Reusing an occupied address requires the former value lifetime to end
+  // before the replacement is constructed at `destination`.
   static constexpr auto replace(type* destination, type& source) -> void {
     retire(destination, 1);
     relocate(destination, source);
   }
 
+  // Bibliotheca manages raw blocks and cannot end C++ value lifetimes. Retire
+  // every live value before its storage is returned or reused.
   static constexpr auto retire(type* data, Count size) -> void {
     if constexpr (!__is_trivially_destructible(type)) {
       for (Count index = 0; index < size; index++) {
@@ -120,6 +130,7 @@ class Vector final : public Container::Vector<Vector<type>, type> {
     }
   }
 
+  // A block returns to Bibliotheca only after every value in it is retired.
   static auto release(type* data, Count size) -> void {
     if (!data) {
       return;

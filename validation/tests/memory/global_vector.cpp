@@ -14,10 +14,11 @@ using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 
 static_assert(__is_constructible(Global::Vector<U32>));
+static_assert(__is_constructible(Global::Vector<U32>, View::Vector<U32>));
 template <typename type>
 static constexpr bool supports_forgetful_resize =
     requires(Global::Vector<type>& values) { values.forgetful_resize(1); };
-static_assert(!supports_forgetful_resize<U32>);
+static_assert(supports_forgetful_resize<U32>);
 static_assert(
     sizeof(Global::Vector<U32>) ==
     Data::align<alignof(Count)>(sizeof(U32*)) + sizeof(Count) * 2);
@@ -35,15 +36,19 @@ static Global::Vector<U32> transferred_values;
 
 class GlobalOwner {
  public:
+  // Construction acquires one process allocation. A scalar must not implicitly
+  // create an owner whose destructor releases that allocation.
   explicit GlobalOwner(U32 value) : value(allocate(value)) {}
   GlobalOwner(const GlobalOwner& other)
       : value(other.value ? allocate(*other.value) : nullptr) {
     copies++;
   }
+
   GlobalOwner(GlobalOwner&& other) {
     moves++;
     Data::swap(value, other.value);
   }
+
   ~GlobalOwner() {
     if (value) {
       Allocator::Global::release(Data::cast<U8>(value));
@@ -91,7 +96,7 @@ static auto create_global_vector(View::Bytes) -> void {
 static auto create_global_owners(View::Bytes) -> void {
   Global::Vector<GlobalOwner> created;
   for (U32 value = 0; value < 128; value++) {
-    created.emplace(GlobalOwner(value));
+    created.insert(GlobalOwner(value));
   }
 
   transferred_owners = static_cast<Global::Vector<GlobalOwner>&&>(created);
@@ -108,7 +113,22 @@ VALIDATION_TEST(GlobalVector, value_semantics) {
   EXPECT_EQ(original.get_size(), Count(2));
   EXPECT_EQ(copied.get_size(), Count(3));
   EXPECT(copied.get_data() != original.get_data());
-  EXPECT_EQ(copied[2], U32(16));
+  EXPECT_EQ(copied.get_data()[2], U32(16));
+}
+
+VALIDATION_TEST(GlobalVector, view_materialization) {
+  U32 source[] = {4, 8, 16};
+  Global::Vector<U32> values(View::Vector<U32>(source, 3));
+
+  EXPECT_EQ(values.get_size(), Count(3));
+  EXPECT_EQ(values.get_data()[0], U32(4));
+  EXPECT_EQ(values.get_data()[1], U32(8));
+  EXPECT_EQ(values.get_data()[2], U32(16));
+
+  values = values.get_view().slice(1, 2);
+  EXPECT_EQ(values.get_size(), Count(2));
+  EXPECT_EQ(values.get_data()[0], U32(8));
+  EXPECT_EQ(values.get_data()[1], U32(16));
 }
 
 VALIDATION_TEST(GlobalVector, cross_thread_transfer) {
@@ -117,10 +137,10 @@ VALIDATION_TEST(GlobalVector, cross_thread_transfer) {
   worker.join();
 
   EXPECT_EQ(transferred_values.get_size(), Count(2));
-  EXPECT_EQ(transferred_values[0], U32(4));
-  EXPECT_EQ(transferred_values[1], U32(8));
+  EXPECT_EQ(transferred_values.get_data()[0], U32(4));
+  EXPECT_EQ(transferred_values.get_data()[1], U32(8));
   transferred_values.insert(16);
-  EXPECT_EQ(transferred_values[2], U32(16));
+  EXPECT_EQ(transferred_values.get_data()[2], U32(16));
 
   // Main thread release proves that storage ownership is independent of the
   // thread that populated the vector.
@@ -129,7 +149,7 @@ VALIDATION_TEST(GlobalVector, cross_thread_transfer) {
 }
 
 // Reallocation consumes the old process heap objects rather than copying them.
-// Releasing the completed vector on this thread proves that both its element
+// Releasing the completed Vector on this thread proves that both its value
 // resources and backing allocation can cross the worker boundary.
 VALIDATION_TEST(GlobalVector, owning_cross_thread_reallocation) {
   GlobalOwner::reset_counts();
@@ -142,8 +162,8 @@ VALIDATION_TEST(GlobalVector, owning_cross_thread_reallocation) {
   EXPECT_EQ(GlobalOwner::get_copies(), Count(0));
   EXPECT(GlobalOwner::get_moves() > transferred_owners.get_size());
   for (Count index = 0; index < transferred_owners.get_size(); index++) {
-    EXPECT_EQ(transferred_owners[index].get_value(), U32(index));
-    EXPECT(transferred_owners[index].has_valid_location());
+    EXPECT_EQ(transferred_owners.get_data()[index].get_value(), U32(index));
+    EXPECT(transferred_owners.get_data()[index].has_valid_location());
   }
 
   EXPECT(transferred_owners.remove(0));

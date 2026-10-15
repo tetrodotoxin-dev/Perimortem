@@ -31,16 +31,20 @@ class Bytes final : public Container::Bytes<Bytes> {
   // The Arena establishes the Bytes object's allocation and lifetime policy.
   // Explicit construction requires callers to name the owning Arena even in the
   // empty representation.
-  constexpr explicit Bytes(Allocator::Arena& arena) : arena(&arena) {}
-  Bytes(Allocator::Arena& arena, Count reserved_capacity) : arena(&arena) {
+  constexpr explicit Bytes(Allocator::Arena& selected_arena)
+      : arena(selected_arena) {}
+  Bytes(Allocator::Arena& selected_arena, Count reserved_capacity)
+      : arena(selected_arena) {
     Base::ensure_capacity(reserved_capacity);
   }
 
-  Bytes(Allocator::Arena& arena, Core::View::Bytes view) : arena(&arena) {
+  Bytes(Allocator::Arena& selected_arena, Core::View::Bytes view)
+      : arena(selected_arena) {
     Base::copy(view);
   }
 
-  Bytes(Allocator::Arena& arena, const Bytes& rhs) : arena(&arena) {
+  Bytes(Allocator::Arena& selected_arena, const Bytes& rhs)
+      : arena(selected_arena) {
     Base::copy(rhs.get_view());
   }
 
@@ -65,7 +69,7 @@ class Bytes final : public Container::Bytes<Bytes> {
     return *this;
   }
 
-  constexpr auto get_arena() const -> Allocator::Arena& { return *arena; }
+  constexpr auto get_arena() const -> Allocator::Arena& { return arena; }
 
  private:
   // Arena cannot extend an existing block. Geometric growth reduces retained
@@ -78,13 +82,13 @@ class Bytes final : public Container::Bytes<Bytes> {
   }
 
   auto allocate(Count requested_bytes) -> Allocation<U8> {
-    auto block = arena->allocate(requested_bytes);
+    auto block = arena.allocate(requested_bytes);
     return Allocation<U8>(block.get_data(), block.get_size());
   }
 
   static constexpr auto release(U8*) -> void {}
 
-  Allocator::Arena* arena;
+  Allocator::Arena& arena;
 };
 
 }  // namespace Perimortem::Memory::Managed

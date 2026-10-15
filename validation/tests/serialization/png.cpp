@@ -266,7 +266,7 @@ VALIDATION_TEST(SerializationPng, roundtrip_64x64) {
   source_pixels.resize(width * height);
   for (Count row = 0; row < height; row++) {
     for (Count col = 0; col < width; col++) {
-      source_pixels[row * width + col] =
+      source_pixels.get_data()[row * width + col] =
           Rgba8::from_rgba(U8(col * 8), U8(row * 8), U8(128), U8(255));
     }
   }

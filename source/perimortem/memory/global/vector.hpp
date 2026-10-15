@@ -9,11 +9,14 @@
 
 namespace Perimortem::Memory::Global {
 
-// Global Vector owns values in process heap storage that can be released from
-// any thread. This supports explicit transfer across thread boundaries at the
-// cost of process allocator synchronization. Concurrent access to one vector
-// still requires synchronization. Each element must independently permit
-// access and destruction in the receiving thread.
+// Global Vector uses the process heap so allocation and release can occur on
+// different threads. This supports explicit transfer across thread boundaries
+// at the cost of the process allocator's synchronization. The policy does not
+// make concurrent access to one Vector safe, so sharing values across threads
+// still requires proper locking. Each value must independently permit access
+// and destruction in the receiving thread.
+//
+// Default construction uses the capability's empty representation.
 template <typename type>
 class Vector final : public Container::Vector<Vector<type>, type> {
   using Base = Container::Vector<Vector<type>, type>;
@@ -21,17 +24,27 @@ class Vector final : public Container::Vector<Vector<type>, type> {
 
  public:
   constexpr Vector() = default;
-  // Capacity construction allocates without creating elements. Explicit
-  // construction prevents an integer from silently reserving storage.
+  // Capacity construction can allocate without changing size or creating
+  // values. Explicit construction prevents an integer from silently reserving
+  // storage.
   explicit Vector(Count reserved_capacity) {
-    Base::reset_storage(reserved_capacity);
+    Base::ensure_capacity(reserved_capacity);
   }
 
   Vector(const Vector& rhs) { Base::copy_from(rhs); }
 
+  // The caller keeps the View storage valid until construction returns. Vector
+  // copies those values into independent storage that it owns. Explicit
+  // construction exposes the possible allocation at the call site.
+  explicit Vector(Core::View::Vector<type> source)
+    requires(__is_constructible(type, const type&))
+  {
+    Base::copy_from(source);
+  }
+
   constexpr Vector(Vector&& rhs) { Base::take(static_cast<Base&&>(rhs)); }
 
-  constexpr ~Vector() { Base::reset_storage(); }
+  constexpr ~Vector() { Base::reset(); }
 
   auto operator=(const Vector& rhs) -> Vector& {
     if (this != &rhs) {
@@ -44,18 +57,26 @@ class Vector final : public Container::Vector<Vector<type>, type> {
 
   auto operator=(Vector&& rhs) -> Vector& {
     if (this != &rhs) {
-      Base::reset_storage();
+      Base::reset();
       Base::take(static_cast<Base&&>(rhs));
     }
 
     return *this;
   }
 
-  auto reset() -> void { Base::reset_storage(); }
+  auto operator=(Core::View::Vector<type> source) -> Vector&
+    requires(__is_constructible(type, const type&))
+  {
+    // Materialize the borrowed values before releasing this block so `source`
+    // may refer to this Vector.
+    Vector replacement(source);
+    *this = static_cast<Vector&&>(replacement);
+    return *this;
+  }
 
  private:
   // The process heap publishes the requested extent exactly. Geometric growth
-  // amortizes allocation and element relocation across repeated insertions.
+  // amortizes allocation and value relocation across repeated insertions.
   static constexpr auto next_capacity(Count current, Count required) -> Count {
     constexpr Count initial_capacity = 32;
     const Count doubled = current > Count(-1) / 2 ? Count(-1) : current * 2;
@@ -81,9 +102,10 @@ class Vector final : public Container::Vector<Vector<type>, type> {
         destination, static_cast<factory_type&&>(factory));
   }
 
-  // The process heap block is released immediately after relocation. Moving
-  // can therefore transfer an available owner without preserving its old state.
-  // A type that cannot be constructed from an rvalue falls back to copying.
+  // Growth constructs each current value in uninitialized storage at
+  // `destination`. `source` remains alive in the old process heap block until
+  // migration completes. Moving transfers owned state before that block is
+  // released. A value that cannot move is copied without changing `source`.
   static constexpr auto relocate(type* destination, type& source) -> void {
     if constexpr (__is_constructible(type, type&&)) {
       construct(
@@ -93,11 +115,15 @@ class Vector final : public Container::Vector<Vector<type>, type> {
     }
   }
 
+  // Reusing an occupied address requires the former value lifetime to end
+  // before the replacement is constructed at `destination`.
   static constexpr auto replace(type* destination, type& source) -> void {
     retire(destination, 1);
     relocate(destination, source);
   }
 
+  // The process heap manages raw blocks and cannot end C++ value lifetimes.
+  // Retire every live value before its storage is released or reused.
   static constexpr auto retire(type* data, Count size) -> void {
     if constexpr (!__is_trivially_destructible(type)) {
       for (Count index = 0; index < size; index++) {
@@ -106,6 +132,7 @@ class Vector final : public Container::Vector<Vector<type>, type> {
     }
   }
 
+  // A process heap block is released only after every value in it is retired.
   static auto release(type* data, Count size) -> void {
     retire(data, size);
     Allocator::Global::release(Core::Data::cast<U8>(data));

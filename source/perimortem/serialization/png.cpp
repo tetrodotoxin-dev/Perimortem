@@ -623,18 +623,19 @@ constexpr auto convert_to_pixels(
   output.resize(pixel_count);
 
   auto data = raw_pixels.get_data();
+  auto output_data = output.get_data();
   for (Count pixel_index = 0; pixel_index < pixel_count; pixel_index++) {
     Count source_offset = pixel_index * source_channels;
     switch (color_type) {
     case ColorType::Greyscale:
-      output[pixel_index] = Rgba8::from_grey(data[source_offset]);
+      output_data[pixel_index] = Rgba8::from_grey(data[source_offset]);
       break;
     case ColorType::GreyscaleAlpha:
-      output[pixel_index] =
+      output_data[pixel_index] =
           Rgba8::from_grey_alpha(data[source_offset], data[source_offset + 1]);
       break;
     case ColorType::Rgb:
-      output[pixel_index] = Rgba8::from_rgb(
+      output_data[pixel_index] = Rgba8::from_rgb(
           data[source_offset + 0], data[source_offset + 1],
           data[source_offset + 2]);
       break;
@@ -654,7 +655,7 @@ constexpr auto convert_to_pixels(
         return False;
       }
 
-      output[pixel_index] = Rgba8::from_rgb(
+      output_data[pixel_index] = Rgba8::from_rgb(
           palette[palette_offset + 0], palette[palette_offset + 1],
           palette[palette_offset + 2]);
       break;

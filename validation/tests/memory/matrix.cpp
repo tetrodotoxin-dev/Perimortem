@@ -28,7 +28,7 @@ VALIDATION_TEST(MemoryMatrix, empty_value) {
 // Moving the result carries both storage and the Domain that indexes it.
 VALIDATION_TEST(MemoryMatrix, projects_owned_values) {
   Thread::Vector<Rgba8> values;
-  values.emplace(Rgba8::from_rgba(17, 34, 51, 68));
+  values.insert(Rgba8::from_rgba(17, 34, 51, 68));
 
   const auto* data = values.get_data();
   const Count requests = Allocator::Bibliotheca::check_out_requests();
@@ -65,9 +65,9 @@ VALIDATION_TEST(MemoryMatrix, zero_domain) {
 
 VALIDATION_TEST(MemoryMatrix, mixed_boundary_access) {
   Thread::Vector<Rgba8> values;
-  values.emplace(Rgba8::from_rgb(1, 0, 0));
-  values.emplace(Rgba8::from_rgb(2, 0, 0));
-  values.emplace(Rgba8::from_rgb(3, 0, 0));
+  values.insert(Rgba8::from_rgb(1, 0, 0));
+  values.insert(Rgba8::from_rgb(2, 0, 0));
+  values.insert(Rgba8::from_rgb(3, 0, 0));
 
   Domain<2, Boundary::Wrap, Boundary::Clip> domain(Size<U32, 2>({{3, 1}}));
   auto matrix = Matrix<Rgba8, Boundary::Wrap, Boundary::Clip>::create(
@@ -80,10 +80,10 @@ VALIDATION_TEST(MemoryMatrix, mixed_boundary_access) {
 
 VALIDATION_TEST(MemoryMatrix, uniform_boundary_access) {
   Thread::Vector<Rgba8> values;
-  values.emplace(Rgba8::from_rgb(1, 0, 0));
-  values.emplace(Rgba8::from_rgb(2, 0, 0));
-  values.emplace(Rgba8::from_rgb(3, 0, 0));
-  values.emplace(Rgba8::from_rgb(4, 0, 0));
+  values.insert(Rgba8::from_rgb(1, 0, 0));
+  values.insert(Rgba8::from_rgb(2, 0, 0));
+  values.insert(Rgba8::from_rgb(3, 0, 0));
+  values.insert(Rgba8::from_rgb(4, 0, 0));
 
   auto matrix = Matrix<Rgba8, Boundary::Wrap>::create(
       Domain<2, Boundary::Wrap, Boundary::Wrap>(Size<U32, 2>({{2, 2}})),
@@ -111,7 +111,7 @@ VALIDATION_TEST(MemoryMatrix, swaps_complete_values) {
 
 VALIDATION_TEST(MemoryMatrix, copies_and_pads) {
   Thread::Vector<Rgba8> values;
-  values.emplace(Rgba8::from_rgb(1, 2, 3));
+  values.insert(Rgba8::from_rgb(1, 2, 3));
 
   auto matrix = Matrix<Rgba8>::create(
       Domain<2, Boundary::Clip, Boundary::Clip>(Size<U32, 2>({{2, 1}})),
@@ -141,7 +141,7 @@ VALIDATION_TEST(MemoryMatrix, truncates_source_view) {
   Thread::Vector<Rgba8> values;
   values.resize(32);
 
-  values[0] = Rgba8::from_rgb(1, 2, 3);
+  values.get_data()[0] = Rgba8::from_rgb(1, 2, 3);
 
   const auto* data = values.get_data();
   auto matrix = Matrix<Rgba8>::create(
@@ -155,7 +155,7 @@ VALIDATION_TEST(MemoryMatrix, truncates_source_view) {
 
 VALIDATION_TEST(MemoryMatrix, bad_projection_dimensions) {
   Thread::Vector<Rgba8> values;
-  values.emplace(Rgba8::from_rgb(1, 2, 3));
+  values.insert(Rgba8::from_rgb(1, 2, 3));
 
   const auto* data = values.get_data();
   auto projected = Matrix<Rgba8>::project(

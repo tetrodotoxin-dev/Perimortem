@@ -17,28 +17,27 @@ namespace Perimortem::Memory::Allocator {
 // and discarded together, such as a deserialized JSON document or one compiler
 // transaction.
 //
-// `construct()` begins a C++ object lifetime in Arena storage. Reset ends every
-// access promise without calling individual destructors. A later allocation can
-// reuse retained storage and thereby end the former C++ object lifetime. Arena
-// objects must therefore release no independently owned resources from their
-// destructors. In particular, rented Bibliotheca storage must be remitted
-// before the Arena is reset or destroyed.
+// `construct()` begins a C++ object lifetime in Arena storage. `Arena::reset()`
+// ends every access promise without calling individual destructors. A later
+// allocation can reuse retained storage and thereby end the former C++ object
+// lifetime. Arena values must therefore release no independently owned
+// resources from their destructors. In particular, rented Bibliotheca storage
+// must be remitted before the Arena is reset or destroyed.
+//
+// Arena has a stable identity. Objects and Managed containers retain its
+// address, so copying or moving an Arena would separate those borrowers from
+// the storage lifetime they joined.
 class Arena {
  public:
-  // Attempt to request blocks in 32k pages including the preface and a previous
-  // pointer.
+  // Ordinary requests share 32 KiB pages. Each page includes the link used to
+  // return earlier pages. A larger request receives a dedicated larger page.
   static constexpr U64 page_size = (1 << 15);
   static constexpr U64 arena_alignment = sizeof(Count);
 
   EXPORTED(PERIMORTEM) Arena();
-
-  constexpr Arena(Arena&& arena) : rented_block(nullptr), usage(0) {
-    Perimortem::Core::Data::swap(rented_block, arena.rented_block);
-    Perimortem::Core::Data::swap(usage, arena.usage);
-  }
-
   EXPORTED(PERIMORTEM) ~Arena();
   Arena(const Arena&) = delete;
+  Arena(Arena&&) = delete;
   auto operator=(const Arena&) -> Arena& = delete;
   auto operator=(Arena&&) -> Arena& = delete;
 
@@ -67,10 +66,8 @@ class Arena {
     return *Core::Data::cast<type>(allocate(sizeof(type)).get_data());
   }
 
-  // Reserves storage for a range of object without beginning their lifetime.
-  //
-  // Useful for allocating a range of POD types that will immediately be
-  // assigned.
+  // Reserves aligned storage for `size` values without beginning their
+  // lifetimes. The caller constructs every value before access.
   template <typename type>
   auto reserve(Count size) -> Core::Access::Vector<type> {
     static_assert(alignof(type) <= arena_alignment);
@@ -106,8 +103,8 @@ class Arena {
         ptr, static_cast<factory_type&&>(factory));
   }
 
-  // Creates a duplicate of the target buffer in the current arena.
-  // Useful for migrating data from one arena to another.
+  // Copies every source value into storage owned by this Arena. The returned
+  // View remains accessible until this Arena resets or is destroyed.
   auto copy(Core::View::Bytes source) -> Core::View::Bytes {
     if (source.is_empty()) {
       return Perimortem::Core::View::Bytes();
