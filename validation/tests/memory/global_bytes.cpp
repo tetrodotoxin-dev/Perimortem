@@ -32,7 +32,7 @@ static Global::Bytes transferred_bytes;
 
 static auto create_global_bytes(View::Bytes source) -> void {
   Global::Bytes created(source);
-  transferred_bytes = static_cast<Global::Bytes&&>(created);
+  transferred_bytes = Data::take(created);
 }
 
 VALIDATION_TEST(GlobalBytes, value_semantics) {
@@ -54,8 +54,8 @@ VALIDATION_TEST(GlobalBytes, cross_thread_transfer) {
   transferred_bytes.append(U8('!'));
   EXPECT_EQ(transferred_bytes.get_view(), "worker owned!"_view);
 
-  // Main thread release proves that process heap ownership is independent of
-  // the worker that allocated and populated the values.
+  // Main thread release proves that the process heap block can be released by a
+  // thread other than the worker that allocated and populated the values.
   transferred_bytes.reset();
   EXPECT(!transferred_bytes.get_view().get_data());
 }

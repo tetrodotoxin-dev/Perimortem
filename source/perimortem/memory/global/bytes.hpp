@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "perimortem/core/data.hpp"
 #include "perimortem/memory/allocator/global.hpp"
 #include "perimortem/memory/container/bytes.hpp"
 
@@ -28,13 +29,13 @@ class Bytes final : public Container::Bytes<Bytes> {
   }
 
   // The caller keeps the View storage valid until construction returns. The
-  // Bytes object copies those values into independent storage that it owns.
-  // Explicit construction exposes the possible allocation at the call site.
+  // Bytes object copies those values into a new process heap block. Explicit
+  // construction exposes the possible allocation at the call site.
   explicit Bytes(Core::View::Bytes view) { Base::copy(view); }
 
   Bytes(const Bytes& rhs) { Base::copy(rhs.get_view()); }
 
-  constexpr Bytes(Bytes&& rhs) { Base::take(static_cast<Base&&>(rhs)); }
+  constexpr Bytes(Bytes&& rhs) { Base::take(Core::Data::take(rhs)); }
 
   constexpr ~Bytes() = default;
 
@@ -54,7 +55,7 @@ class Bytes final : public Container::Bytes<Bytes> {
   auto operator=(Bytes&& rhs) -> Bytes& {
     if (this != &rhs) {
       Base::reset();
-      Base::take(static_cast<Base&&>(rhs));
+      Base::take(Core::Data::take(rhs));
     }
 
     return *this;

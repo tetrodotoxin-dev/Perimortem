@@ -4,16 +4,17 @@
 #pragma once
 
 #include "perimortem/core/access/bytes.h"
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/option.hpp"
 #include "perimortem/core/view/bytes.h"
 
 namespace Perimortem::Memory::Container {
 
-// Bytes owns contiguous mutable U8 values with independent size and allocation
-// capacity. It separates range and overlap behavior from
+// Bytes represents contiguous mutable U8 values with independent size and
+// allocation capacity. It separates range and overlap behavior from
 // `policy_type` allocation, growth and release so storage policies can change
-// ownership and lifetime without reimplementing value operations.
+// allocation and lifetime rules without reimplementing value operations.
 //
 // The empty representation is guaranteed to be allocation free. A wrapper that
 // exposes default construction produces it in constexpr O(1) time. `clear()`
@@ -36,7 +37,9 @@ class Bytes {
   EXPORTED(PERIMORTEM) auto append(U8 byte) -> void;
   EXPORTED(PERIMORTEM) auto append(U8 byte, Count amount) -> void;
 
-  // Appends a copy of the provided view to the end of the current view.
+  // Appends the values in `view` to this Bytes object. The source may refer to
+  // the current allocation because growth finishes copying it before releasing
+  // that allocation.
   EXPORTED(PERIMORTEM) auto concat(Core::View::Bytes view) -> void;
 
   // Replaces the current values with a copy. The source may overlap the current
@@ -127,7 +130,7 @@ class Bytes {
 
  private:
   constexpr auto get_policy() -> policy_type& {
-    return static_cast<policy_type&>(*this);
+    return *Core::Data::cast<policy_type>(this);
   }
 
   U8* source_block = nullptr;

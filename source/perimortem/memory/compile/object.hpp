@@ -3,12 +3,14 @@
 
 #pragma once
 
-#include "toolchain/memory/const_allocation.hpp"
+#include "toolchain/compile/allocation.hpp"
 
-namespace Perimortem::Memory::Const {
+#include "perimortem/core/data.hpp"
 
-// Owns one value allocated through Toolchain during constant evaluation.
-// Copies create independent values and moves transfer the allocation.
+namespace Perimortem::Memory::Compile {
+
+// Stores one value in Toolchain allocation during constant evaluation. Copies
+// create independent values and moves transfer the allocation.
 template <typename type>
 class Object {
  public:
@@ -21,15 +23,13 @@ class Object {
 
   consteval Object(const Object& rhs) {
     if (rhs.get_data()) {
-      allocation = Toolchain::Memory::ConstAllocation<type>(1);
+      allocation = Toolchain::Compile::Allocation<type>(1);
       *allocation.get_data() = *rhs.get_data();
     }
   }
 
   consteval Object(Object&& rhs)
-      : allocation(
-            static_cast<Toolchain::Memory::ConstAllocation<type>&&>(
-                rhs.allocation)) {}
+      : allocation(Core::Data::take(rhs.allocation)) {}
 
   consteval auto operator=(const Object& rhs) -> Object& {
     if (this == &rhs) {
@@ -37,12 +37,12 @@ class Object {
     }
 
     if (!rhs.get_data()) {
-      allocation = Toolchain::Memory::ConstAllocation<type>();
+      allocation = Toolchain::Compile::Allocation<type>();
       return *this;
     }
 
     if (!allocation.get_data()) {
-      allocation = Toolchain::Memory::ConstAllocation<type>(1);
+      allocation = Toolchain::Compile::Allocation<type>(1);
     }
 
     *allocation.get_data() = *rhs.get_data();
@@ -50,18 +50,18 @@ class Object {
   }
 
   consteval auto operator=(Object&& rhs) -> Object& {
-    allocation =
-        static_cast<Toolchain::Memory::ConstAllocation<type>&&>(rhs.allocation);
+    allocation = Core::Data::take(rhs.allocation);
     return *this;
   }
 
   constexpr auto get_data() const -> const type* {
     return allocation.get_data();
   }
+
   constexpr auto get_data() -> type* { return allocation.get_data(); }
 
  private:
-  Toolchain::Memory::ConstAllocation<type> allocation;
+  Toolchain::Compile::Allocation<type> allocation;
 };
 
-}  // namespace Perimortem::Memory::Const
+}  // namespace Perimortem::Memory::Compile

@@ -199,7 +199,7 @@ VALIDATION_TEST(CoreTextualReader, set_location) {
 
 VALIDATION_TEST(CoreTextualReader, multiple_readers) {
   // Sharing source storage does not share cursor or validity state. Advancing
-  // either reader therefore leaves the other reader at its own location.
+  // either reader therefore leaves the other reader at its previous location.
   View::Bytes source = "a12 true"_view;
   Reader::Textual readers[] = {
     Reader::Textual(source), Reader::Textual(source)};

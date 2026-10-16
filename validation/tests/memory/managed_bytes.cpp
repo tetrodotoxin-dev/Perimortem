@@ -54,7 +54,7 @@ VALIDATION_TEST(ManagedBytes, value_semantics) {
   EXPECT_EQ(copied.get_view(), "managed!"_view);
   EXPECT(copied.get_view().get_data() != original.get_view().get_data());
 
-  Managed::Bytes moved(static_cast<Managed::Bytes&&>(copied));
+  Managed::Bytes moved(Data::take(copied));
   EXPECT_EQ(moved.get_view(), "managed!"_view);
   EXPECT(copied.is_empty());
   EXPECT(!copied.get_view().get_data());
@@ -65,7 +65,7 @@ VALIDATION_TEST(ManagedBytes, value_semantics) {
   EXPECT_EQ(assigned.get_view(), "managed"_view);
 
   Managed::Bytes transferred(destination_arena, "released"_view);
-  transferred = static_cast<Managed::Bytes&&>(moved);
+  transferred = Data::take(moved);
   EXPECT(&transferred.get_arena() == &destination_arena);
   EXPECT_EQ(transferred.get_view(), "managed!"_view);
   EXPECT_EQ(moved.get_view(), "managed!"_view);

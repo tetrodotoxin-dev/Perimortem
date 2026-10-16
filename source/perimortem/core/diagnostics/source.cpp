@@ -12,31 +12,15 @@ using namespace Perimortem::Core;
 constexpr Count max_source_name_size = 4096;
 
 auto Diagnostics::Source::is_set() const -> Bool {
-  return impl != nullptr || !file.is_empty();
+  return location.is_set() || !file.is_empty();
 }
 
 auto Diagnostics::Source::get_line() const -> Count {
-  if (!file.is_empty()) {
-    return line;
-  }
-
-  if (impl == nullptr) {
-    return 0;
-  }
-
-  return Count(impl->_M_line);
+  return file.is_empty() ? Count(location.get_line()) : line;
 }
 
 auto Diagnostics::Source::get_column() const -> Count {
-  if (!file.is_empty()) {
-    return column;
-  }
-
-  if (impl == nullptr) {
-    return 0;
-  }
-
-  return Count(impl->_M_column);
+  return file.is_empty() ? Count(location.get_column()) : column;
 }
 
 auto Diagnostics::Source::get_file() const -> View::Bytes {
@@ -44,11 +28,7 @@ auto Diagnostics::Source::get_file() const -> View::Bytes {
     return file;
   }
 
-  if (impl == nullptr) {
-    return View::Bytes();
-  }
-
-  return NullTerminated(impl->_M_file_name, max_source_name_size).get_view();
+  return NullTerminated(location.get_file(), max_source_name_size).get_view();
 }
 
 auto Diagnostics::Source::get_function() const -> View::Bytes {
@@ -56,10 +36,6 @@ auto Diagnostics::Source::get_function() const -> View::Bytes {
     return function;
   }
 
-  if (impl == nullptr) {
-    return View::Bytes();
-  }
-
-  return NullTerminated(impl->_M_function_name, max_source_name_size)
+  return NullTerminated(location.get_function(), max_source_name_size)
       .get_view();
 }

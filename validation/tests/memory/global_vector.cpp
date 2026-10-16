@@ -37,7 +37,7 @@ static Global::Vector<U32> transferred_values;
 class GlobalOwner {
  public:
   // Construction acquires one process allocation. A scalar must not implicitly
-  // create an owner whose destructor releases that allocation.
+  // construct GlobalOwner and introduce that allocation and destructor.
   explicit GlobalOwner(U32 value) : value(allocate(value)) {}
   GlobalOwner(const GlobalOwner& other)
       : value(other.value ? allocate(*other.value) : nullptr) {
@@ -90,7 +90,7 @@ static auto create_global_vector(View::Bytes) -> void {
   Global::Vector<U32> created;
   created.insert(4);
   created.insert(8);
-  transferred_values = static_cast<Global::Vector<U32>&&>(created);
+  transferred_values = Data::take(created);
 }
 
 static auto create_global_owners(View::Bytes) -> void {
@@ -99,7 +99,7 @@ static auto create_global_owners(View::Bytes) -> void {
     created.insert(GlobalOwner(value));
   }
 
-  transferred_owners = static_cast<Global::Vector<GlobalOwner>&&>(created);
+  transferred_owners = Data::take(created);
 }
 
 VALIDATION_TEST(GlobalVector, value_semantics) {
@@ -142,8 +142,8 @@ VALIDATION_TEST(GlobalVector, cross_thread_transfer) {
   transferred_values.insert(16);
   EXPECT_EQ(transferred_values.get_data()[2], U32(16));
 
-  // Main thread release proves that storage ownership is independent of the
-  // thread that populated the vector.
+  // Main thread release proves that the process heap block can be released by a
+  // thread other than the worker that populated the Vector.
   transferred_values.reset();
   EXPECT(!transferred_values.get_data());
 }

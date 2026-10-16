@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "toolchain/memory/lifetime.hpp"
+
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/view/bytes.h"
@@ -20,9 +22,9 @@ namespace Perimortem::Memory::Allocator {
 // `construct()` begins a C++ object lifetime in Arena storage. `Arena::reset()`
 // ends every access promise without calling individual destructors. A later
 // allocation can reuse retained storage and thereby end the former C++ object
-// lifetime. Arena values must therefore release no independently owned
-// resources from their destructors. In particular, rented Bibliotheca storage
-// must be remitted before the Arena is reset or destroyed.
+// lifetime. Arena values cannot depend on individual destructors to release
+// separate allocations, handles or Bibliotheca blocks. Rented Bibliotheca
+// storage must therefore be remitted before the Arena is reset or destroyed.
 //
 // Arena has a stable identity. Objects and Managed containers retain its
 // address, so copying or moving an Arena would separate those borrowers from
@@ -52,8 +54,9 @@ class Arena {
       fetch_page(bytes_requested);
     }
 
-    // Round the next cursor to `arena_alignment`. Every returned block can then
-    // hold any type admitted by `reserve`.
+    // Round the next cursor to `arena_alignment`. Every returned block then
+    // meets that alignment, while `reserve` rejects types requiring stricter
+    // alignment.
     U8* root = rented_block + usage;
     usage = Core::Data::align<arena_alignment>(usage + bytes_requested);
     return Core::Access::Bytes(root, bytes_requested);
@@ -79,32 +82,53 @@ class Arena {
     return Core::Access::Vector<type>(Core::Data::cast<type>(ptr), size);
   }
 
-  // Allocates and constructs one object whose lifetime is owned by the arena.
-  template <typename type, typename... arg_types>
-  auto construct(arg_types&&... args) -> type& {
+  // Allocates `sizeof(type)` bytes from this Arena and begins one value
+  // lifetime with its default constructor. Access ends when the Arena resets or
+  // is destroyed.
+  template <typename type>
+  auto construct() -> type& {
     static_assert(alignof(type) <= arena_alignment);
     U8* ptr = allocate(sizeof(type)).get_data();
-    return Toolchain::Memory::Lifetime::construct<type>(
-        ptr, [&args...] { return type(static_cast<arg_types&&>(args)...); });
+    return Toolchain::Memory::Lifetime::construct<type>(ptr);
   }
 
-  // Allocates one object from an exact value produced by its owning factory.
+  // Allocates `sizeof(type)` bytes from this Arena and begins one value
+  // lifetime by copying `source`. Allocation completes before reading `source`,
+  // which may reside in an earlier Arena block.
+  template <typename type>
+  auto construct(const type& source) -> type&
+    requires(__is_constructible(type, const type&))
+  {
+    return construct_from<type>([&source] { return type(source); });
+  }
+
+  // Allocates `sizeof(type)` bytes from this Arena and begins one value
+  // lifetime by moving from `source`. Allocation completes before the source
+  // state changes.
+  template <typename type>
+  auto construct(type&& source) -> type&
+    requires(__is_constructible(type, type &&))
+  {
+    return construct_from<type>(
+        [&source] { return type(Core::Data::take(source)); });
+  }
+
+  // Allocates one object from the exact value returned by `factory`.
   //
   // Guaranteed copy elision lets the factory keep constructor access while the
   // object begins its lifetime directly in arena storage. This supports
   // immovable objects without making their constructors public.
   template <typename type, typename factory_type>
-  auto construct_from(factory_type&& factory) -> type& {
+  auto construct_from(factory_type factory) -> type& {
     static_assert(alignof(type) <= arena_alignment);
-    static_assert(
-        __is_same(type, decltype(static_cast<factory_type&&>(factory)())));
+    static_assert(__is_same(type, decltype(factory())));
     U8* ptr = allocate(sizeof(type)).get_data();
     return Toolchain::Memory::Lifetime::construct<type>(
-        ptr, static_cast<factory_type&&>(factory));
+        ptr, Core::Data::take(factory));
   }
 
-  // Copies every source value into storage owned by this Arena. The returned
-  // View remains accessible until this Arena resets or is destroyed.
+  // Copies every source value into this Arena. The returned View remains
+  // accessible until this Arena resets or is destroyed.
   auto copy(Core::View::Bytes source) -> Core::View::Bytes {
     if (source.is_empty()) {
       return Perimortem::Core::View::Bytes();
@@ -122,7 +146,8 @@ class Arena {
 
  private:
   // `allocate` keeps the bump path inline. Page acquisition remains out of line
-  // so consumers share one implementation of Bibliotheca page ownership.
+  // so consumers share one implementation for checking out and remitting
+  // Bibliotheca pages.
   EXPORTED(PERIMORTEM) auto fetch_page(Count bytes_requested) -> void;
 
   U8* rented_block;

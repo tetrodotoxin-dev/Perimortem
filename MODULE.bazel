@@ -6,11 +6,11 @@ module(
 bazel_dep(name = "rules_cc", version = "0.2.17")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_pkg", version = "1.3.0")
-bazel_dep(name = "tetro_toolchain", version = "0.3.2")
+bazel_dep(name = "tetro_toolchain", version = "0.3.3")
 archive_override(
     module_name = "tetro_toolchain",
-    sha256 = "3ad5bc610bf4eb6f4fd7c72028e74af94c4076f22d14d5cbb8981b1bcad125eb",
-    urls = ["https://github.com/tetrodotoxin-dev/Toolchain/releases/download/v0.3.2/tetro_toolchain-0.3.2-source.tar.gz"],
+    sha256 = "020d718561f6f0d222896e45297b05ddeb0d739f486217fb724bb380c7e48365",
+    urls = ["https://github.com/tetrodotoxin-dev/Toolchain/releases/download/v0.3.3/tetro_toolchain-0.3.3-source.tar.gz"],
 )
 
 register_toolchains("@tetro_toolchain//:cc_toolchain_for_linux_x86_64", "@tetro_toolchain//:cc_toolchain_for_wasm32", "@tetro_toolchain//:cc_toolchain_for_windows_x64")

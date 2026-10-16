@@ -21,7 +21,7 @@ auto Allocator::Global::allocate(Count requested_bytes) -> Allocation<U8> {
         "Global allocation exceeds the platform address range."_view);
   }
 
-  auto* data = static_cast<U8*>(malloc(CppSize(requested_bytes)));
+  auto* data = Core::Data::cast<U8>(malloc(CppSize(requested_bytes)));
   if (!data) {
     Diagnostics::Log::fatal("Unable to allocate global memory."_view);
   }

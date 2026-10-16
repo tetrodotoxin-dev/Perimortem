@@ -53,12 +53,14 @@ auto Reader::Serial::read() -> Value {
     magnitude = Data::ensure_endian<stream_endian, native_endian>(actual_bytes);
     break;
   }
+
   case 4: {
     U32 actual_bytes;
     memcpy(&actual_bytes, data + cursor, sizeof(U32));
     magnitude = Data::ensure_endian<stream_endian, native_endian>(actual_bytes);
     break;
   }
+
   case 8:
     memcpy(&magnitude, data + cursor, sizeof(U64));
     magnitude = Data::ensure_endian<stream_endian, native_endian>(magnitude);
@@ -85,7 +87,7 @@ auto Reader::Serial::read() -> Value {
   }
 
   S64 value;
-  Data::copy(reinterpret_cast<U8*>(&value), signed_bits);
+  Data::copy(Data::cast<U8>(&value), signed_bits);
 
   if (!(byte_flag & blob_flag)) {
     return Value(value);

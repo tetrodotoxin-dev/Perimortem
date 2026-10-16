@@ -9,8 +9,8 @@ namespace Perimortem::Memory::Allocator {
 
 // The thread local runtime allocator used by Perimortem containers and workers.
 //
-// Each thread caches its own allocations in power of two size classes. Thread
-// exit releases every slab owned by that cache.
+// Each thread caches allocations in power of two size classes. Thread exit
+// releases every slab retained by that cache.
 //
 // A block remains attached to the archive of the thread that checked it out.
 // Every reservation and remittance for that block occurs on the same thread.
@@ -36,7 +36,7 @@ class Bibliotheca {
   // Adds one reservation and returns the count that existed before the call.
   static EXPORTED(PERIMORTEM) auto reserve(U8* entry) -> Count;
 
-  // Returns the active reservation count so an owner can require exclusive
+  // Returns the active reservation count so a caller can require exclusive
   // access before mutating a block in place.
   static EXPORTED(PERIMORTEM) auto reservation_count(U8* entry) -> Count;
 

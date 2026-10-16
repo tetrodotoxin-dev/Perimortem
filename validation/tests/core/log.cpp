@@ -85,6 +85,7 @@ static auto has_valid_header(View::Bytes entry) -> Bool {
     10,
     11,
   }};
+
   for (Count i = 0; i < number_indexes.get_size(); i++) {
     if (b[number_indexes[i]] < '0' || b[number_indexes[i]] > '9') {
       return false;
@@ -103,6 +104,7 @@ static Harness DiagnosticsLog = {
         Diagnostics::Log::set_disable_header(False);
         total_events = 0;
       },
+
   .teardown =
       []() {
         Diagnostics::Log::set_sink(Diagnostics::Log::default_sink);
@@ -123,6 +125,17 @@ VALIDATION_TEST(DiagnosticsLog, info_record) {
   EXPECT(contains(entry, "validation/tests/core/log.cpp:"_view));
   EXPECT(contains(entry, "[main]"_view));
   EXPECT(contains(entry, "unique message string"_view));
+}
+
+VALIDATION_TEST(DiagnosticsLog, authored_source) {
+  constexpr Diagnostics::Source source(
+      "authored.cpp"_view, Count(42), Count(7), "operation"_view);
+
+  EXPECT(source.is_set());
+  EXPECT_EQ(source.get_file(), "authored.cpp"_view);
+  EXPECT_EQ(source.get_function(), "operation"_view);
+  EXPECT_EQ(source.get_line(), Count(42));
+  EXPECT_EQ(source.get_column(), Count(7));
 }
 
 VALIDATION_TEST(DiagnosticsLog, message_raii_guard) {

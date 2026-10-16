@@ -6,7 +6,7 @@
 namespace Perimortem::Utility {
 
 // Pair names two related values for local transformations and compile time
-// table declarations. It owns no lookup, ordering, or lifetime behavior.
+// table declarations without adding lookup, ordering, or lifetime behavior.
 template <typename key_type, typename value_type>
 struct Pair {
   key_type key;

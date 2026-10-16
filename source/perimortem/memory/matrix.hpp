@@ -80,7 +80,8 @@ class Matrix {
     return matrix;
   }
 
-  // Projection transfers an owned flat vector without copying its values.
+  // Projection consumes a flat Thread Vector by moving its allocation without
+  // copying values.
   // Its length must equal the Domain's area, so every coordinate has one
   // existing value. A mismatch leaves the supplied vector with its values.
   static auto project(
@@ -106,6 +107,7 @@ class Matrix {
   constexpr auto get_column_count() const -> U32 {
     return domain.get_extent(0);
   }
+
   constexpr auto get_row_count() const -> U32 { return domain.get_extent(1); }
 
   constexpr auto get_values() const -> Core::View::Vector<type> {

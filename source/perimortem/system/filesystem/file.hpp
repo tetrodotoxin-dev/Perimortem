@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/option.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/memory/allocator/arena.hpp"
@@ -14,10 +15,10 @@ namespace Perimortem::System::Filesystem {
 // trailing null is accepted but embedded nulls are rejected. Separators are
 // normalized before the host resolves parent segments and links.
 //
-// Reads load regular files up to 64 GiB into one Global Bytes object. This
-// permits ownership to cross thread boundaries but still requires enough
-// process memory for the complete file and per thread locks when accessing data
-// from multiple threads. Paging and streaming aren't supported. Metadata and
+// Reads load regular files up to 64 GiB into one Global Bytes object. Its
+// process heap allocation can be released from another thread, but concurrent
+// data access still requires synchronization. The complete file must fit in
+// process memory because paging and streaming aren't supported. Metadata and
 // content come from one open stream so concurrent path replacement cannot
 // combine two files into one result.
 //
@@ -68,21 +69,20 @@ class File {
     S64 changed_nanoseconds;
   };
 
-  // Snapshot couples globally owned values with metadata taken from the same
-  // opened object. Callers may probe the Fingerprint before reusing those
-  // values or transferring them to another thread.
+  // Snapshot stores Global Bytes with metadata taken from the same opened
+  // object. Callers may probe the Fingerprint before reusing those values or
+  // transferring them to another thread.
   class Snapshot {
    public:
     Snapshot(Memory::Global::Bytes&& contents, Fingerprint fingerprint)
-        : contents(static_cast<Memory::Global::Bytes&&>(contents)),
-          fingerprint(fingerprint) {}
+        : contents(Core::Data::take(contents)), fingerprint(fingerprint) {}
 
     constexpr auto get_contents() const -> Core::View::Bytes {
       return contents.get_view();
     }
 
     auto take_contents() -> Memory::Global::Bytes {
-      return static_cast<Memory::Global::Bytes&&>(contents);
+      return Core::Data::take(contents);
     }
 
     constexpr auto get_fingerprint() const -> Fingerprint {
@@ -96,7 +96,7 @@ class File {
 
   // Uses a logical directory location as the working root for repeated relative
   // operations. Paths use the host filesystem's ordinary parent and link
-  // resolution, and absolute paths select their own origin. Root does not
+  // resolution, while absolute paths ignore the configured root. Root does not
   // restrict access outside of its subfolders.
   //
   // The location is looked up for each transaction. Renaming or replacing that
@@ -117,8 +117,8 @@ class File {
     static EXPORTED(PERIMORTEM) auto open(Core::View::Bytes location)
         -> Core::Option<Root>;
 
-    // Returns independently owned Global values from a regular file. Some empty
-    // Bytes represents an empty file. None silently reports path, open,
+    // Returns a new Global Bytes allocation containing one regular file. Some
+    // empty Bytes represents an empty file. None silently reports path, open,
     // metadata, content or close failure.
     EXPORTED(PERIMORTEM) auto read(Core::View::Bytes relative_path) const
         -> Core::Option<Memory::Global::Bytes>;
@@ -167,9 +167,9 @@ class File {
     Memory::Global::Bytes location;
   };
 
-  // Returns independently owned Global values from a regular file. Some empty
-  // Bytes represents an empty file. None reports a logged path, open, metadata,
-  // content or close failure.
+  // Returns a new Global Bytes allocation containing one regular file. Some
+  // empty Bytes represents an empty file. None reports a logged path, open,
+  // metadata, content or close failure.
   static EXPORTED(PERIMORTEM) auto read(Core::View::Bytes location)
       -> Core::Option<Memory::Global::Bytes>;
 

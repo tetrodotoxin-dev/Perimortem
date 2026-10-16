@@ -3,9 +3,11 @@
 
 #pragma once
 
-#include "toolchain/memory/const_allocation.hpp"
+#include "toolchain/compile/allocation.hpp"
 
-namespace Perimortem::Memory::Const {
+#include "perimortem/core/data.hpp"
+
+namespace Perimortem::Memory::Compile {
 
 // Range provides fixed contiguous working storage to a constant expression.
 // Construction begins every element lifetime. Copies receive independent
@@ -24,10 +26,7 @@ class Range {
     }
   }
 
-  consteval Range(Range&& rhs)
-      : allocation(
-            static_cast<Toolchain::Memory::ConstAllocation<type>&&>(
-                rhs.allocation)) {}
+  consteval Range(Range&& rhs) : allocation(Core::Data::take(rhs.allocation)) {}
 
   consteval auto operator=(const Range& rhs) -> Range& {
     if (this == &rhs) {
@@ -35,7 +34,7 @@ class Range {
     }
 
     if (rhs.get_size() != get_size()) {
-      allocation = Toolchain::Memory::ConstAllocation<type>(rhs.get_size());
+      allocation = Toolchain::Compile::Allocation<type>(rhs.get_size());
     }
 
     for (Count i = 0; i < get_size(); i++) {
@@ -46,24 +45,25 @@ class Range {
   }
 
   consteval auto operator=(Range&& rhs) -> Range& {
-    allocation =
-        static_cast<Toolchain::Memory::ConstAllocation<type>&&>(rhs.allocation);
+    allocation = Core::Data::take(rhs.allocation);
     return *this;
   }
 
   consteval auto operator[](Count index) const -> const type& {
     return get_data()[index];
   }
+
   consteval auto operator[](Count index) -> type& { return get_data()[index]; }
 
   constexpr auto get_data() const -> const type* {
     return allocation.get_data();
   }
+
   constexpr auto get_data() -> type* { return allocation.get_data(); }
   constexpr auto get_size() const -> Count { return allocation.get_capacity(); }
 
  private:
-  Toolchain::Memory::ConstAllocation<type> allocation;
+  Toolchain::Compile::Allocation<type> allocation;
 };
 
-}  // namespace Perimortem::Memory::Const
+}  // namespace Perimortem::Memory::Compile

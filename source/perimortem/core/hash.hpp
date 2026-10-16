@@ -10,7 +10,7 @@
 namespace Perimortem::Core {
 
 // Hash produces 64 bit values for byte sequences, numeric values, pointers, and
-// types with their own `hash` operation. Byte input uses two accumulation lanes
+// types that provide a `hash` operation. Byte input uses two accumulation lanes
 // and includes its length before the lanes are combined. These values serve
 // runtime lookup tables and provide neither cryptographic protection nor a
 // persistent identity contract.
@@ -25,14 +25,14 @@ class Hash {
     if consteval {
       for (Count chunk = 0; chunk < chunks; chunk++) {
         result[chunk] = 0;
-        result[chunk] |= static_cast<U64>(data[7]) << 56;
-        result[chunk] |= static_cast<U64>(data[6]) << 48;
-        result[chunk] |= static_cast<U64>(data[5]) << 40;
-        result[chunk] |= static_cast<U64>(data[4]) << 32;
-        result[chunk] |= static_cast<U64>(data[3]) << 24;
-        result[chunk] |= static_cast<U64>(data[2]) << 16;
-        result[chunk] |= static_cast<U64>(data[1]) << 8;
-        result[chunk] |= static_cast<U64>(data[0]) << 0;
+        result[chunk] |= U64(data[7]) << 56;
+        result[chunk] |= U64(data[6]) << 48;
+        result[chunk] |= U64(data[5]) << 40;
+        result[chunk] |= U64(data[4]) << 32;
+        result[chunk] |= U64(data[3]) << 24;
+        result[chunk] |= U64(data[2]) << 16;
+        result[chunk] |= U64(data[1]) << 8;
+        result[chunk] |= U64(data[0]) << 0;
 
         data += sizeof(U64);
       }
@@ -60,19 +60,19 @@ class Hash {
     U64 small_hash_value = 0;
     switch (bytes.get_size()) {
     case 7:
-      small_hash_value |= static_cast<U64>(data[6]) << 48;
+      small_hash_value |= U64(data[6]) << 48;
     case 6:
-      small_hash_value |= static_cast<U64>(data[5]) << 40;
+      small_hash_value |= U64(data[5]) << 40;
     case 5:
-      small_hash_value |= static_cast<U64>(data[4]) << 32;
+      small_hash_value |= U64(data[4]) << 32;
     case 4:
-      small_hash_value |= static_cast<U64>(data[3]) << 24;
+      small_hash_value |= U64(data[3]) << 24;
     case 3:
-      small_hash_value |= static_cast<U64>(data[2]) << 16;
+      small_hash_value |= U64(data[2]) << 16;
     case 2:
-      small_hash_value |= static_cast<U64>(data[1]) << 8;
+      small_hash_value |= U64(data[1]) << 8;
     case 1: {
-      small_hash_value |= static_cast<U64>(data[0]);
+      small_hash_value |= U64(data[0]);
 
       small_hash_value = const_values[0] ^ (small_hash_value + const_values[3]);
       small_hash_value *= const_values[2];
@@ -216,7 +216,7 @@ class Hash {
   constexpr Hash(U64 numeric) : value(hash_numeric(U64(numeric))) {}
   template <typename pointer_type>
   Hash(pointer_type* pointer)
-      : value(hash_numeric(U64(reinterpret_cast<CppSize>(pointer)))) {}
+      : value(hash_numeric(U64(Data::address(pointer)))) {}
 
   // Nonpointer types can supply a type specific hash without exposing a byte
   // representation.

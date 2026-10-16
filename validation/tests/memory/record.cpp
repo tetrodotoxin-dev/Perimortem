@@ -8,6 +8,7 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/memory/dynamic/map.hpp"
 
+using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Toolchain::Validation;
 
@@ -29,11 +30,47 @@ class RaiiProbe {
   Count value = 0;
 };
 
+class RaiiProbeFactory {
+ public:
+  RaiiProbeFactory(Count& destructor_count, Count value)
+      : destructor_count(destructor_count), value(value) {}
+
+  auto operator()() const -> RaiiProbe {
+    return RaiiProbe(destructor_count, value);
+  }
+
+ private:
+  Count& destructor_count;
+  Count value;
+};
+
+class ExactValue {
+ public:
+  ExactValue(U32 value) : value(value) {}
+  ExactValue(const ExactValue&) = default;
+  ExactValue(ExactValue&& source) : value(source.value) { source.value = 0; }
+
+  auto get_value() const -> U32 { return value; }
+
+ private:
+  U32 value;
+};
+
+VALIDATION_TEST(DynamicRecord, exact_value) {
+  ExactValue source(42);
+  Dynamic::Record<ExactValue> copied(source);
+  Dynamic::Record<ExactValue> moved(Data::take(source));
+
+  EXPECT_EQ(copied->get_value(), U32(42));
+  EXPECT_EQ(moved->get_value(), U32(42));
+  EXPECT_EQ(source.get_value(), U32(0));
+}
+
 VALIDATION_TEST(DynamicRecord, shared_lifetime) {
   Count destructor_count = 0;
 
   {
-    Dynamic::Record<RaiiProbe> probe(destructor_count, 42);
+    Dynamic::Record<RaiiProbe> probe(RaiiProbeFactory(destructor_count, 42));
     EXPECT_EQ(probe->get_value(), Count(42));
     EXPECT_EQ(probe.get_reservations(), Count(1));
 
@@ -55,8 +92,8 @@ VALIDATION_TEST(DynamicRecord, assignment) {
   Count destructor_count = 0;
 
   {
-    Dynamic::Record<RaiiProbe> first(destructor_count, 1);
-    Dynamic::Record<RaiiProbe> second(destructor_count, 2);
+    Dynamic::Record<RaiiProbe> first(RaiiProbeFactory(destructor_count, 1));
+    Dynamic::Record<RaiiProbe> second(RaiiProbeFactory(destructor_count, 2));
 
     second = first;
     EXPECT_EQ(destructor_count, Count(1));
@@ -70,7 +107,7 @@ VALIDATION_TEST(DynamicRecord, assignment_reserves) {
   Count destructor_count = 0;
 
   {
-    Dynamic::Record<RaiiProbe> first(destructor_count, 3);
+    Dynamic::Record<RaiiProbe> first(RaiiProbeFactory(destructor_count, 3));
     Dynamic::Record<RaiiProbe> second = first;
     const Dynamic::Record<RaiiProbe>& alias = first;
 
@@ -86,11 +123,11 @@ VALIDATION_TEST(DynamicRecord, move_assignment) {
   Count destructor_count = 0;
 
   {
-    Dynamic::Record<RaiiProbe> first(destructor_count, 1);
+    Dynamic::Record<RaiiProbe> first(RaiiProbeFactory(destructor_count, 1));
     {
-      Dynamic::Record<RaiiProbe> second(destructor_count, 2);
+      Dynamic::Record<RaiiProbe> second(RaiiProbeFactory(destructor_count, 2));
 
-      first = static_cast<Dynamic::Record<RaiiProbe>&&>(second);
+      first = Data::take(second);
       EXPECT_EQ(first->get_value(), Count(2));
       EXPECT_EQ(destructor_count, Count(0));
     }
@@ -106,10 +143,9 @@ VALIDATION_TEST(DynamicRecord, move_construction) {
   Count destructor_count = 0;
 
   {
-    Dynamic::Record<RaiiProbe> first(destructor_count, 3);
+    Dynamic::Record<RaiiProbe> first(RaiiProbeFactory(destructor_count, 3));
     {
-      Dynamic::Record<RaiiProbe> second(
-          static_cast<Dynamic::Record<RaiiProbe>&&>(first));
+      Dynamic::Record<RaiiProbe> second(Data::take(first));
       EXPECT_EQ(second->get_value(), Count(3));
       EXPECT_EQ(first->get_value(), Count(3));
       EXPECT_EQ(first.get_reservations(), Count(2));
@@ -126,7 +162,7 @@ VALIDATION_TEST(DynamicRecord, map_owner) {
   Dynamic::Map<Count, Dynamic::Record<RaiiProbe>> values;
 
   {
-    Dynamic::Record<RaiiProbe> probe(destructor_count, 7);
+    Dynamic::Record<RaiiProbe> probe(RaiiProbeFactory(destructor_count, 7));
     values.insert(0, probe);
   }
 
@@ -144,7 +180,7 @@ VALIDATION_TEST(DynamicRecord, map_rehash) {
   Count destructor_count = 0;
   Dynamic::Map<Count, Dynamic::Record<RaiiProbe>> values;
   for (Count i = 0; i < 16; i++) {
-    Dynamic::Record<RaiiProbe> probe(destructor_count, i);
+    Dynamic::Record<RaiiProbe> probe(RaiiProbeFactory(destructor_count, i));
     values.insert(i, probe);
   }
 

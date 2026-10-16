@@ -5,16 +5,16 @@
 
 #include "toolchain/toolchain.hpp"
 
-// The target C runtime owns these declarations, including its import and
-// exception specifications. Clang recognizes the same memory intrinsics
-// without redeclaring a different C boundary in each host configuration.
+// The target C runtime supplies these declarations, including their import and
+// exception specifications. Clang recognizes the same memory intrinsics without
+// redeclaring a different C boundary in each host configuration.
 #include <string.h>
 
 namespace Perimortem::Core {
 
-// Data provides storage neutral operations over object representations. Callers
-// retain ownership while these operations align locations, copy bytes, adapt
-// byte order, or expose a requested type over existing storage.
+// Data provides storage neutral operations over object representations. These
+// operations align locations, copy bytes, adapt byte order, or expose a
+// requested type without allocating or releasing caller storage.
 class Data {
  public:
   enum class ByteOrder {
@@ -75,6 +75,15 @@ class Data {
     return reinterpret_cast<target_type*>(source);
   }
 
+  // Downcasts a class pointer while preserving constant evaluation. The source
+  // type must be a base of the requested target, so this overload cannot
+  // reinterpret unrelated storage.
+  template <typename target_type, typename source_type>
+    requires(__is_base_of(source_type, target_type))
+  static constexpr auto cast(source_type* source) -> target_type* {
+    return static_cast<target_type*>(source);
+  }
+
   // Copies one complete object representation into caller supplied storage.
   template <typename storage_type>
   static auto copy(U8* dest, const storage_type* src) -> storage_type* {
@@ -107,9 +116,35 @@ class Data {
     memset(dest, value, count);
   }
 
+  // Returns an rvalue reference to `source`. Move construction or assignment
+  // can then transfer its state without creating an intermediate object.
   template <typename storage_type>
-  static auto take(storage_type& source) -> storage_type&& {
+  static constexpr auto take(storage_type& source) -> storage_type&& {
     return static_cast<storage_type&&>(source);
+  }
+
+  // Converts equal size values by copying their object representation without
+  // invoking a numeric or converting constructor.
+  template <typename target_type, typename source_type>
+  static constexpr auto bit_cast(source_type source) -> target_type {
+    static_assert(sizeof(target_type) == sizeof(source_type));
+    return __builtin_bit_cast(target_type, source);
+  }
+
+  // Serializes a data or function pointer through the compiler address width.
+  // The value can be restored only within the process that supplied it.
+  template <typename pointer_type>
+    requires(__is_pointer(pointer_type))
+  static auto address(pointer_type source) -> CppSize {
+    return reinterpret_cast<CppSize>(source);
+  }
+
+  // Restores a pointer serialized by `address`. No storage or lifetime is
+  // created, so the original pointer contract still governs dereferencing.
+  template <typename pointer_type>
+    requires(__is_pointer(pointer_type))
+  static auto restore(CppSize source) -> pointer_type {
+    return reinterpret_cast<pointer_type>(source);
   }
 
   template <typename storage_type>

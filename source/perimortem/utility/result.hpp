@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "toolchain/memory/lifetime.hpp"
+
 #include "perimortem/core/data.hpp"
 
 namespace Perimortem::Utility {
@@ -10,11 +12,13 @@ namespace Perimortem::Utility {
 // Result selects exactly one value or error. The missing default constructor
 // and private state leave no empty outcome for a caller to interpret.
 //
-// Result owns its storage because a successful value may require destruction.
-// Error values are required to be trivially destructible, so only one
-// alternative needs active cleanup. Reference values store one
-// pointer and preserve the identity established by the caller. The caller
-// keeps that object alive while visiting the reference result.
+// Result stores the selected value directly and destroys it when the selection
+// changes or Result is destroyed. Error values are required to be trivially
+// destructible, so only the successful value needs active cleanup. Reference
+// values store one pointer and preserve the identity established by the caller.
+// The caller keeps that object alive while visiting the reference result.
+// Construction copies lvalue candidates and moves from rvalue candidates for
+// `value_type` or `error_type`.
 //
 // Two case visitation makes error handling visible at the call site without an
 // unchecked value shortcut that could discard the error branch.
@@ -109,15 +113,19 @@ class Result {
       __is_constructible(error_type, error_type&&);
 
   template <typename candidate_type>
-  constexpr auto construct_value(candidate_type&& candidate) -> void {
+  constexpr auto construct_value(candidate_type& candidate) -> void {
     if constexpr (__is_lvalue_reference(value_type)) {
-      auto& reference = static_cast<value_type>(candidate);
+      value_type reference = candidate;
       Toolchain::Memory::Lifetime::construct<ValueStorage>(
           &value, [&reference] { return ValueStorage(&reference); });
     } else {
       Toolchain::Memory::Lifetime::construct<ValueStorage>(
           &value, [&candidate] {
-            return ValueStorage(static_cast<candidate_type&&>(candidate));
+            if constexpr (__is_lvalue_reference(candidate_type)) {
+              return ValueStorage(candidate);
+            } else {
+              return ValueStorage(Core::Data::take(candidate));
+            }
           });
     }
 
@@ -125,10 +133,15 @@ class Result {
   }
 
   template <typename candidate_type>
-  constexpr auto construct_error(candidate_type&& candidate) -> void {
+  constexpr auto construct_error(candidate_type& candidate) -> void {
     Toolchain::Memory::Lifetime::construct<error_type>(&error, [&candidate] {
-      return error_type(static_cast<candidate_type&&>(candidate));
+      if constexpr (__is_lvalue_reference(candidate_type)) {
+        return error_type(candidate);
+      } else {
+        return error_type(Core::Data::take(candidate));
+      }
     });
+
     value_selected = False;
   }
 
@@ -162,21 +175,25 @@ class Result {
 
   constexpr auto construct_copy(const Result& source) -> void {
     if (source.value_selected) {
-      construct_value(source.get_value());
+      if constexpr (__is_lvalue_reference(value_type)) {
+        construct_value<value_type>(source.get_value());
+      } else {
+        construct_value<const value_type&>(source.get_value());
+      }
     } else {
-      construct_error(source.get_error());
+      construct_error<const error_type&>(source.get_error());
     }
   }
 
   constexpr auto construct_move(Result& source) -> void {
     if (source.value_selected) {
       if constexpr (__is_lvalue_reference(value_type)) {
-        construct_value(source.get_value());
+        construct_value<value_type>(source.get_value());
       } else {
-        construct_value(Core::Data::take(source.get_value()));
+        construct_value<value_type>(source.get_value());
       }
     } else {
-      construct_error(Core::Data::take(source.get_error()));
+      construct_error<error_type>(source.get_error());
     }
   }
 
@@ -184,6 +201,7 @@ class Result {
     ValueStorage value;
     error_type error;
   };
+
   Bool value_selected;
 
  public:
@@ -193,9 +211,9 @@ class Result {
     requires(accepts<candidate_type>())
   constexpr Result(candidate_type&& candidate) {
     if constexpr (selects_value<candidate_type>()) {
-      construct_value(static_cast<candidate_type&&>(candidate));
+      construct_value<candidate_type>(candidate);
     } else {
-      construct_error(static_cast<candidate_type&&>(candidate));
+      construct_error<candidate_type>(candidate);
     }
   }
 

@@ -11,8 +11,8 @@
 
 namespace Perimortem::Core::Static {
 
-// Bytes owns exactly `literal_size` inline bytes. Its extent never changes, so
-// views and writable access remain at the same address for the value's
+// Bytes stores exactly `literal_size` inline bytes. Its extent never changes,
+// so views and writable access remain at the same address for the value's
 // lifetime. Copying duplicates the complete array without using an allocator.
 //
 // Constructors can populate the storage during constant evaluation. A shorter
@@ -35,7 +35,7 @@ class Bytes {
   // `Static::Bytes<3> bytes = {{1, 2, 3}}`.
   constexpr Bytes(const Storage& source) : storage(source) {}
 
-  // Copies as much of the View as the fixed extent admits and zero fills any
+  // Copies as many source bytes as fit in the fixed extent and zero fills the
   // remaining bytes.
   constexpr Bytes(const View::Bytes& source) {
     const Count size = Core::Scalar::min(literal_size, source.get_size());

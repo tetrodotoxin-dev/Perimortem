@@ -131,7 +131,7 @@ static auto normalize_path(Access::Bytes text, View::Bytes path)
 
 Path::Path(View::Bytes path) {
   // Stack storage keeps temporary normalization and cache probes allocation
-  // free. Owners that retain the result use the Arena overload instead.
+  // free. Callers that retain the result use the Arena overload instead.
   auto normalized = normalize_path(text, path);
   if (normalized) {
     size = *normalized;
@@ -139,7 +139,7 @@ Path::Path(View::Bytes path) {
 }
 
 Path::Path(View::Bytes base_file_path, View::Bytes relative_path) {
-  // A rooted second path carries its own origin, so joining it to the base
+  // A rooted second path replaces the base origin, so joining it to the base
   // would produce a spelling with two conflicting roots.
   const Bool rooted = !relative_path.is_empty() &&
                       (relative_path[0] == '/' || relative_path[0] == '\\');

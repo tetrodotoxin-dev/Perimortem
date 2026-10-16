@@ -46,12 +46,12 @@ using Filesystem::Path;
 
 static_assert(
     __is_same(decltype(File::read(View::Bytes())), Option<Global::Bytes>));
-static_assert(__is_same(
-    decltype(static_cast<const File::Root*>(nullptr)->read(View::Bytes())),
-    Option<Global::Bytes>));
-static_assert(__is_same(
-    decltype(static_cast<File::Snapshot*>(nullptr)->take_contents()),
-    Global::Bytes));
+static_assert(requires(const File::Root& root) {
+  requires __is_same(decltype(root.read(View::Bytes())), Option<Global::Bytes>);
+});
+static_assert(requires(File::Snapshot& snapshot) {
+  requires __is_same(decltype(snapshot.take_contents()), Global::Bytes);
+});
 
 constexpr auto test_file = "system_file_test.json"_view;
 constexpr auto test_output = "system_file_test_out.json"_view;
@@ -1307,10 +1307,10 @@ VALIDATION_TEST(SystemFileRoot, move_ownership) {
     ASSERT(first_source);
     ASSERT(second_source);
 
-    File::Root first(static_cast<File::Root&&>(*first_source));
-    File::Root moved(static_cast<File::Root&&>(first));
-    File::Root assigned(static_cast<File::Root&&>(*second_source));
-    assigned = static_cast<File::Root&&>(moved);
+    File::Root first(Data::take(*first_source));
+    File::Root moved(Data::take(first));
+    File::Root assigned(Data::take(*second_source));
+    assigned = Data::take(moved);
 
     auto source = assigned.read("file"_view);
     ASSERT(source);

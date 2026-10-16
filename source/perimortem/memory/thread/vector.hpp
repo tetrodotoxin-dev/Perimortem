@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include "toolchain/memory/lifetime.hpp"
+
+#include "perimortem/core/data.hpp"
 #include "perimortem/memory/allocation.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/memory/container/vector.hpp"
@@ -34,15 +37,15 @@ class Vector final : public Container::Vector<Vector<type>, type> {
   Vector(const Vector& rhs) { Base::copy_from(rhs); }
 
   // The caller keeps the View storage valid until construction returns. Vector
-  // copies those values into independent storage that it owns. Explicit
-  // construction exposes the possible allocation at the call site.
+  // copies those values into a new Bibliotheca block. Explicit construction
+  // exposes the possible allocation at the call site.
   explicit Vector(Core::View::Vector<type> source)
     requires(__is_constructible(type, const type&))
   {
     Base::copy_from(source);
   }
 
-  constexpr Vector(Vector&& rhs) { Base::take(static_cast<Base&&>(rhs)); }
+  constexpr Vector(Vector&& rhs) { Base::take(Core::Data::take(rhs)); }
 
   constexpr ~Vector() { Base::reset(); }
 
@@ -58,7 +61,7 @@ class Vector final : public Container::Vector<Vector<type>, type> {
   auto operator=(Vector&& rhs) -> Vector& {
     if (this != &rhs) {
       Base::reset();
-      Base::take(static_cast<Base&&>(rhs));
+      Base::take(Core::Data::take(rhs));
     }
 
     return *this;
@@ -70,7 +73,7 @@ class Vector final : public Container::Vector<Vector<type>, type> {
     // Materialize the borrowed values before releasing this block so `source`
     // may refer to this Vector.
     Vector replacement(source);
-    *this = static_cast<Vector&&>(replacement);
+    *this = Core::Data::take(replacement);
     return *this;
   }
 
@@ -94,20 +97,20 @@ class Vector final : public Container::Vector<Vector<type>, type> {
   static constexpr auto adopt(Allocation<type>&&) -> void {}
 
   template <typename factory_type>
-  static constexpr auto construct(type* destination, factory_type&& factory)
+  static constexpr auto construct(type* destination, factory_type factory)
       -> type& {
     return Toolchain::Memory::Lifetime::construct<type>(
-        destination, static_cast<factory_type&&>(factory));
+        destination, Core::Data::take(factory));
   }
 
   // Growth constructs each current value in uninitialized storage at
   // `destination`. `source` remains alive in the old Bibliotheca block until
-  // migration completes. Moving transfers owned state before that block is
+  // migration completes. Move construction completes before that block is
   // remitted. A value that cannot move is copied without changing `source`.
   static constexpr auto relocate(type* destination, type& source) -> void {
     if constexpr (__is_constructible(type, type&&)) {
       construct(
-          destination, [&source] { return type(static_cast<type&&>(source)); });
+          destination, [&source] { return type(Core::Data::take(source)); });
     } else {
       construct(destination, [&source] { return type(source); });
     }

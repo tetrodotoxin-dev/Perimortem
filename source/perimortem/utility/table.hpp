@@ -25,13 +25,15 @@ namespace Perimortem::Utility {
 // of `Dynamic::Map`. `cache_line_size` can keep a complete length bucket within
 // one cache line when its packed bytes fit.
 //
-// The compact coordinates admit from 1 through 255 entries and 65535 bytes of
-// packed storage. Every key contains at least one byte. Bucket alignment counts
-// toward storage. Sources outside those limits fail during compilation.
+// The compact coordinates support from 1 through 255 entries and at most 65535
+// bytes of packed storage. Every key contains at least one byte. Bucket
+// alignment counts toward storage. Sources outside those limits fail during
+// compilation.
 template <typename value_type, const auto& source, U64 cache_line_size = 1>
 class Table {
  private:
-  // Accepts both a raw C array and a View::Vector as source.
+  // Normalize both supported source forms during constant evaluation so the
+  // generated table carries no runtime range object.
   static consteval auto get_source_count() -> Count {
     if constexpr (requires { source.get_size(); }) {
       return source.get_size();
@@ -101,13 +103,13 @@ class Table {
 
   struct Storage {
     consteval Storage() {
-      // Caculate the bytes required for each bucket
+      // Length buckets must be counted before coordinates are assigned because
+      // aligning one bucket changes the start of every later bucket.
       Count buckets[max_length()] = {0};
       for (Count i = 0; i < get_source_count(); i++) {
         buckets[source[i].key.get_size()] += source[i].key.get_size();
       }
 
-      // Align and set all bucket indexes
       Count total = 0;
       for (Count i = 0; i < max_length(); i++) {
         // Advance a bucket that would straddle `cache_line_size` to the next

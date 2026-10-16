@@ -64,11 +64,11 @@ class Binary {
   }
 
   constexpr auto operator<<(const R32 value) -> Binary& {
-    return write_unsigned(__builtin_bit_cast(U32, value));
+    return write_unsigned(Data::bit_cast<U32>(value));
   }
 
   constexpr auto operator<<(const R64 value) -> Binary& {
-    return write_unsigned(__builtin_bit_cast(U64, value));
+    return write_unsigned(Data::bit_cast<U64>(value));
   }
 
   constexpr auto operator<<(const View::Bytes blob) -> Binary& {

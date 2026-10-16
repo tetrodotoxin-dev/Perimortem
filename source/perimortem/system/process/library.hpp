@@ -9,8 +9,8 @@
 
 namespace Perimortem::System::Process {
 
-// Library owns one native loader handle in the current process. Each successful
-// open owns an independent handle, and destruction releases that handle.
+// Library retains one native loader handle in the current process. Each
+// successful open returns a distinct handle, and destruction releases it.
 //
 // A symbol address remains valid while its Library lives. The caller converts
 // that address to the function or data type declared by the loaded interface.
@@ -34,9 +34,9 @@ class Library {
       -> Perimortem::Utility::Result<void*, Perimortem::Core::View::Bytes>;
 
  private:
-  // Only `open()` can produce an admitted native handle. Explicit private
-  // construction prevents conversion from an arbitrary pointer and keeps loader
-  // failure in the returned Result.
+  // Only a successful `open()` can construct Library from a native handle.
+  // Explicit private construction prevents conversion from an arbitrary
+  // pointer and keeps loader failure in the returned Result.
   explicit Library(void* handle) : handle(handle) {}
   void* handle;
 };

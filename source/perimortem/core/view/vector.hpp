@@ -43,7 +43,7 @@ class Vector {
   // Tests each value in order and stops when the predicate accepts one.
   template <typename predicate_type>
   constexpr auto contains(predicate_type predicate) const
-      -> decltype(Bool(predicate(*static_cast<const data_type*>(nullptr)))) {
+      -> decltype(Bool(predicate(*Data::restore<const data_type*>(0)))) {
     return find(predicate) != -1;
   }
 

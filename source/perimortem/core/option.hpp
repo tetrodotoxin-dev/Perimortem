@@ -3,26 +3,35 @@
 
 #pragma once
 
+#include "toolchain/memory/lifetime.hpp"
 #include "toolchain/toolchain.hpp"
+
+#include "perimortem/core/data.hpp"
 
 namespace Perimortem::Core {
 
-// Option represents either one owned value or None. The value lives directly
-// inside the Option so a function can safely return an object created on its
-// stack. Construction and destruction follow the selected value's lifetime,
-// including for types that can only move or lack default construction.
+// Option stores either one value directly or None. A function can therefore
+// return a value created on its stack without allocating separate storage.
+// Construction and destruction follow the selected value's lifetime, including
+// for types that can only move or lack default construction.
 //
 // A boolean check establishes the selected state before pointer shaped access.
-// Visit remains available when both outcomes need their own behavior and return
-// one common value.
+// Visit handles both outcomes through separate callbacks that return one common
+// value.
 template <typename value_type>
 class Option {
  private:
-  template <typename candidate_type>
-  constexpr auto construct(candidate_type&& candidate) -> void {
-    Toolchain::Memory::Lifetime::construct<value_type>(&value, [&candidate] {
-      return value_type(static_cast<candidate_type&&>(candidate));
-    });
+  constexpr auto construct(const value_type& candidate) -> void {
+    Toolchain::Memory::Lifetime::construct<value_type>(
+        &value, [&candidate] { return value_type(candidate); });
+
+    set = true;
+  }
+
+  constexpr auto construct(value_type&& candidate) -> void {
+    Toolchain::Memory::Lifetime::construct<value_type>(
+        &value, [&candidate] { return value_type(Data::take(candidate)); });
+
     set = true;
   }
 
@@ -36,6 +45,7 @@ class Option {
   union {
     value_type value;
   };
+
   Bool set = false;
 
  public:
@@ -47,7 +57,7 @@ class Option {
 
   constexpr Option(value_type&& selected)
     requires(__is_constructible(value_type, value_type &&))
-      : value(static_cast<value_type&&>(selected)), set(true) {}
+      : value(Data::take(selected)), set(true) {}
 
   constexpr Option(const Option& source)
     requires(__is_constructible(value_type, const value_type&))
@@ -61,7 +71,7 @@ class Option {
     requires(__is_constructible(value_type, value_type &&))
       : set(false) {
     if (source.set) {
-      construct(static_cast<value_type&&>(source.value));
+      construct(Data::take(source.value));
     }
   }
 
@@ -91,7 +101,7 @@ class Option {
 
     clear();
     if (source.set) {
-      construct(static_cast<value_type&&>(source.value));
+      construct(Data::take(source.value));
     }
 
     return *this;

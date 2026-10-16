@@ -166,9 +166,9 @@ class RleEntry {
   U8 extra_bits;
 };
 
-// Admits only a complete zlib header using Deflate with a valid FCHECK value
-// and no preset dictionary. These stream boundaries apply in release builds
-// before the bit reader consumes payload data.
+// Returns True only for a complete zlib header using Deflate with a valid
+// FCHECK value and no preset dictionary. These stream boundaries apply in
+// release builds before the bit reader consumes payload data.
 constexpr auto validate_header(View::Bytes source) -> Bool {
   constexpr Count deflate_min_input_size = 7;
   constexpr U8 deflate_compression_method = 8;
@@ -476,6 +476,7 @@ constexpr auto inflate_dynamic(BitStream::Reader& reader, Thread::Bytes& output)
 
     return kraft <= (Count(1) << max_length);
   };
+
   if (!is_valid_kraft(literal_symbols)) [[unlikely]] {
     Diagnostics::Log::error(
         "Compression: literal/length Huffman table violates Kraft inequality"_view);

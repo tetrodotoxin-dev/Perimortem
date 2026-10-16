@@ -9,7 +9,7 @@ using namespace Perimortem::Memory;
 using namespace Toolchain::Validation;
 
 // Allocation counts come from the library under measurement. The shared
-// runner only samples the counter and has no allocator dependency of its own.
+// runner only samples the counter and has no allocator dependency.
 static const bool registered = Benchmark::register_counter(
     "checkouts/run",
     Allocator::Bibliotheca::check_out_requests);

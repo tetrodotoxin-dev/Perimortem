@@ -41,6 +41,21 @@ static_assert(!__is_constructible(FactoryValue, U32, Bool));
 static_assert(!__is_constructible(FactoryValue, const FactoryValue&));
 static_assert(!__is_constructible(FactoryValue, FactoryValue&&));
 
+class ArenaValue {
+ public:
+  constexpr ArenaValue() = default;
+  constexpr ArenaValue(U32 value) : value(value) {}
+  constexpr ArenaValue(const ArenaValue&) = default;
+  constexpr ArenaValue(ArenaValue&& source) : value(source.value) {
+    source.value = 0;
+  }
+
+  constexpr auto get_value() const -> U32 { return value; }
+
+ private:
+  U32 value = 1;
+};
+
 VALIDATION_TEST(Arena, reserve) {
   class RequiredValue {
    public:
@@ -75,4 +90,18 @@ VALIDATION_TEST(Arena, owner_factory) {
 
   EXPECT_EQ(value.get_value(), U32(42));
   EXPECT(value.is_selected());
+}
+
+VALIDATION_TEST(Arena, construct) {
+  Allocator::Arena arena;
+  ArenaValue source(42);
+
+  ArenaValue& defaulted = arena.construct<ArenaValue>();
+  ArenaValue& copied = arena.construct<ArenaValue>(source);
+  ArenaValue& moved = arena.construct<ArenaValue>(Data::take(source));
+
+  EXPECT_EQ(defaulted.get_value(), U32(1));
+  EXPECT_EQ(copied.get_value(), U32(42));
+  EXPECT_EQ(moved.get_value(), U32(42));
+  EXPECT_EQ(source.get_value(), U32(0));
 }

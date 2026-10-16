@@ -73,10 +73,10 @@ static auto yield_worker() -> void {
 
 #endif
 
-// ThreadInitializer owns the full worker startup transaction.
-// Constructing it blocks the host thread long enough for the spawned thread to
-// copy every caller owned view into its own thread local storage. The
-// constructor establishes that lifetime rule for every job.
+// ThreadInitializer keeps the startup arguments in the spawning frame until the
+// new thread copies every source View into thread local storage. Construction
+// blocks until that copy completes, establishing the same lifetime boundary for
+// every job.
 class ThreadInitializer {
  public:
   ThreadInitializer(
@@ -106,6 +106,7 @@ class ThreadInitializer {
           dispatch(initializer);
           return 0;
         },
+
         this, 0, nullptr);
 
     const bool failed = handle == 0;
@@ -117,7 +118,7 @@ class ThreadInitializer {
         pthread_create(&thread, nullptr, dispatch, this);
     const bool failed = pthread_result != 0;
     if (!failed) {
-      Data::copy(reinterpret_cast<U8*>(&handle), &thread, 1);
+      Data::copy(Data::cast<U8>(&handle), &thread, 1);
     }
 
 #endif
@@ -136,7 +137,8 @@ class ThreadInitializer {
     }
   };
 
-  // The spawning frame uniquely owns its initialization transaction.
+  // Copying would duplicate synchronization state for one spawned thread, so
+  // the initializer remains tied to its spawning frame.
   ThreadInitializer(const ThreadInitializer&) = delete;
   auto operator=(const ThreadInitializer&) -> ThreadInitializer& = delete;
 
@@ -273,7 +275,7 @@ class ThreadInitializer {
 
     // A job may choose a different logger while it runs. Report completion
     // through the logger currently installed for this thread rather than
-    // restoring state owned by the spawning thread.
+    // restoring the spawning thread's logger state.
     {
       Diagnostics::Log::Message<128> exit_message(
           Diagnostics::Log::Level::Debug);
@@ -305,7 +307,7 @@ Process::Worker::Worker(Worker&& other_worker) : handle(other_worker.handle) {
 }
 
 Process::Worker::~Worker() {
-  // Destruction joins the owned thread before releasing its native token.
+  // Destruction joins the Worker's native thread before releasing its token.
   join();
 }
 
@@ -325,7 +327,7 @@ auto Process::Worker::join() -> void {
 
 #ifdef TOOLCHAIN_WINDOWS
 
-    HANDLE thread = reinterpret_cast<HANDLE>(handle);
+    HANDLE thread = Data::restore<HANDLE>(CppSize(handle));
     const auto waited = WaitForSingleObject(thread, INFINITE);
     if (waited != WAIT_OBJECT_0) {
       Diagnostics::Log::fatal(
@@ -338,8 +340,7 @@ auto Process::Worker::join() -> void {
 
     pthread_t thread;
     Data::copy(
-        reinterpret_cast<U8*>(&thread), reinterpret_cast<const U8*>(&handle),
-        sizeof(thread));
+        Data::cast<U8>(&thread), Data::cast<const U8>(&handle), sizeof(thread));
     pthread_join(thread, nullptr);
 
 #endif

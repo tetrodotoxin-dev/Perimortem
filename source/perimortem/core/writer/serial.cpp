@@ -45,7 +45,7 @@ constexpr auto
   }
 
   auto data = target.get_data();
-  data[cursor++] = static_cast<U8>(encoding_size | flags);
+  data[cursor++] = U8(encoding_size | flags);
   switch (encoding_size) {
   case 1:
     data[cursor] = U8(magnitude);

@@ -18,6 +18,8 @@ typedef struct perimortem_view_bytes {
 
 #include "toolchain/toolchain.hpp"
 
+#include "perimortem/core/data.hpp"
+
 namespace Perimortem::Core::View {
 
 // A raw read only view of continuous bytes with no endianness.
@@ -52,9 +54,7 @@ class Bytes {
       : value{source, source_size} {}
 
   Bytes(const char* source, Count source_size)
-      : value{
-          static_cast<const U8*>(static_cast<const void*>(source)),
-          source_size} {}
+      : value{Core::Data::cast<const U8>(source), source_size} {}
 
   constexpr operator perimortem_view_bytes() const { return value; }
 

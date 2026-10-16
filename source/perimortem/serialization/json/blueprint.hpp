@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/static/union.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/core/view/vector.hpp"
@@ -10,8 +11,8 @@
 
 namespace Perimortem::Serialization::Json {
 
-// Blueprint collects a temporary JSON tree and materializes its values as
-// managed Nodes in an Arena with a single owning lifetime.
+// Blueprint collects a temporary JSON tree and materializes every Node in the
+// caller's Arena. Resetting that Arena ends access to the complete tree.
 //
 // Stack provided scalars, objects, arrays, and existing Nodes are supported.
 // The value Union keeps each payload paired with its type without exposing a
@@ -29,7 +30,8 @@ class Blueprint {
  public:
   Blueprint() = default;
   Blueprint(Core::View::Bytes text) : value(text) {}
-  // Bool has its own JSON representation. Other integers use S64.
+  // Normalize every nonboolean integer to the S64 alternative so visitors do
+  // not distinguish source widths. Bool retains the JSON boolean alternative.
   template <typename Integer>
     requires(__is_integral(Integer) && !__is_same(Integer, bool))
   Blueprint(Integer number) : value(S64(number)) {}
@@ -75,7 +77,7 @@ class Blueprint {
 
   template <typename... Cases>
   auto visit(Cases... cases) const -> decltype(auto) {
-    return value.visit(static_cast<Cases&&>(cases)...);
+    return value.visit(Core::Data::take(cases)...);
   }
 
  private:

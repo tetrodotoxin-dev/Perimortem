@@ -121,7 +121,7 @@ VALIDATION_TEST(ThreadBytes, move_assignment) {
     Count allocated = Allocator::Bibliotheca::allocated_memory();
     const U8* source_allocation = source.get_view().get_data();
 
-    target = static_cast<Thread::Bytes&&>(source);
+    target = Data::take(source);
 
     EXPECT_EQ(target.get_view(), "source"_view);
     EXPECT(target.get_view().get_data() == source_allocation);
@@ -133,7 +133,7 @@ VALIDATION_TEST(ThreadBytes, move_assignment) {
         allocated - target_capacity);
 
     source.append(U8('r'));
-    Thread::Bytes moved(static_cast<Thread::Bytes&&>(source));
+    Thread::Bytes moved(Data::take(source));
     EXPECT_EQ(moved.get_view(), "r"_view);
     EXPECT_EQ(source.get_capacity(), Count(0));
     EXPECT(!source.get_view().get_data());
@@ -149,7 +149,7 @@ VALIDATION_TEST(ThreadBytes, self_assignment) {
   EXPECT_EQ(bytes.get_view(), "stable"_view);
 
   Thread::Bytes& moved = bytes;
-  bytes = static_cast<Thread::Bytes&&>(moved);
+  bytes = Data::take(moved);
   EXPECT_EQ(bytes.get_view(), "stable"_view);
 }
 

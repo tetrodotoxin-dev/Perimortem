@@ -9,10 +9,10 @@
 
 namespace Perimortem::Serialization {
 
-// Png maps encoded chunks to and from a Matrix of four byte Rgba8 samples.
-// Matrix owns row storage and Domain extents. The codec expands source channels
-// and reverses filters on decode, then selects filters and compresses on
-// encode. Sample bytes retain their decoded values, and absent alpha becomes
+// Png maps encoded chunks to and from a Matrix of four byte Rgba8 samples. The
+// Matrix stores row values and Domain extents. The codec expands source
+// channels and reverses filters on decode, then selects filters and compresses
+// on encode. Sample bytes retain their decoded values, and absent alpha becomes
 // opaque. No transfer conversion occurs here.
 class Png {
  public:

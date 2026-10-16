@@ -113,7 +113,7 @@ class Log {
       const Source& location) -> void;
 
   // Writes only the supplied message to the selected console stream. This is
-  // for diagnostics that already own their complete source presentation.
+  // for diagnostics that already supply their complete source presentation.
   static EXPORTED(PERIMORTEM) auto plain_sink(
       Level level,
       Core::View::Bytes message,
@@ -148,8 +148,8 @@ class Log {
   static EXPORTED(PERIMORTEM) auto get_sink() -> Sink;
 
   // Disables the standard log header on the current thread. Diagnostics that
-  // already own their display format should use this instead of a parallel raw
-  // sink.
+  // already supply their display format should use this instead of a parallel
+  // raw sink.
   static EXPORTED(PERIMORTEM) auto set_disable_header(Bool disable_header)
       -> void;
   static EXPORTED(PERIMORTEM) auto get_disable_header() -> Bool;
@@ -174,7 +174,7 @@ class Log {
   static constexpr Sink default_sink = file_sink;
 
   // Logging calls are thread safe
-  // Each thread writes to its own buffer and file.
+  // Each thread writes to a separate buffer and file.
   // The Source default argument is consteval, so it captures the caller's
   // location at compile time with zero runtime cost.
   // Source is passed by reference to preserve a simple cross language ABI.

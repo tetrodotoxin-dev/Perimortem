@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "toolchain/memory/lifetime.hpp"
+
 #include "perimortem/core/data.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 
@@ -17,22 +19,44 @@ namespace Perimortem::Memory::Dynamic {
 template <typename value_type>
 class Record {
  public:
-  template <typename... arg_types>
-  Record(arg_types&&... args) {
+  // Constructs a new Record allocation by copying `source`. Explicit
+  // construction keeps the allocation and independent value visible at the
+  // call site.
+  explicit Record(const value_type& source)
+    requires(__is_constructible(value_type, const value_type&))
+      : Record([&source] { return value_type(source); }) {}
+
+  // Constructs a new Record allocation by moving from `source`. Explicit
+  // construction keeps the allocation and source state change visible at the
+  // call site.
+  explicit Record(value_type&& source)
+    requires(__is_constructible(value_type, value_type &&))
+      : Record([&source] { return value_type(Core::Data::take(source)); }) {}
+
+  // The factory constructs the value directly in Bibliotheca storage so its
+  // lifetime begins under the shared reservation. Explicit construction
+  // prevents an unrelated callable from implicitly creating a Record.
+  template <typename factory_type>
+  explicit Record(factory_type factory)
+    requires requires(factory_type create) {
+      requires __is_same(value_type, decltype(create()));
+    }
+  {
     static_assert(
         alignof(value_type) <= Allocator::Bibliotheca::allocation_alignment);
     auto allocation = Allocator::Bibliotheca::check_out(sizeof(value_type));
     value = &Toolchain::Memory::Lifetime::construct<value_type>(
-        allocation.get_data(),
-        [&args...] { return value_type(static_cast<arg_types&&>(args)...); });
+        allocation.get_data(), Core::Data::take(factory));
   }
 
   Record(Record& rhs) : value(rhs.value) {
     Allocator::Bibliotheca::reserve(Core::Data::cast<U8>(value));
   }
+
   Record(const Record& rhs) : value(rhs.value) {
     Allocator::Bibliotheca::reserve(Core::Data::cast<U8>(value));
   }
+
   Record(Record&& rhs) : Record(rhs) {}
 
   auto operator=(const Record& rhs) -> Record& {

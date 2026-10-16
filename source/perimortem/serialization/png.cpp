@@ -42,8 +42,8 @@ enum class FilterType : U8 {
 // ImageInfo stores the 13 byte IHDR payload at the beginning of its native
 // record. Width and height remain in big endian storage while accessors expose
 // native values. `size` excludes trailing C++ padding so chunk reads and writes
-// never serialize it. A default record has zero dimensions and represents
-// header admission failure.
+// never serialize it. A default record has zero dimensions and represents a
+// header validation failure.
 struct ImageInfo {
  public:
   constexpr ImageInfo() = default;
@@ -276,8 +276,9 @@ template <Bool first_row>
 auto score_row(View::Bytes current_row, View::Bytes previous_row)
     -> FilterType {
   constexpr auto residual_magnitude = [](U8 residual) -> U8 {
-    return Scalar::magnitude<U8>(__builtin_bit_cast(S8, residual));
+    return Scalar::magnitude<U8>(Data::bit_cast<S8>(residual));
   };
+
   constexpr auto filter_count = first_row ? 2 : 5;
   constexpr auto channel_count = Rgba8::get_channel_count();
   Static::Vector<U64, filter_count> scores;
@@ -811,6 +812,7 @@ constexpr auto process_data(
           [](Matrix<Rgba8>& matrix) -> Option<Matrix<Rgba8>> {
             return Data::take(matrix);
           },
+
           [](Matrix<Rgba8>::Failure) -> Option<Matrix<Rgba8>> {
             Diagnostics::Log::error(
                 "Png: Decoded pixel count does not match dimensions"_view);
@@ -827,8 +829,8 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
   }
 
   // Keep the first IDAT payload as a source View to avoid an unconditional
-  // copy. A later IDAT requires owned Thread Bytes so every payload becomes one
-  // contiguous DEFLATE stream.
+  // copy. A later IDAT requires a mutable Thread Bytes buffer so every payload
+  // becomes one contiguous DEFLATE stream.
   View::Bytes binary_data{};
   Thread::Bytes merged_data{};
   View::Bytes palette{};
@@ -848,8 +850,8 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
       if (binary_data.is_empty()) {
         binary_data = chunk.get_data();
       } else {
-        // The second IDAT copies the first payload from source into owned
-        // storage.
+        // The second IDAT copies the first payload from `source` into
+        // `merged_data`.
         // Each following `concat` may relocate that storage, so refresh the
         // decoding view after every append rather than retaining its previous
         // address.

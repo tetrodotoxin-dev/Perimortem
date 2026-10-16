@@ -55,7 +55,8 @@ class alignas(64) Slab {
 #ifdef TOOLCHAIN_WASM
 
     // Browser linear memory uses aligned allocations rather than mapped pages.
-    // The slab allocator keeps the same chunk ownership as the native path.
+    // Each returned pointer still begins one Slab allocation that
+    // `Slab::release` later returns as a complete unit.
     size = Data::align<64>(
         block_size > allocator_size ? block_size : allocator_size);
     // Count remains a 64 bit quantity on Wasm32. The allocator boundary accepts
@@ -261,9 +262,9 @@ thread_local static Archive secret_archive;
 
 static_assert(sizeof(secret_archive) <= 512);
 
-// Librarian owns the current thread's ordered slab inventory. Archive keeps
-// size class free lists and counters separately so checked out blocks do not
-// participate in slab ordering.
+// Librarian retains the current thread's ordered slab inventory and releases it
+// at thread exit. Archive keeps size class free lists and counters separately
+// so checked out blocks do not participate in slab ordering.
 class Librarian {
  public:
   Slab* inventory = nullptr;
@@ -326,7 +327,7 @@ class Librarian {
   }
 
   // Thread exit releases every slab, including storage for blocks that were not
-  // remitted before their owning thread ended.
+  // remitted before the thread local cache ended.
   ~Librarian() {
     while (inventory) {
       auto entry = inventory;
@@ -356,8 +357,8 @@ auto preface_to_corpus(Preface* entry) -> U8* {
 auto Allocator::Bibliotheca::check_out(Count requested_bytes) -> Allocation {
   secret_archive.check_out_requests++;
 
-  // Power of two classes map each request to one free list. Rounding up
-  // preserves the guarantee that published capacity admits the requested bytes.
+  // Power of two classes map each request to one free list. Rounding guarantees
+  // that the returned capacity is at least `requested_bytes`.
   const Count archive_bucket = calculate_archive_bucket(requested_bytes);
   if (archive_bucket >= max_radix) [[unlikely]] {
     Diagnostics::Log::fatal(

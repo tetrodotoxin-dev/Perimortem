@@ -40,9 +40,9 @@ template <typename type>
 static constexpr bool supports_retain =
     requires(Thread::Vector<type>& values) { values.retain(0, 1); };
 
-// Ordinary resize can support owning values, while forgetful resize skips
-// construction and destruction. The checks below cover a nontrivial
-// constructor, a nontrivial destructor and a deleted constructor.
+// Ordinary resize supports values with nontrivial construction and destruction,
+// while forgetful resize skips both operations. The checks below also cover a
+// deleted constructor.
 class ConstructedValue {
  public:
   ConstructedValue() : value(42) {}
@@ -81,7 +81,7 @@ VALIDATION_TEST(ThreadVector, value_semantics) {
   EXPECT(copied.get_data() != original.get_data());
 
   Thread::Vector<U32> moved;
-  moved = static_cast<Thread::Vector<U32>&&>(copied);
+  moved = Data::take(copied);
   EXPECT_EQ(moved.get_size(), Count(3));
   EXPECT(!copied.get_data());
 }
@@ -238,7 +238,7 @@ VALIDATION_TEST(ThreadVector, self_move_assignment) {
   auto* allocation = values.get_data();
   const auto capacity = values.get_capacity();
   auto& self = values;
-  values = static_cast<Thread::Vector<U32>&&>(self);
+  values = Data::take(self);
 
   EXPECT(values.get_data() == allocation);
   EXPECT_EQ(values.get_capacity(), capacity);
@@ -461,13 +461,13 @@ VALIDATION_TEST(ThreadVector, move_retain_lifetimes) {
   check_retain_lifetimes<false>(result);
 }
 
-// Exclusive owners cannot be copied during growth. Moving a value must
-// transfer its obligation before the old allocation is destroyed, including
-// when several capacity increases happen before the owner is finally removed.
+// MoveOnly cannot be copied during growth. Vector must move construct each
+// replacement before releasing the old allocation, including across several
+// capacity increases before the value is finally removed.
 class MoveOnly {
  public:
-  // The fixture borrows one exact release counter. A U32 reference must not
-  // implicitly create an owner and add an unrelated destruction to it.
+  // The fixture records one exact destructor count. A U32 reference must not
+  // implicitly construct MoveOnly and add an unrelated destruction.
   explicit MoveOnly(U32& releases) : releases(&releases) {}
   MoveOnly(const MoveOnly&) = delete;
   MoveOnly(MoveOnly&& other) { Data::swap(releases, other.releases); }
@@ -507,7 +507,7 @@ VALIDATION_TEST(ThreadVector, move_only) {
 class InsertedValue {
  public:
   // Construction acquires one process allocation. A scalar must not implicitly
-  // create an owner whose destructor releases that allocation.
+  // construct InsertedValue and introduce that allocation and destructor.
   explicit InsertedValue(U32 value) : value(allocate(value)) {}
   InsertedValue(const InsertedValue& other)
       : value(other.value ? allocate(*other.value) : nullptr) {
@@ -532,9 +532,9 @@ class InsertedValue {
   U32* value = nullptr;
 
  private:
-  // The fixture needs independent runtime ownership so a destroyed source
-  // loses its pointee. Global names that policy explicitly and keeps compiler
-  // allocation expressions unavailable to ordinary test code.
+  // The fixture allocates each pointee through Global so destroying the source
+  // releases that pointee. Global keeps compiler allocation expressions
+  // unavailable to ordinary test code.
   static auto allocate(U32 value) -> U32* {
     auto allocation = Allocator::Global::allocate(sizeof(U32));
     U32* result = Data::cast<U32>(allocation.get_data());

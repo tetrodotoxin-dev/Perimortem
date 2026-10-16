@@ -18,8 +18,8 @@ VALIDATION_TEST(CoreUnion, null) {
   Static::Union<U32, View::Bytes, Bool> value;
 
   EXPECT(value.is_null());
-  EXPECT(value.find<U32>() == nullptr);
-  EXPECT(value.find<View::Bytes>() == nullptr);
+  EXPECT(!value.find<U32>());
+  EXPECT(!value.find<View::Bytes>());
 }
 
 VALIDATION_TEST(CoreUnion, alternatives) {
@@ -55,72 +55,54 @@ VALIDATION_TEST(CoreUnion, copy_move) {
   Static::Union<U32, View::Bytes> first("copy"_view);
   Static::Union<U32, View::Bytes> second(first);
   Static::Union<U32, View::Bytes> third(Data::take(second));
+  Static::Union<U32, View::Bytes> copied;
+  Static::Union<U32, View::Bytes> moved;
+
+  copied = first;
+  moved = Data::take(copied);
 
   EXPECT_TEXT(*third.find<View::Bytes>(), "copy"_view);
+  EXPECT_TEXT(*moved.find<View::Bytes>(), "copy"_view);
+
+  moved = Static::Union<U32, View::Bytes>();
+  EXPECT(moved.is_null());
 }
 
-VALIDATION_TEST(CoreUnion, equality) {
-  Static::Union<U64> hundred(U64(100));
-  Static::Union<U64> another_hundred(U64(100));
-  Static::Union<U64> different(U64(101));
-  Static::Union<U64> empty;
-  Static::Union<U64, View::Bytes> bits(U64(100));
-  Static::Union<U64, View::Bytes> text("100"_view);
-
-  EXPECT(hundred == 100);
-  EXPECT(hundred == another_hundred);
-  EXPECT(hundred != different);
-  EXPECT(different != 100);
-  EXPECT(empty == Static::Union<U64>());
-  EXPECT(empty != hundred);
-  EXPECT(bits != text);
-}
-
-class ReferencedValue {
+class MoveOnlyValue {
  public:
-  constexpr ReferencedValue(U64 value) : values{value} {}
+  constexpr MoveOnlyValue(U64 value) : value(value) {}
+  MoveOnlyValue(const MoveOnlyValue&) = delete;
+  constexpr MoveOnlyValue(MoveOnlyValue&& source) : value(source.value) {
+    source.value = 0;
+  }
 
-  constexpr auto set(U64 replacement) -> void { values[0] = replacement; }
-  constexpr auto get() const -> U64 { return values[0]; }
+  constexpr auto get() const -> U64 { return value; }
 
  private:
-  U64 values[8];
+  U64 value;
 };
 
-VALIDATION_TEST(CoreUnion, reference_case) {
-  ReferencedValue first(42);
-  ReferencedValue equal_value(42);
-  Static::Union<ReferencedValue&, U64, Bool> original(first);
-  Static::Union<ReferencedValue&, U64, Bool> same(first);
-  Static::Union<ReferencedValue&, U64, Bool> distinct(equal_value);
-  Static::Union<ReferencedValue&, U64, Bool> copied(original);
-  Static::Union<ReferencedValue&, U64, Bool> moved(Data::take(copied));
-  const auto& constant = original;
+VALIDATION_TEST(CoreUnion, move_only_alternative) {
+  MoveOnlyValue source(42);
+  Static::Union<MoveOnlyValue, U64> selected(Data::take(source));
+  Static::Union<MoveOnlyValue, U64> moved(Data::take(selected));
+  auto found = moved.find<MoveOnlyValue>();
 
-  constant.find<ReferencedValue&>()->set(84);
-
-  EXPECT(original.find<ReferencedValue&>() == &first);
-  EXPECT(moved.find<ReferencedValue&>() == &first);
-  EXPECT_EQ(first.get(), U64(84));
-  EXPECT(original == same);
-  EXPECT(original != distinct);
+  ASSERT(found);
+  EXPECT_EQ((*found).get(), U64(42));
+  EXPECT_EQ(source.get(), U64(0));
 }
 
-static_assert(__is_constructible(Static::Union<U64>, S32));
+static_assert(__is_constructible(Static::Union<U64>, U64));
+static_assert(!__is_convertible_to(U64, Static::Union<U64>));
+static_assert(!__is_constructible(Static::Union<U64>, S32));
 static_assert(!__is_constructible(Static::Union<U64, S64>, S32));
-static_assert(__is_constructible(
-    Static::Union<ReferencedValue&, U64, Bool>,
-    ReferencedValue&));
+static_assert(
+    __is_constructible(Static::Union<MoveOnlyValue, U64>, MoveOnlyValue&&));
 static_assert(!__is_constructible(
-    Static::Union<ReferencedValue&, U64, Bool>,
-    const ReferencedValue&));
+    Static::Union<MoveOnlyValue, U64>,
+    const MoveOnlyValue&));
 static_assert(!__is_constructible(
-    Static::Union<ReferencedValue&, U64, Bool>,
-    ReferencedValue));
-static_assert(__is_constructible(
-    Static::Union<const ReferencedValue&, U64, Bool>,
-    const ReferencedValue&));
-static_assert(!__is_constructible(
-    Static::Union<const ReferencedValue&, U64, Bool>,
-    ReferencedValue));
+    Static::Union<MoveOnlyValue, U64>,
+    const Static::Union<MoveOnlyValue, U64>&));
 static_assert(__is_trivially_destructible(Static::Union<View::Bytes, S64>));

@@ -13,10 +13,10 @@
 
 namespace Perimortem::Memory::Container {
 
-// Vector owns contiguous mutable values with independent size and allocation
-// capacity. It separates sequence behavior from `policy_type` allocation,
-// growth and release so storage policies can change ownership and lifetime
-// without reimplementing value operations.
+// Vector represents contiguous mutable values with independent size and
+// allocation capacity. It separates sequence behavior from `policy_type`
+// allocation, growth and release so storage policies can change allocation and
+// lifetime rules without reimplementing value operations.
 //
 // The empty representation is guaranteed to be allocation free. A wrapper that
 // exposes default construction produces it in constexpr O(1) time. `clear()`
@@ -39,21 +39,54 @@ namespace Perimortem::Memory::Container {
 // implementation remains in this header because those open arguments prevent
 // the explicit instantiation boundary used by `Container::Bytes`.
 //
-// A policy supplies the complete storage and value lifetime extension
-// contract. Growth calls `next_capacity(current, required)` before
-// `allocate(requested)`. The returned allocation provides its data and
-// capacity. After publishing that allocation, Vector passes it to `adopt` so
-// the policy can retain any ownership state.
+// The policy extension contract defines storage and value lifetime transitions
+// through the following required operations:
 //
-// Admission passes a destination and factory to `construct`, which establishes
-// the new current value. Allocation replacement passes a destination and live
-// source to `relocate`. Changing an occupied position calls
-// `replace(destination, source)`. Removal calls `retire(data, count)` while
-// retaining the allocation. Reset and allocation replacement call
-// `release(data, count)` before detaching the former allocation.
+//  auto next_capacity(Count current, Count required) -> Count
+//
+//    Selects an allocation capacity no smaller than `required`. The policy can
+//    use `current` to apply its growth strategy.
+//
+//  auto allocate(Count requested) -> Allocation<type>
+//
+//    Returns storage with at least the requested value capacity and the
+//    alignment required by `type`. Its values can be established through
+//    `construct` or `relocate` and remain accessible until `release`.
+//
+//  auto adopt(Allocation<type>&& allocation) -> void
+//
+//    Receives `allocation` after Vector publishes its data and capacity. A
+//    policy can retain its allocation record here but cannot invalidate either
+//    published value.
+//
+//  auto construct(type* destination, factory_type factory) -> type&
+//
+//    Establishes one current value at `destination` from exactly one call to
+//    `factory`. The destination is available for a new value under the policy.
+//
+//  auto relocate(type* destination, type& source) -> void
+//
+//    Establishes a current value in a replacement allocation. The source
+//    remains accessible until Vector releases its allocation.
+//
+//  auto replace(type* destination, type& source) -> void
+//
+//    Replaces the current value at `destination` from `source` without changing
+//    the allocation. The policy performs the required lifetime transition.
+//
+//  auto retire(type* values, Count count) -> void
+//
+//    Excludes the current value range from Vector while retaining its
+//    containing allocation. The policy applies its value lifetime rule to that
+//    range.
+//
+//  auto release(type* values, Count count) -> void
+//
+//    Detaches the allocation containing the supplied current values. The policy
+//    applies their remaining lifetime rules and controls storage reclamation.
 //
 // Policies deliberately inject stronger invariants through those operations.
-// Thread affinity, process ownership and Arena lifetime rules belong to their
+// Thread affinity, process heap rules and Arena lifetime rules remain in their
 // policy wrappers while the meanings of Vector operations remain shared.
 template <typename policy_type, typename type>
 class Vector {
@@ -61,18 +94,18 @@ class Vector {
   constexpr operator Core::View::Vector<type>() const { return get_view(); }
   constexpr operator Core::Access::Vector<type>() { return get_access(); }
 
-  // Appends a copy of `data` and returns its stored value. `data` may refer to
-  // a current value because growth constructs the copy before relocating
+  // Appends a copy of `value` and returns its stored value. `value` may refer
+  // to a current value because growth constructs the copy before relocating
   // storage.
-  constexpr auto insert(const type& data) -> type& {
-    return insert_value([&data] { return type(data); });
+  constexpr auto insert(const type& value) -> type& {
+    return insert_value([&value] { return type(value); });
   }
 
-  // Appends by moving `data` and returns its stored value. `data` may refer to
-  // a current value because growth transfers it before relocating storage. That
-  // current value remains alive in its moved from state until relocation.
-  constexpr auto insert(type&& data) -> type& {
-    return insert_value([&data] { return type(static_cast<type&&>(data)); });
+  // Appends by moving `value` and returns its stored value. `value` may refer
+  // to a current value because growth transfers it before relocating storage.
+  // That current value remains alive in its moved from state until relocation.
+  constexpr auto insert(type&& value) -> type& {
+    return insert_value([&value] { return type(Core::Data::take(value)); });
   }
 
   // Appends copies of `view`. The source may refer to the current Vector
@@ -103,7 +136,7 @@ class Vector {
             [&view, index] { return type(view.get_data()[index]); });
       }
 
-      replace_allocation(static_cast<decltype(allocation)&&>(allocation));
+      replace_allocation(Core::Data::take(allocation));
     }
 
     size = required_size;
@@ -265,7 +298,7 @@ class Vector {
   }
 
   // Removes every current value while retaining capacity for reuse. Each policy
-  // applies its own retirement semantics.
+  // applies its declared retirement behavior.
   constexpr auto clear() -> void {
     retire_range(0, size);
     size = 0;
@@ -295,11 +328,11 @@ class Vector {
     const Count requested_capacity =
         get_policy().next_capacity(capacity, required_size);
     auto allocation = get_policy().allocate(requested_capacity);
-    replace_allocation(static_cast<decltype(allocation)&&>(allocation));
+    replace_allocation(Core::Data::take(allocation));
   }
 
-  constexpr auto contains(const type& data) const -> Bool {
-    return get_view().contains(data);
+  constexpr auto contains(const type& value) const -> Bool {
+    return get_view().contains(value);
   }
 
   // Returns the value at `index`, or None when the index is outside the current
@@ -346,10 +379,10 @@ class Vector {
   auto operator=(const Vector&) -> Vector& = delete;
   auto operator=(Vector&&) -> Vector& = delete;
 
-  // Policies with independent reclamation release storage from their derived
-  // destructor while policy state is still alive. An owning policy member
-  // releases through its own destructor. Base destruction follows both and
-  // cannot dispatch to them.
+  // This base destructor cannot dispatch to policy hooks. A policy that
+  // reclaims blocks directly calls `reset()` from its derived destructor while
+  // its fields remain available. A policy field that releases storage through
+  // its destructor runs before this base automatically.
   constexpr ~Vector() = default;
 
   constexpr auto copy_from(const Vector& rhs) -> void {
@@ -389,7 +422,7 @@ class Vector {
 
  private:
   constexpr auto get_policy() -> policy_type& {
-    return static_cast<policy_type&>(*this);
+    return *Core::Data::cast<policy_type>(this);
   }
 
   constexpr auto retire_range(Count begin, Count end) -> void {
@@ -403,12 +436,11 @@ class Vector {
   }
 
   template <typename factory_type>
-  constexpr auto insert_value(factory_type&& factory) -> type& {
+  constexpr auto insert_value(factory_type factory) -> type& {
     const Count index = size;
     const Count required_size = size + 1;
     if (required_size <= capacity) {
-      get_policy().construct(
-          source_block + index, static_cast<factory_type&&>(factory));
+      get_policy().construct(source_block + index, Core::Data::take(factory));
     } else {
       const Count requested_capacity =
           get_policy().next_capacity(capacity, required_size);
@@ -417,8 +449,8 @@ class Vector {
       // The source used by `factory` may be a current value. Construct the
       // insertion before relocation can move from or retire that source.
       get_policy().construct(
-          allocation.get_data() + index, static_cast<factory_type&&>(factory));
-      replace_allocation(static_cast<decltype(allocation)&&>(allocation));
+          allocation.get_data() + index, Core::Data::take(factory));
+      replace_allocation(Core::Data::take(allocation));
     }
 
     size++;
@@ -459,7 +491,7 @@ class Vector {
 
     source_block = allocation.get_data();
     capacity = allocation.get_capacity();
-    get_policy().adopt(static_cast<allocation_type&&>(allocation));
+    get_policy().adopt(Core::Data::take(allocation));
   }
 
   type* source_block = nullptr;

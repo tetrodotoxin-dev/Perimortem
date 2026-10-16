@@ -190,7 +190,8 @@ static auto inspect_stream(FILE* file) -> Option<File::Fingerprint> {
 
 #elifdef TOOLCHAIN_WINDOWS
 
-  const auto handle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(file)));
+  const auto handle =
+      Data::restore<HANDLE>(CppSize(_get_osfhandle(_fileno(file))));
   BY_HANDLE_FILE_INFORMATION identity;
   FILE_BASIC_INFO times;
   if (!GetFileInformationByHandle(handle, &identity) ||
@@ -414,10 +415,10 @@ static auto create_path(Access::Bytes output, View::Bytes path)
   return View::Bytes(output_data, content_size);
 }
 
-// Join spellings without resolving parent segments ourselves. Resolving a link
+// Join spellings without resolving parent segments here. Resolving a link
 // before `..` can select a different directory than lexical normalization
-// would. The filesystem owns that decision, just as it does for an ordinary
-// File path.
+// would, so the host filesystem performs that resolution as it does for an
+// ordinary File path.
 static auto member_path(
     Access::Bytes output,
     View::Bytes directory,
@@ -582,14 +583,14 @@ auto File::read(View::Bytes location) -> Option<Global::Bytes> {
     return {};
   }
 
-  return Option<Global::Bytes>(static_cast<Global::Bytes&&>(data));
+  return Option<Global::Bytes>(Data::take(data));
 }
 
 auto File::read(Allocator::Arena& arena, View::Bytes location)
     -> Option<View::Bytes> {
   // The caller selects Arena storage when the file values join an existing
-  // transaction lifetime. Reading directly into that Arena avoids another
-  // independently owned allocation.
+  // transaction lifetime. Reading directly into that Arena avoids a second
+  // process heap allocation.
   Managed::Bytes data{arena};
   File::Fingerprint fingerprint;
   Bool read = read_file(location, data, fingerprint);

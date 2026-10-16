@@ -3,26 +3,29 @@
 
 #pragma once
 
+#include "toolchain/memory/lifetime.hpp"
+
+#include "perimortem/core/data.hpp"
 #include "perimortem/memory/allocation.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/container/vector.hpp"
 
 namespace Perimortem::Memory::Managed {
 
-// The recorded Arena owns every block attached to Managed Vector. An Arena must
-// therefore be supplied during construction. Arena bump allocation makes growth
-// fast by trading independent release for a shared lifetime. Every pointer and
-// reference remains accessible only while that Arena is alive. Growth
-// constructs a new current allocation without reclaiming the former block. A
-// reference into the former block continues to designate the value left there
-// by relocation and does not follow later Vector writes.
+// Managed Vector allocates every attached block from its recorded Arena, which
+// must therefore be supplied during construction. Arena bump allocation makes
+// growth fast by trading independent release for a shared lifetime. Every
+// pointer and reference remains accessible only while that Arena is alive.
+// Growth constructs a new current allocation without reclaiming the former
+// block. A reference into the former block continues to designate the value
+// left there by relocation and does not follow later Vector writes.
 //
 // `Arena::reset()` reclaims every block together. Clearing, replacement and
-// destruction therefore invoke no value destructors. Value types cannot
-// rely on a destructor to release independently owned resources. Every address
-// retained by a value remains valid only under the same Arena. `Arena::reset()`
-// invalidates every value pointer and reference and ends access to all values
-// together.
+// destruction therefore invoke no value destructors. Value types cannot depend
+// on individual destructors to release separate allocations, handles or
+// Bibliotheca blocks. Every address retained by a value remains valid only
+// under the same Arena. `Arena::reset()` invalidates every value pointer and
+// reference and ends access to all values together.
 //
 // Copy construction uses the source Arena. Assignment retains the destination
 // Arena and materializes an independent copy of the source values there. Move
@@ -35,8 +38,9 @@ class Vector final : public Container::Vector<Vector<type>, type> {
 
  public:
   Vector() = delete;
-  // The Arena establishes every value's storage lifetime. Explicit
-  // construction requires callers to name the owning Arena at the call site.
+  // An Arena selects the allocation and value lifetime policy rather than
+  // supplying values. Explicit construction prevents an Arena argument from
+  // implicitly creating an empty Vector.
   constexpr explicit Vector(Allocator::Arena& selected_arena)
       : arena(selected_arena) {}
 
@@ -58,7 +62,7 @@ class Vector final : public Container::Vector<Vector<type>, type> {
   Vector(const Vector& rhs) : arena(rhs.arena) { Base::copy_from(rhs); }
 
   constexpr Vector(Vector&& rhs) : arena(rhs.arena) {
-    Base::take(static_cast<Base&&>(rhs));
+    Base::take(Core::Data::take(rhs));
   }
 
   constexpr ~Vector() = default;
@@ -79,7 +83,7 @@ class Vector final : public Container::Vector<Vector<type>, type> {
     // may refer to this Vector. Assignment preserves the selected Arena.
     Vector replacement(arena, source);
     Base::reset();
-    Base::take(static_cast<Base&&>(replacement));
+    Base::take(Core::Data::take(replacement));
     return *this;
   }
 
@@ -118,13 +122,13 @@ class Vector final : public Container::Vector<Vector<type>, type> {
       requires(const selected_type& selected) { selected.get_arena(); };
 
   template <typename factory_type>
-  constexpr auto construct(type* destination, factory_type&& factory) -> type& {
+  constexpr auto construct(type* destination, factory_type factory) -> type& {
     if constexpr (has_arena_copy<type>) {
-      type candidate = static_cast<factory_type&&>(factory)();
+      type candidate = factory();
       return Toolchain::Memory::Lifetime::construct<type>(
           destination, [this, &candidate] {
             if (&candidate.get_arena() == &arena) {
-              return type(static_cast<type&&>(candidate));
+              return type(Core::Data::take(candidate));
             }
 
             return type(arena, candidate);
@@ -132,21 +136,21 @@ class Vector final : public Container::Vector<Vector<type>, type> {
     }
 
     return Toolchain::Memory::Lifetime::construct<type>(
-        destination, static_cast<factory_type&&>(factory));
+        destination, Core::Data::take(factory));
   }
 
   // Growth leaves the former Arena block accessible until `Arena::reset()`.
   // Copying constructs the current value in uninitialized storage at
-  // `destination` without changing `source`. A move only value cannot preserve
-  // two owners, so it transfers its state and leaves `source` alive in its
-  // moved from state.
+  // `destination` without changing `source`. A move only value cannot be copied
+  // into a second current value, so relocation move constructs `destination`
+  // and leaves `source` alive in its moved from state.
   constexpr auto relocate(type* destination, type& source) -> void {
     if constexpr (__is_constructible(type, const type&)) {
       const type& copy_source = source;
       construct(destination, [&copy_source] { return type(copy_source); });
     } else {
       construct(
-          destination, [&source] { return type(static_cast<type&&>(source)); });
+          destination, [&source] { return type(Core::Data::take(source)); });
     }
   }
 

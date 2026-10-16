@@ -91,7 +91,7 @@ class Binary {
     }
 
     cursor += sizeof(Storage);
-    return __builtin_bit_cast(T, value);
+    return Data::bit_cast<T>(value);
   }
 
   View::Bytes source{};

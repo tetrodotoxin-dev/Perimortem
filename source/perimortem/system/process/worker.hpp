@@ -7,9 +7,9 @@
 
 namespace Perimortem::System::Process {
 
-// Worker owns one native thread and joins it before the handle leaves scope.
-// Startup copies the name and job data into the destination thread before the
-// spawning call returns, giving the job a stable thread local view.
+// Worker represents one native thread and joins it before the handle leaves
+// scope. Startup copies the name and job data into the destination thread
+// before the spawning call returns, giving the job a stable thread local view.
 class Worker {
  public:
   // The job function receives a stable copy of the provided job data for the
@@ -31,7 +31,7 @@ class Worker {
   EXPORTED(PERIMORTEM) auto join() -> void;
 
   // Starts a worker on a separate thread with a copy of the provided job data.
-  // Each worker receives its own thread local Bibliotheca storage.
+  // Each worker receives a separate thread local Bibliotheca archive.
   static EXPORTED(PERIMORTEM) auto start(
       Core::View::Bytes name,
       JobFunction job_function,

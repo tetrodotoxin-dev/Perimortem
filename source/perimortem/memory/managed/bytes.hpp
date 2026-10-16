@@ -3,14 +3,15 @@
 
 #pragma once
 
+#include "perimortem/core/data.hpp"
 #include "perimortem/memory/allocation.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/container/bytes.hpp"
 
 namespace Perimortem::Memory::Managed {
 
-// The recorded Arena owns every block attached to Managed Bytes. An Arena must
-// therefore be supplied during construction. Arena bump allocation makes
+// Managed Bytes allocates every attached block from its recorded Arena, which
+// must therefore be supplied during construction. Arena bump allocation makes
 // growth fast by trading independent release for a shared lifetime. Every View
 // remains accessible only while that Arena is alive. After mutation, an earlier
 // View has no guaranteed relationship to the current values because the
@@ -28,9 +29,9 @@ class Bytes final : public Container::Bytes<Bytes> {
 
  public:
   Bytes() = delete;
-  // The Arena establishes the Bytes object's allocation and lifetime policy.
-  // Explicit construction requires callers to name the owning Arena even in the
-  // empty representation.
+  // An Arena selects the allocation and lifetime policy rather than supplying
+  // byte values. Explicit construction prevents an Arena argument from
+  // implicitly creating an empty Bytes object.
   constexpr explicit Bytes(Allocator::Arena& selected_arena)
       : arena(selected_arena) {}
   Bytes(Allocator::Arena& selected_arena, Count reserved_capacity)
@@ -51,7 +52,7 @@ class Bytes final : public Container::Bytes<Bytes> {
   Bytes(const Bytes& rhs) : arena(rhs.arena) { Base::copy(rhs.get_view()); }
 
   constexpr Bytes(Bytes&& rhs) : arena(rhs.arena) {
-    Base::take(static_cast<Base&&>(rhs));
+    Base::take(Core::Data::take(rhs));
   }
 
   constexpr ~Bytes() = default;

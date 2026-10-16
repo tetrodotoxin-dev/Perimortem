@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/view/bytes.h"
 
@@ -14,7 +15,7 @@ namespace Perimortem::Core {
 class NullTerminated {
  public:
   constexpr NullTerminated(const char* source, Count capacity)
-      : source(static_cast<const U8*>(static_cast<const void*>(source))) {
+      : source(Data::cast<const U8>(source)) {
     if (source) {
       while (size < capacity && source[size] != 0) {
         size++;
@@ -24,8 +25,9 @@ class NullTerminated {
 
   auto get_view() const -> View::Bytes { return View::Bytes(source, size); }
 
-  // Literal owns every authored byte except C++'s implicit terminator. Authors
-  // include an explicit null when it belongs to the resulting byte view.
+  // Literal stores every authored byte except C++'s implicit terminator.
+  // Authors include an explicit null when it belongs to the resulting byte
+  // view.
   template <CppSize size_including_null>
   struct Literal {
     U8 content[size_including_null - 1]{};

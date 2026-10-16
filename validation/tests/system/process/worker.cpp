@@ -108,7 +108,8 @@ static auto read_large_payload_job(View::Bytes job_data) -> void {
     return;
   }
 
-  auto* worker_result = reinterpret_cast<WorkerPayloadResult*>(*result_address);
+  auto* worker_result =
+      Data::restore<WorkerPayloadResult*>(CppSize(*result_address));
   worker_result->byte_count = payload_bytes->get_size();
   worker_result->checksum = checksum_worker_payload(*payload_bytes);
   worker_result->read_successfully = reader.get_location() == reader.get_size();
@@ -127,7 +128,8 @@ static auto read_thread_name_job(View::Bytes job_data) -> void {
     return;
   }
 
-  auto* worker_result = reinterpret_cast<WorkerNameResult*>(*result_address);
+  auto* worker_result =
+      Data::restore<WorkerNameResult*>(CppSize(*result_address));
   const View::Bytes actual_name = Process::Worker::get_thread_name();
   worker_result->on_main_thread = Process::Worker::on_main_thread();
   worker_result->name_size = actual_name.get_size();
@@ -143,7 +145,8 @@ static auto hold_worker_job(View::Bytes job_data) -> void {
     return;
   }
 
-  auto* worker_result = reinterpret_cast<WorkerCountResult*>(*result_address);
+  auto* worker_result =
+      Data::restore<WorkerCountResult*>(CppSize(*result_address));
   worker_result->active_worker_count = Process::Worker::get_worker_count();
   worker_result->thread_id = Process::Worker::get_thread_id();
   worker_result->read_successfully = reader.get_location() == reader.get_size();
@@ -179,8 +182,7 @@ VALIDATION_TEST(SystemProcessWorker, copies_large_job) {
       job_storage.get_size() - source_offset);
 
   Writer::Binary<Data::ByteOrder::Native> writer(job_data);
-  writer << reinterpret_cast<U64>(&worker_result)
-         << expected_payload.get_view();
+  writer << U64(Data::address(&worker_result)) << expected_payload.get_view();
   ASSERT(writer.is_valid());
 
   Process::Worker worker = Process::Worker::start(
@@ -204,7 +206,7 @@ VALIDATION_TEST(SystemProcessWorker, copies_thread_name) {
       job_storage;
 
   Writer::Binary<Data::ByteOrder::Native> writer(job_storage.get_access());
-  writer << reinterpret_cast<U64>(&worker_result) << U64(long_worker_name_size)
+  writer << U64(Data::address(&worker_result)) << U64(long_worker_name_size)
          << requested_name.get_view();
   ASSERT(writer.is_valid());
 
@@ -227,7 +229,7 @@ VALIDATION_TEST(SystemProcessWorker, unnamed_worker) {
   WorkerNameResult worker_result;
   Static::Bytes<sizeof(U64) * 2> storage;
   Writer::Binary<Data::ByteOrder::Native> writer(storage.get_access());
-  writer << reinterpret_cast<U64>(&worker_result) << U64(0);
+  writer << U64(Data::address(&worker_result)) << U64(0);
 
   auto worker = Process::Worker::start(""_view, read_thread_name_job, writer);
   worker.join();
@@ -244,7 +246,7 @@ VALIDATION_TEST(SystemProcessWorker, worker_count) {
 
   Static::Bytes<sizeof(U64)> job_storage;
   Writer::Binary<Data::ByteOrder::Native> writer(job_storage.get_access());
-  writer << reinterpret_cast<U64>(&worker_result);
+  writer << U64(Data::address(&worker_result));
   ASSERT(writer.is_valid());
 
   Process::Worker worker =

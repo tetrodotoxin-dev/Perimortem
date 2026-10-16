@@ -146,14 +146,13 @@ VALIDATION_TEST(ManagedVector, move_construction_transfers_assignment_copies) {
   source.insert(first);
 
   const CopyValue* retained = &source.get_data()[0];
-  Managed::Vector<CopyValue> moved(
-      static_cast<Managed::Vector<CopyValue>&&>(source));
+  Managed::Vector<CopyValue> moved(Data::take(source));
 
   EXPECT(source.is_empty());
   EXPECT(&moved.get_data()[0] == retained);
 
   Managed::Vector<CopyValue> assigned(destination_arena);
-  assigned = static_cast<Managed::Vector<CopyValue>&&>(moved);
+  assigned = Data::take(moved);
   EXPECT(!moved.is_empty());
   EXPECT(&assigned.get_arena() == &destination_arena);
   EXPECT(&assigned.get_data()[0] != retained);

@@ -125,7 +125,8 @@ auto Args::parse(
 
     if (!values.contains(argument.key)) {
       values[argument.key] =
-          &arena.construct<Managed::Vector<View::Bytes>>(arena);
+          &arena.construct_from<Managed::Vector<View::Bytes>>(
+              [&arena] { return Managed::Vector<View::Bytes>(arena); });
     }
 
     values[argument.key]->insert(argument.value);

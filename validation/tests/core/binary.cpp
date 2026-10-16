@@ -338,6 +338,7 @@ VALIDATION_TEST(CoreBinaryWriter, big_endian_vector) {
     U16(0x0304),
     U16(0x0506),
   }};
+
   Static::Bytes<6> buffer;
   Writer writer(buffer);
 
@@ -397,7 +398,7 @@ VALIDATION_TEST(CoreBinaryWriter, multiple_writers) {
   writers[0] << U16(0xAAAA);
   // Both writers begin at zero, so the second writer replaces the first value.
   writers[1] << U16(0xBBBB);
-  // The first writer retains its own cursor and continues at position two.
+  // The first writer retains its separate cursor and continues at position two.
   writers[0] << U16(0xCCCC);
 
   EXPECT(writers[0].is_valid());

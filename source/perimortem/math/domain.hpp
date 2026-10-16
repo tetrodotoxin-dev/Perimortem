@@ -14,7 +14,7 @@
 namespace Perimortem::Math {
 
 // Domain maps signed coordinates into discrete index limits starting at zero.
-// Size owns each upper limit while Boundary selects the behavior outside it.
+// Size stores each upper limit while Boundary selects the behavior outside it.
 //
 // Domain supports three modes based on its Boundary template arguments:
 //
@@ -23,8 +23,8 @@ namespace Perimortem::Math {
 // dimension.
 //
 // The selected rules are part of the type, so resolution needs no runtime
-// policy dispatch. An empty axis has no valid index under any policy.
-// Domain owns no elements and chooses no storage order.
+// policy dispatch. An empty axis has no valid index under any policy. Domain
+// stores no values and chooses no storage order.
 template <Count dimensions, Boundary... boundaries>
 class Domain {
   static_assert(
@@ -54,6 +54,7 @@ class Domain {
       }
     }
   }
+
   constexpr auto is_empty() const -> Bool { return extent.is_empty(); }
 
   constexpr auto get_limits() const -> Volume<S64, dimensions> {
@@ -104,8 +105,7 @@ class Domain {
   }
 
   // Every axis is at most 32 bits, but several axes can still overflow Count.
-  // Returning None lets a storage owner refuse the allocation before fitting
-  // its buffer.
+  // Returning None lets the caller reject allocation before fitting its buffer.
   constexpr auto get_element_count() const -> Core::Option<Count> {
     if (is_empty()) {
       return Count{};

@@ -13,6 +13,7 @@ static constexpr U8 signed_big[] = {0xFC, 0x18};
 static constexpr U8 signed_wide_little[] = {
   0x00, 0x36, 0x65, 0xC4, 0xFF, 0xFF, 0xFF, 0xFF,
 };
+
 static constexpr U8 signed_wide_big[] = {
   0xFF, 0xFF, 0xFF, 0xFF, 0xC4, 0x65, 0x36, 0x00,
 };
@@ -27,6 +28,19 @@ static_assert(
 static_assert(
     Data::read<Data::ByteOrder::Big, S64>(signed_wide_big) == S64(-1000000000));
 
+struct DataCastBase {};
+struct DataCastDerived : DataCastBase {};
+
+consteval auto preserves_object_identity() -> Bool {
+  DataCastDerived source;
+  DataCastBase* base = &source;
+  DataCastDerived* derived = Data::cast<DataCastDerived>(base);
+  DataCastDerived&& taken = Data::take(source);
+  return derived == &source && &taken == &source;
+}
+
+static_assert(preserves_object_identity());
+
 static Harness CoreData = {
   .name = "Core::Data",
 };
@@ -40,7 +54,8 @@ VALIDATION_TEST(CoreData, copy) {
   U8 sized[] = {0, 0, 0};
   Data::copy(sized, bytes, Data::array_size(bytes));
 
-  auto* empty = Data::copy(nullptr, static_cast<const U8*>(nullptr), Count(0));
+  const U8* no_source = nullptr;
+  auto* empty = Data::copy(nullptr, no_source, Count(0));
 
   EXPECT_EQ(direct, source);
   EXPECT_EQ(sized[0], U8(1));

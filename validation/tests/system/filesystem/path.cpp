@@ -36,8 +36,8 @@ VALIDATION_TEST(SystemPath, normalize_in_arena) {
   ASSERT(normalized);
   ASSERT(rooted);
 
-  // Mutating the source separates Arena ownership from a view that merely
-  // happens to contain the expected bytes during the call.
+  // Mutating the source distinguishes the Arena copy from a View that merely
+  // happened to contain the expected bytes during the call.
   authored.set('x');
 
   EXPECT_TEXT(*normalized, "unit/folder/file.ttx"_view);

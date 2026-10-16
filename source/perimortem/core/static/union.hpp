@@ -3,16 +3,27 @@
 
 #pragma once
 
+#include "toolchain/memory/lifetime.hpp"
+
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/option.hpp"
 
 namespace Perimortem::Core::Static {
 
-// A tagged union type that allows null tagging to represent no value.
-// Each possible type must be unique. Value alternatives are managed using byte
-// laundering, while reference alternatives store one non owning pointer and
-// preserve the referred object's identity. A reference can only be constructed
-// from an lvalue, so the Union cannot retain a temporary through const binding.
-// Destructable alternatives aren't supported.
+// Union holds either no value or one value from a fixed set of distinct,
+// trivially destructible types. The selected value lives directly in Union
+// storage, so selection requires no allocation. The U8 tag reserves zero for
+// the empty representation and limits the set to 254 alternatives.
+//
+// Construction accepts only an exact alternative type and preserves whether
+// its source is an lvalue or rvalue for that alternative's constructor. Copy
+// operations exist only when every alternative can be copied. Move operations
+// exist only when every alternative accepts an rvalue. The source remains
+// selected after moving a Union.
+//
+// `find` returns an optional reference to one requested alternative. `visit`
+// calls the matching visitor or the zero argument visitor for the empty
+// representation.
 template <typename... value_types>
 class Union {
  private:
@@ -32,32 +43,22 @@ class Union {
       ((type_count<value_types>() == 1) && ...),
       "All provided Union types must be unique.");
   static_assert(
+      (__is_same(value_types, __remove_cvref(value_types)) && ...),
+      "Union alternatives must be unqualified value types.");
+  static_assert(
       (__is_trivially_destructible(value_types) && ...),
       "All provided Union types must be trivially destructible.");
 
-  template <typename value_type>
-  static auto storage_type() -> value_type;
-
-  template <typename value_type>
-    requires(__is_lvalue_reference(value_type))
-  static auto storage_type() -> __remove_reference_t(value_type)*;
-
-  template <typename value_type>
-  using Storage = decltype(storage_type<value_type>());
-
   static consteval auto storage_size() -> Count {
     Count size = 0;
-    ((size = size < sizeof(Storage<value_types>) ? sizeof(Storage<value_types>)
-                                                 : size),
-     ...);
+    ((size = size < sizeof(value_types) ? sizeof(value_types) : size), ...);
     return size;
   }
 
   static consteval auto storage_alignment() -> Count {
     Count alignment = 0;
-    ((alignment = alignment < alignof(Storage<value_types>)
-                      ? alignof(Storage<value_types>)
-                      : alignment),
+    ((alignment =
+          alignment < alignof(value_types) ? alignof(value_types) : alignment),
      ...);
     return alignment;
   }
@@ -72,105 +73,56 @@ class Union {
     return result;
   }
 
-  template <typename value_type>
-  using Alternative = __remove_cvref(value_type);
-
-  template <typename Candidate, typename value_type>
-  static consteval auto constructible() -> bool {
-    return (!__is_lvalue_reference(value_type) ||
-            __is_lvalue_reference(Candidate)) &&
-           __is_constructible(value_type, Candidate&&);
-  }
-
   template <typename Candidate>
-  static consteval auto constructible_count() -> Count {
-    return (Count(constructible<Candidate, value_types>()) + ...);
-  }
-
-  template <typename Candidate, typename value_type>
-  static consteval auto selects() -> bool {
-    // An exact alternative always wins. Otherwise the source must construct
-    // exactly one alternative, allowing `Union<U64>` to accept an
-    // integer literal without making a multiple numeric Union guess its
-    // intended type.
-    constexpr Count exact_reference = type_count<Candidate>();
-    if constexpr (exact_reference != 0) {
-      return __is_same(Candidate, value_type) &&
-             constructible<Candidate, value_type>();
-    }
-
-    constexpr Count exact_value = type_count<Alternative<Candidate>>();
-    if constexpr (exact_value != 0) {
-      return __is_same(Alternative<Candidate>, value_type) &&
-             constructible<Candidate, value_type>();
-    }
-
-    return constructible_count<Candidate>() == 1 &&
-           constructible<Candidate, value_type>();
-  }
+  using Alternative = __remove_cvref(Candidate);
 
   template <typename Candidate>
   static consteval auto accepts() -> bool {
-    return (Count(selects<Candidate, value_types>()) + ...) == 1;
+    if constexpr (type_count<Alternative<Candidate>>() != 1) {
+      return false;
+    } else {
+      return __is_constructible(Alternative<Candidate>, Candidate&&);
+    }
   }
+
+  static constexpr bool copy_constructible =
+      (__is_constructible(value_types, const value_types&) && ...);
+  static constexpr bool move_constructible =
+      (__is_constructible(value_types, value_types&&) && ...);
 
   template <typename value_type, typename Candidate>
-  constexpr auto construct(Candidate&& candidate) -> decltype(auto) {
-    if constexpr (__is_lvalue_reference(value_type)) {
-      auto& reference = static_cast<value_type>(candidate);
-      Toolchain::Memory::Lifetime::construct<Storage<value_type>>(
-          storage, [&reference] { return Storage<value_type>(&reference); });
-      tag = type_tag<value_type>();
-      return reference;
-    } else {
-      value_type& value = Toolchain::Memory::Lifetime::construct<value_type>(
-          storage, [&candidate] {
-            return value_type(static_cast<Candidate&&>(candidate));
-          });
-      tag = type_tag<value_type>();
-      return value;
-    }
-  }
+  constexpr auto construct(Candidate& candidate) -> value_type& {
+    value_type& value = Toolchain::Memory::Lifetime::construct<value_type>(
+        storage, [&candidate] {
+          if constexpr (__is_lvalue_reference(Candidate)) {
+            return value_type(candidate);
+          } else {
+            return value_type(Data::take(candidate));
+          }
+        });
 
-  template <typename value_type, typename... Rest, typename Candidate>
-  constexpr auto construct_candidate(Candidate&& value) -> void {
-    if constexpr (selects<Candidate, value_type>()) {
-      construct<value_type>(static_cast<Candidate&&>(value));
-    } else if constexpr (sizeof...(Rest) != 0) {
-      construct_candidate<Rest...>(static_cast<Candidate&&>(value));
-    } else {
-      static_assert(
-          selects<Candidate, value_type>(),
-          "Union construction candidate does not select a supported type.");
-    }
+    tag = type_tag<value_type>();
+    return value;
   }
 
   template <typename value_type>
-  constexpr auto active() -> decltype(auto) {
-    if constexpr (__is_lvalue_reference(value_type)) {
-      return **Data::cast<Storage<value_type>>(storage);
-    } else {
-      return *Data::cast<value_type>(storage);
-    }
+  constexpr auto active() -> value_type& {
+    return *Data::cast<value_type>(storage);
   }
 
   template <typename value_type>
-  constexpr auto active() const -> decltype(auto) {
-    if constexpr (__is_lvalue_reference(value_type)) {
-      return **Data::cast<Storage<value_type>>(storage);
-    } else {
-      return *Data::cast<const value_type>(storage);
-    }
+  constexpr auto active() const -> const value_type& {
+    return *Data::cast<const value_type>(storage);
   }
 
   template <typename value_type, typename... Rest, typename Source>
   constexpr auto construct_active(Source& source) -> void {
     if (source.tag == type_tag<value_type>()) {
-      if constexpr (
-          __is_same(Source, const Union) || __is_lvalue_reference(value_type)) {
-        construct<value_type>(source.template active<value_type>());
+      if constexpr (__is_same(Source, const Union)) {
+        construct<value_type, const value_type&>(
+            source.template active<value_type>());
       } else {
-        construct<value_type>(Data::take(source.template active<value_type>()));
+        construct<value_type, value_type>(source.template active<value_type>());
       }
 
       return;
@@ -179,23 +131,6 @@ class Union {
     if constexpr (sizeof...(Rest) != 0) {
       construct_active<Rest...>(source);
     }
-  }
-
-  template <typename value_type, typename... Rest>
-  constexpr auto equals_active(const Union& rhs) const -> Bool {
-    if (tag == type_tag<value_type>()) {
-      if constexpr (__is_lvalue_reference(value_type)) {
-        return &active<value_type>() == &rhs.template active<value_type>();
-      } else {
-        return active<value_type>() == rhs.template active<value_type>();
-      }
-    }
-
-    if constexpr (sizeof...(Rest) != 0) {
-      return equals_active<Rest...>(rhs);
-    }
-
-    __builtin_unreachable();
   }
 
   template <
@@ -220,7 +155,8 @@ class Union {
   constexpr static auto dispatch(Self& self, Cases... cases) -> decltype(auto) {
     struct Visitor : Cases... {
       using Cases::operator()...;
-    } visitor{static_cast<Cases&&>(cases)...};
+    } visitor{Data::take(cases)...};
+
     if (self.is_null()) {
       return visitor();
     }
@@ -234,25 +170,41 @@ class Union {
  public:
   constexpr Union() = default;
 
+  // Alternative construction is explicit so a value cannot silently select a
+  // Union alternative at an unrelated call boundary.
   template <typename Candidate>
     requires(accepts<Candidate>())
-  constexpr Union(Candidate&& value) {
-    construct_candidate<value_types...>(static_cast<Candidate&&>(value));
+  explicit constexpr Union(Candidate&& value) {
+    construct<Alternative<Candidate>, Candidate>(value);
   }
 
-  constexpr Union(const Union& source) {
+  constexpr Union(const Union& source)
+    requires(copy_constructible)
+  {
     if (!source.is_null()) {
       construct_active<value_types...>(source);
     }
   }
 
-  constexpr Union(Union&& source) {
+  constexpr Union(const Union&)
+    requires(!copy_constructible)
+  = delete;
+
+  constexpr Union(Union&& source)
+    requires(move_constructible)
+  {
     if (!source.is_null()) {
       construct_active<value_types...>(source);
     }
   }
 
-  constexpr auto operator=(const Union& source) -> Union& {
+  constexpr Union(Union&&)
+    requires(!move_constructible)
+  = delete;
+
+  constexpr auto operator=(const Union& source) -> Union&
+    requires(copy_constructible)
+  {
     if (this == &source) {
       return *this;
     }
@@ -265,7 +217,13 @@ class Union {
     return *this;
   }
 
-  constexpr auto operator=(Union&& source) -> Union& {
+  constexpr auto operator=(const Union&) -> Union&
+    requires(!copy_constructible)
+  = delete;
+
+  constexpr auto operator=(Union&& source) -> Union&
+    requires(move_constructible)
+  {
     if (this == &source) {
       return *this;
     }
@@ -278,17 +236,9 @@ class Union {
     return *this;
   }
 
-  constexpr auto operator==(const Union& rhs) const -> Bool {
-    if (tag != rhs.tag) {
-      return False;
-    }
-
-    return is_null() ? True : equals_active<value_types...>(rhs);
-  }
-
-  constexpr auto operator!=(const Union& rhs) const -> Bool {
-    return !(*this == rhs);
-  }
+  constexpr auto operator=(Union&&) -> Union&
+    requires(!move_constructible)
+  = delete;
 
   template <typename value_type>
   constexpr auto is() const -> Bool {
@@ -299,29 +249,37 @@ class Union {
   }
 
   template <typename value_type>
-  constexpr auto find() -> decltype(&active<value_type>()) {
+  constexpr auto find() -> Core::Option<value_type&> {
     static_assert(
         type_count<value_type>() == 1,
         "Requested value type is not a Union alternative.");
-    return is<value_type>() ? &active<value_type>() : nullptr;
+    if (!is<value_type>()) {
+      return {};
+    }
+
+    return active<value_type>();
   }
 
   template <typename value_type>
-  constexpr auto find() const -> decltype(&active<value_type>()) {
+  constexpr auto find() const -> Core::Option<const value_type&> {
     static_assert(
         type_count<value_type>() == 1,
         "Requested value type is not a Union alternative.");
-    return is<value_type>() ? &active<value_type>() : nullptr;
+    if (!is<value_type>()) {
+      return {};
+    }
+
+    return active<value_type>();
   }
 
   template <typename... Cases>
   constexpr auto visit(Cases... cases) -> decltype(auto) {
-    return dispatch(*this, static_cast<Cases&&>(cases)...);
+    return dispatch(*this, Data::take(cases)...);
   }
 
   template <typename... Cases>
   constexpr auto visit(Cases... cases) const -> decltype(auto) {
-    return dispatch(*this, static_cast<Cases&&>(cases)...);
+    return dispatch(*this, Data::take(cases)...);
   }
 
   constexpr auto is_null() const -> Bool { return tag == 0; }

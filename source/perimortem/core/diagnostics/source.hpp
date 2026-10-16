@@ -3,50 +3,35 @@
 
 #pragma once
 
+#include "toolchain/compile/source_location.hpp"
+
 #include "perimortem/core/view/bytes.h"
-
-// Compiler extension ABI
-
-namespace std {
-
-class source_location {
- public:
-  struct __impl {
-    // Null terminated cstring
-    const char* _M_file_name;
-    // Null terminated cstring
-    const char* _M_function_name;
-    U32 _M_line;
-    U32 _M_column;
-  };
-};
-
-}  // namespace std
 
 namespace Perimortem::Core::Diagnostics {
 
-// Thin Perimortem shim over the compiler's source location ABI.
-// Source stores only a pointer to the static __impl struct baked into the
-// binary and uses value semantics so a Source copy is always a single pointer
-// copy.
+// Source converts compiler locations into bounded byte views before publishing
+// them to Perimortem diagnostics. Explicit byte views let another runtime
+// provide the same information without adopting the compiler ABI.
 //
-// Other runtimes can provide source information using the same fields, which
-// keeps diagnostics useful across language boundaries.
+// The compiler location points to read only program storage. Explicit views
+// retain their caller supplied storage and must remain available through every
+// use of Source.
 //
-// Accessors are evaluated lazily since evaluating source most likely means we
-// are already in a diagnostics slow path.
-struct Source {
+// Compiler strings are bounded and converted only when an accessor is called.
+// Logging therefore pays that scan only on its diagnostics path.
+class Source {
  public:
-  // Captures the call site via the standard function default parameter pattern.
-  // The __impl pointer points to read only data in the binary.
+  // Captures the call site through Toolchain's compiler location utility while
+  // retaining Perimortem's safe byte view boundary.
   static consteval auto current(
-      const std::source_location::__impl* impl = __builtin_source_location())
-      -> Source {
-    return Source(impl);
+      Toolchain::Compile::SourceLocation location =
+          Toolchain::Compile::SourceLocation::current()) -> Source {
+    return Source(location);
   }
 
   constexpr Source() = default;
-  constexpr Source(const std::source_location::__impl* impl) : impl(impl) {}
+  constexpr Source(Toolchain::Compile::SourceLocation location)
+      : location(location) {}
   constexpr Source(
       Core::View::Bytes file,
       Count line,
@@ -61,7 +46,7 @@ struct Source {
   EXPORTED(PERIMORTEM) auto get_function() const -> Core::View::Bytes;
 
  private:
-  const std::source_location::__impl* impl = nullptr;
+  Toolchain::Compile::SourceLocation location;
   Core::View::Bytes file{};
   Core::View::Bytes function{};
   Count line = 0;

@@ -5,6 +5,8 @@
 
 #include "toolchain/toolchain.hpp"
 
+#include "perimortem/core/data.hpp"
+
 namespace Perimortem::Core::View {
 
 // Selection iterates over values selected from a View by one predicate. It
@@ -20,7 +22,7 @@ class Selection {
   constexpr Selection(view_type source) : Selection(source, accept, 0, True) {}
 
   constexpr Selection(view_type source, predicate_type predicate)
-      : Selection(source, static_cast<predicate_type&&>(predicate), 0, True) {}
+      : Selection(source, Data::take(predicate), 0, True) {}
 
   constexpr Selection(view_type source, Count position)
       : Selection(source, accept, position, False) {}
@@ -59,9 +61,7 @@ class Selection {
       predicate_type predicate,
       Count position,
       Bool select_position)
-      : source(source),
-        predicate(static_cast<predicate_type&&>(predicate)),
-        position(position) {
+      : source(source), predicate(Data::take(predicate)), position(position) {
     if (select_position) {
       select();
     }

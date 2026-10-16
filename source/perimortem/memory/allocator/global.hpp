@@ -9,9 +9,9 @@
 
 namespace Perimortem::Memory::Allocator {
 
-// Global owns untyped storage obtained from the process heap. Allocations can
-// be released from a different thread, although concurrent access to their
-// contents still requires synchronization.
+// Global obtains untyped storage from the process heap. `release` can return an
+// allocation from a different thread, although concurrent access to its bytes
+// still requires synchronization.
 class Global {
  public:
   // The process heap supports every fundamental alignment. Typed containers
