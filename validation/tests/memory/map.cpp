@@ -727,9 +727,9 @@ VALIDATION_TEST(GlobalMap, capability_contract) {
       result);
 }
 
-// Rehashing consumes former keys and values in worker allocated process
-// storage. Reading and releasing the completed Map on this thread proves that
-// its keys, values, and allocation can cross the worker boundary.
+// The worker repeatedly grows the Map and moves its values within process heap
+// storage. Reading and resetting it on this thread verifies that the keys,
+// values and allocation can cross the worker boundary.
 VALIDATION_TEST(GlobalMap, cross_thread_reallocation) {
   global_map_counts = {};
 

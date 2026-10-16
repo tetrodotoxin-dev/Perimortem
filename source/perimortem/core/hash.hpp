@@ -15,10 +15,10 @@ namespace Perimortem::Core {
 // runtime lookup tables and provide neither cryptographic protection nor a
 // persistent identity contract.
 class Hash {
-  // Since memcpy isn't constexpr but is guaranteed to give us the optimum
-  // runtime logic but Clang isn't smart enough to do the substitution for the
-  // constexpr version bit shift verion to a std::memcpy, we can wrap the logic
-  // to ensure the slower logic is never executed at runtime.
+  // `memcpy` produces the preferred runtime loads but cannot run during
+  // constant evaluation. Clang does not replace the equivalent byte shifts with
+  // those loads, so `if consteval` keeps the slower sequence out of runtime
+  // code.
   template <Count chunks>
   static constexpr auto memcpy_64(U64 (&result)[chunks], const U8* data)
       -> void {
@@ -51,12 +51,10 @@ class Hash {
   constexpr Hash(Core::View::Bytes bytes) {
     const U8* data = bytes.get_data();
 
-    // Fast path for keys less than 8 bytes, but not the full 16.
-    // This enables the underflow case when dealing with the remainder to drop a
-    // redundant check while also minimizing the load on the icache providing
-    // better results on the training data.
-    // The results may be caused by overfitting but the fact it results in less
-    // code to manage makes it the preferred method.
+    // Keys shorter than eight bytes use one packed value. Keeping the full
+    // eight byte case in the remainder path lets that path handle backward tail
+    // loads without another size check. This shape also produced the smallest
+    // hot path and the best results over the benchmark corpus.
     U64 small_hash_value = 0;
     switch (bytes.get_size()) {
     case 7:
@@ -103,20 +101,17 @@ class Hash {
       result[i] = const_values[i];
     }
 
-    // Bulk process chunks to improve throughput metrics.
-    // Core loop fits in two decode blocks on Zen3+
-    // (https://godbolt.org/z/KzK6dPM4G).
-    // The biggest bubble in the pipeline is the imul which gives us better
-    // distribution on longer keys but could possibly be dropped for a simpler
-    // cascade.
+    // Two independent accumulation lanes cover sixteen bytes per iteration. The
+    // loop fits in two decode blocks on Zen3 and newer processors
+    // (https://godbolt.org/z/KzK6dPM4G). Integer multiplication remains the
+    // largest pipeline stall, but improves distribution for longer keys in the
+    // benchmark corpus.
     [[clang::code_align(32)]]
     for (Count processed = 0; processed + block_stride <= block_count;
          processed += block_stride) {
-      // Let the compiler deal with possibly unaligned data for both x86_64 and
-      // ARM if we ever decide to support ARM down the road.
-      //
-      // Using SSE 128 is slightly slower anyway when we are only processing 2
-      // block chunks.
+      // `memcpy_64` expresses potentially unaligned loads without selecting a
+      // host instruction set. Explicit SSE loads were slightly slower while
+      // processing two blocks in local benchmarks.
       U64 block[block_stride];
       memcpy_64(block, data);
       data += sizeof(U64) * block_stride;
@@ -236,15 +231,14 @@ class Hash {
   }
 
  private:
-  // Number of 64 bit blocks to read per chunk.
-  //
-  // Valid options are 2 or 1 since generalizing to higher values didn't yeild
-  // better results and just resulted in code bloat.
+  // One or two lanes cover the useful benchmarked range. More lanes increased
+  // generated code without improving throughput, so each chunk remains sixteen
+  // bytes.
   static constexpr Count block_stride = 2;
 
-  // Constants and indexes derived from feedback benchmarking.
-  // Values may suffer from some overfitting to test data, but in practice
-  // this setup seems to produce low collision rates per CPU cycle.
+  // Feedback benchmarking selected these constants for collision rate per CPU
+  // cycle. They are runtime lookup parameters rather than a persistent hash
+  // identity and may remain tuned to the benchmark corpus.
   static constexpr U64 const_values[5] = {
     0b00010101'01000101'10011011'00011001'10100101'11101101'01011101'10111011,
     0b10101010'10100011'01100000'11001011'00110001'10100110'00001101'01011101,

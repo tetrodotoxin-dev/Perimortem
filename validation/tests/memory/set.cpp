@@ -496,7 +496,8 @@ VALIDATION_TEST(GlobalSet, cross_thread_reallocation) {
 
   EXPECT_EQ(visited, Count(1024));
 
-  // Reset releases worker allocated storage from this thread.
+  // The worker created and populated the process heap allocation. Resetting on
+  // this thread verifies that Global storage can cross that thread boundary.
   transferred_set.reset();
   EXPECT(transferred_set.is_empty());
   EXPECT_EQ(transferred_set.get_capacity(), Count(0));

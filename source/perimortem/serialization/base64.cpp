@@ -53,15 +53,13 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
 
 #ifdef PERI_AVX2
 
-  // On AMD processors that don't support AVX512 they can still take advantage
-  // of increased AVX2 ports. To make sure we support just about every modern
-  // CPU we can use two or more parallel AVX2 buffers unrolled.
+  // AMD processors without AVX512 can still use their additional AVX2 ports.
+  // Unrolling three independent buffers also lets other modern processors
+  // overlap the operations while retaining the broader AVX2 host support.
   //
-  // This provides AVX2 support for backcompat but allows most modern CPUs to
-  // pipeline both commands at the same time. In testing the only downside is
-  // the gathering phase and bitmask phases perform worse than native AVX512 but
-  // it seems to work faster on current Intel due to AVX512 power hit, so it
-  // seems mostly fine?
+  // Local testing found the gather and bitmask phases slower than native
+  // AVX512. Avoiding the AVX512 power penalty still made this path faster on
+  // current Intel processors.
   constexpr auto fused_channels = 3;
   constexpr auto avx2_channel_width = sizeof(__m256i);
   constexpr auto full_channel_width = avx2_channel_width * fused_channels;
@@ -71,12 +69,11 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
   constexpr Count output_stride = 3;
   constexpr Count source_stride = 4;
 
-  // From the gather phase we write exactly 1 / 4 of an AVX2 channel in extra
-  // zeros. The first channel's wastage is actually used by the second channel.
-  // This means we need only 8 extra bytes compared to AVX512's 16, but the data
-  // contention seems to be the main reason we don't get full double pump speeds
-  // which lets us emulate a single AVX512 write with seemingly minimum cache
-  // contention (at least on a 9950x3D).
+  // Each gather writes one quarter of an AVX2 channel as zero scratch space.
+  // The following channel overwrites that space, leaving only eight scratch
+  // bytes after the final store instead of the sixteen required by AVX512.
+  // Measurements on a 9950X3D indicate that shared data dependencies still
+  // prevent full throughput from all three channels.
   Count size = (source.get_size() / source_stride) * output_stride;
 
   auto source_data = source.get_data();
@@ -127,8 +124,8 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
       /* digits */ +4,
       /* + */ +19, _, _,
 
-      // Lane 2 required to be the same as lane 1 since the shuffles work at 128
-      // bit lanes rather than the full 256 bit AVX2 register size.
+      // Lane 2 repeats lane 1 because shuffles operate on independent 128 bit
+      // lanes rather than the complete 256 bit AVX2 register.
       /* 0 */ _,
       /* 'o' */ -71, 0,
       /* 'O' */ -65, 0,
@@ -145,8 +142,8 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
       0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
       0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b0111,
 
-      // Lane 2 required to be the same as lane 1 since the shuffles work at 128
-      // bit lanes rather than the full 256 bit AVX2 register size.
+      // Lane 2 repeats lane 1 because shuffles operate on independent 128 bit
+      // lanes rather than the complete 256 bit AVX2 register.
       0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
       0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b0111);
   // Each lane packs twelve decoded bytes behind one unused dword. The dword
@@ -163,19 +160,13 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
 
   for (Count chunk = 0; chunk < vectorized_chunks; chunk++) {
     for (Count ymm = 0; ymm < fused_channels; ymm++) {
-      // Load
       const auto channel_value = _mm256_loadu_si256(
           Data::cast<const __m256i_u>(source_data + sizeof(__m256i) * ymm));
 
-      // Bit hacking the lookup index
       const auto shift = _mm256_srli_epi64(channel_value, 4);
-      // Always valid for ASCII as the MSB control bit is always 0.
       const auto nibble_mask = _mm256_shuffle_epi8(invert_mask, channel_value);
-      // AndNot for the speed up that ensures we have a valid shuffle mask
-      // while also performing the out of range clip.
       const auto adjusted_index = _mm256_andnot_si256(shift, nibble_mask);
 
-      // Convert to the actual 6 bit value.
       const auto adjust_value =
           _mm256_shuffle_epi8(adjustment_values, adjusted_index);
       const auto bit_value = _mm256_add_epi8(adjust_value, channel_value);
@@ -183,7 +174,7 @@ auto vectorized_decode(U8* text, View::Bytes source) -> Count {
       // Lane merging:
       //
       // AAAAAA__ BBBBBB__ CCCCCC__ DDDDDD__
-      // Multiply horizontally at 16 bit boundries using 64 to shift 6 bits.
+      // Multiply horizontally at 16 bit boundaries using 64 to shift 6 bits.
       // AAAAAA__ * 1  = AAAAAA__ ________
       // bbbbbb__ * 64 = ______bb bbbb____
       // Add multiplications:
@@ -242,15 +233,13 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
 
 #ifdef PERI_AVX2
 
-  // On AMD processors that don't support AVX512 they can still take advantage
-  // of increased AVX2 ports. To make sure we support just about every modern
-  // CPU we can use two or more parallel AVX2 buffers unrolled.
+  // AMD processors without AVX512 can still use their additional AVX2 ports.
+  // Unrolling two independent buffers also lets other modern processors overlap
+  // the operations while retaining the broader AVX2 host support.
   //
-  // This provides AVX2 support for backcompat but allows most modern CPUs to
-  // pipeline both commands at the same time. In testing the only downside is
-  // the gathering phase and bitmask phases perform worse than native AVX512 but
-  // it seems to work faster on current Intel due to AVX512 power hit, so it
-  // seems mostly fine?
+  // Local testing found the gather and bitmask phases slower than native
+  // AVX512. Avoiding the AVX512 power penalty still made this path faster on
+  // current Intel processors.
   constexpr auto fused_channels = 2;
   constexpr auto avx2_channel_width = sizeof(__m256i);
   constexpr auto full_channel_width = avx2_channel_width * fused_channels;
@@ -268,15 +257,13 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
 
 #ifdef PERI_AVX2
 
-  // If the vector is long enough start by doing a scalar pass so we have room
-  // to underread the buffer, regardless of its source.
+  // Two scalar groups establish four readable bytes before the remaining View.
+  // The vector loop can then load from that prefix without reading before the
+  // caller supplied storage.
   if (source_bytes > full_channel_width * 2) {
-    // Since AVX2 can't shuffle around 128 bit lanes we need to do two scaler
-    // chunks to allow us to do an offset read safely.
-    //
-    // We could technically avoid this step if we knew the view always came from
-    // the Bibliotheca but since it can come form any source we process 2 chunks
-    // to give us room.
+    // AVX2 cannot shuffle values across its 128 bit lane boundary. Encoding two
+    // scalar groups supplies the offset needed to place six complete groups
+    // across that boundary.
     for (Count i = 0; i < 2; i++) {
       output_stream[0] = encode_lookup[(source_data[0] >> 2)];
       output_stream[1] = encode_lookup
@@ -369,7 +356,8 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
 
       const auto chunk_data = _mm256_shuffle_epi8(channel_value, byte_shuffle);
 
-      // Extract the c and a components out of each shuffled 4 byte chunk.
+      // Isolate the bit fields used to form `c` and `a` from each shuffled four
+      // byte group. The complementary mask below selects `d` and `b`.
       const auto c_and_a = _mm256_and_si256(
           chunk_data, _mm256_set1_epi32(0b00001111'11000000'11111100'00000000));
       const auto d_and_b = _mm256_and_si256(

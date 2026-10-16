@@ -24,8 +24,8 @@ constexpr Count window_mask = window_size - 1;
 constexpr U32 null_entry = 0xFFFFFFFF;
 
 constexpr auto compute_hash(Storage::Bytes<3> data) -> Count {
-  // Knuth multiplicative hash (2^32 / golden ratio) is fast and provides a
-  // better distribution for the has table.
+  // Multiplication by the Knuth constant mixes all 24 source bits into the
+  // upper 15 bits used to select one of the 32768 hash slots.
   constexpr U32 knuth_multiplier = 2654435761;
   U32 v = (U32(data[0]) << 16) | (U32(data[1]) << 8) | U32(data[2]);
   return Count((v * knuth_multiplier) >> 17);
@@ -43,9 +43,8 @@ constexpr auto extend_match(
 
 #ifdef PERI_AVX2
 
-  // Do a vectorized scan until we find at least one byte that doesn't match.
-  // Unrolling the loop fully causes short lengths to suffer. Two checks fit
-  // nicely in a single 64 bit mask emulating AVX512 so we go with that.
+  // Two AVX2 comparisons fill one 64 bit mismatch mask. Further unrolling hurt
+  // short matches in local benchmarks, so each iteration scans 64 bytes.
   constexpr auto fused_channels = 2;
   constexpr auto avx2_channel_width = sizeof(__m256i);
   constexpr auto full_channel_width = avx2_channel_width * fused_channels;

@@ -11,12 +11,10 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 
-// All textual operators are well under 64 bytes except Blobs which use
-// `concat`. The write_window is just meant to bump us up to the next page size
-// in the event we are close to a boundary. This can result in streams creating
-// a lot of buffer waste when close to powers of 2, but generally Streams should
-// only be used when the inputs are very dynamic so it shouldn't be banking on
-// that anyway.
+// Scalar textual writers require less than 64 contiguous bytes for one value.
+// Reserving that fixed window lets a write cross the storage boundary without a
+// partial result. The storage shrinks to the final cursor afterward, while raw
+// byte Views bypass the window through `concat`.
 constexpr Count write_window = 64;
 
 template <typename storage_type, typename value_type>

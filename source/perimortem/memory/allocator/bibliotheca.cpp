@@ -139,8 +139,8 @@ class alignas(64) Slab {
 
 #ifdef TOOLCHAIN_WASM
 
-    // Wasm32 doesn't need any special processing of it's blocks since they just
-    // wrap regular alloc.
+    // Wasm slabs come from `malloc` rather than a virtual memory mapping.
+    // Return the original pointer directly to `free`.
     free(slab);
     return True;
 

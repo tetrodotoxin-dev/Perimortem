@@ -20,9 +20,8 @@ class Rgba8 {
   // transparent black zero state without constructor work.
   Rgba8() = default;
 
-  // Red, green, and blue channels all get set to the same grey value and do not
-  // compensate for luminance. The alpha channel is independently set to full
-  // opacity.
+  // Expands one decoded grey sample into all three color channels without a
+  // luminance transfer. A source layout without alpha becomes fully opaque.
   static constexpr auto from_grey(U8 grey) -> Rgba8 {
     return from_rgba(grey, grey, grey, opaque);
   }
@@ -39,7 +38,9 @@ class Rgba8 {
     return from_rgba(red, green, blue, opaque);
   }
 
-  // Preserves all four decoded samples in public channel order.
+  // This is the only factory that writes channel storage directly. Other source
+  // layouts supply their missing channels before delegating here, keeping the
+  // red, green, blue, alpha order identical for every construction path.
   static constexpr auto from_rgba(U8 red, U8 green, U8 blue, U8 alpha)
       -> Rgba8 {
     Rgba8 result;

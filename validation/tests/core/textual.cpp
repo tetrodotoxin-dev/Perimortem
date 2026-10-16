@@ -332,7 +332,8 @@ VALIDATION_TEST(CoreTextual, floats) {
 
   writer << 12.08 << 0.0000812;
 
-  // Percision test
+  // R32 and R64 expose their different decimal precision for the same source
+  // value.
   writer << R32(-2012.78102) << R64(-2012.78102);
 
   EXPECT(writer.is_valid());

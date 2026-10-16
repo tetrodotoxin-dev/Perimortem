@@ -301,7 +301,8 @@ VALIDATION_TEST(SerializationPng, empty_image) {
 }
 
 VALIDATION_TEST(SerializationPng, chunk_header_trunc) {
-  // PNG with a valid IHDR that's shorter than the valid size.
+  // A complete IHDR followed by a partial chunk header must fail before the
+  // decoder reads the missing length and type bytes.
   auto source =
       read_fixture("validation/data/pngs/error_truncated_header.png"_view);
   ASSERT_NOT(source.is_empty());

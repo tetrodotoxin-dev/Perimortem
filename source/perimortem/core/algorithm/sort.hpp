@@ -12,14 +12,13 @@ namespace Perimortem::Core::Algorithm {
 
 class Sort {
  public:
-  // Perimortem's standard sort function.
-  // Very similar to std::sort but optimized to perform ~20% better for
-  // extremely large arrays.
+  // Sort orders a mutable contiguous range in place using only `operator>`.
+  // Introsort combines quick partitions with a heap fallback and one final
+  // insertion pass. This has measured about twenty percent faster than
+  // `std::sort` for extremely large arrays in local benchmarks.
   //
-  // Sorting works on nonmovable types however it still invalidates all pointers
-  // to objects in the array.
-  //
-  // `Math::sort` only requires a type to support `operator>`.
+  // Values need not be movable, but ordering is not stable and every pointer or
+  // reference into the range can identify a different value after sorting.
   template <typename type>
   constexpr auto operator()(Core::Access::Vector<type> access) const
       -> Core::Access::Vector<type> {
@@ -27,18 +26,15 @@ class Sort {
       return access;
     }
 
-    // Not a fan of polluting namespaces, so inline with the Perimortem coding
-    // standards the complete sort is built from internal lambdas.
-    //
-    // Don't convert the lambdas to constexpr, that will cause clang to slowdown
-    // by upwards of ~40% for larger arrays.
+    // Lambdas keep the specialized helpers inside one sort instantiation. Do
+    // not mark them `constexpr`. Clang generated code that measured up to forty
+    // percent slower for large arrays when the lambdas carried that specifier.
     auto data = access.get_data();
     auto size = access.get_size();
 
-    // Takes three elements and caculates which index is the median of the
-    // three. This improves our selection quality by quite a bit. Tried
-    // switching to take an array of three elements but that won't optimize out
-    // so we are stuck with the three element signiture.
+    // Median selection from three indexes reduces the chance of a poor pivot.
+    // Passing three indexes individually produced better generated code than a
+    // temporary array in local tests.
     //
     // Best performing out of a few tested options:
     // https://godbolt.org/z/ddovqjosc
@@ -101,14 +97,12 @@ class Sort {
     // the complete, nearly ordered array finishes every deferred range.
     auto insertion_sort = [](type* data, Count size) -> void {
       for (Count i = 1; i < size; i++) {
-        // Bit odd but Perimortem sort only requires the greater than operator
-        // to be valid for the type in order to be sorted.
         if (!(data[i - 1] > data[i])) {
           continue;
         }
 
-        // Also a bit janky, but we always have valid data and this let's us
-        // easily capture if j would go below zero without S64.
+        // The first comparison proves `j - 1` valid. Testing `j` after each
+        // swap keeps the index unsigned without allowing it to wrap below zero.
         Count j = i;
         do {
           Core::Data::swap(data[j - 1], data[j]);
@@ -133,26 +127,23 @@ class Sort {
       return new_pivot;
     };
 
-    // Lomuto quicksort + ninther/median of three pivot + heapsort fallback.
-    // Subarrays chucks of size <= 32 are left for a single insertion sort.
+    // At 32 or fewer values, the final insertion pass completes the nearly
+    // ordered range with less work than another partition.
     constexpr auto insertion_sort_cutoff = Count(32);
+
+    // Partitions larger than 128 use nine samples spread across their complete
+    // range. Below that threshold the extra six comparisons cost more than the
+    // additional pivot stability measured in local benchmarks.
     constexpr auto ninther_median_cutoff = Count(128);
+
     auto introsort = [&](this auto&& self, type* partition,
                          Count partition_size, Count depth) -> void {
       while (partition_size > insertion_sort_cutoff) {
-        // Decrement depth and check if we are below the point for heap_sort.
-        // Perform a post decrement to decrement the value in the event we
-        // continue. If the value is zero and underflows we throw it away
-        // anyway.
         if (depth-- == 0) {
           heap_sort(partition, partition_size);
           return;
         }
 
-        // Caculate the pivot index by sampling the array to try and avoid
-        // picking the worst possible pivot. This makes the performance far more
-        // stable across runs. For larger arrays use ninther sampling to further
-        // improve stability.
         Count pivot_index =
             (partition_size > ninther_median_cutoff)
                 ? ninther_median(data, partition_size)

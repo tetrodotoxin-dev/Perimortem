@@ -113,15 +113,15 @@ auto Reader::Serial::read() -> Value {
 }
 
 auto Reader::Serial::read_value() -> S64 {
-  // If attribution isn't set then make it explicit any failures were from the
-  // read_value call rather than just read.
+  // Attribute failures from the shared decoder to the typed operation the
+  // caller invoked rather than its internal `read` helper.
   auto attribution = Diagnostics::Log::set_attribution();
   return read().get_value();
 }
 
 auto Reader::Serial::read_blob() -> View::Bytes {
-  // If attribution isn't set then make it explicit any failures were from the
-  // read_blob call rather than just read.
+  // Attribute failures from the shared decoder to the typed operation the
+  // caller invoked rather than its internal `read` helper.
   auto attribution = Diagnostics::Log::set_attribution();
   return read().get_view();
 }

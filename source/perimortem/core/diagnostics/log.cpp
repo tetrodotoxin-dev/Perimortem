@@ -194,7 +194,8 @@ auto Diagnostics::Log::color_sink(
     return;
   }
 
-  // 16 extra bytes is enough for any color code + the clear code.
+  // Sixteen bytes contain the longest ANSI level prefix and the trailing reset
+  // sequence without reducing the formatted message capacity.
   Storage::Bytes<max_message_capacity + 16> color_buffer;
   Writer::Textual writer(color_buffer.get_access());
 

@@ -55,7 +55,6 @@ static auto has_valid_header(View::Bytes entry) -> Bool {
     return false;
   }
 
-  // Header bytes
   switch (entry[0]) {
   case 'D':
   case 'I':
@@ -67,13 +66,14 @@ static auto has_valid_header(View::Bytes entry) -> Bool {
     return false;
   }
 
-  // Validate all number values
+  // The timestamp has fixed separators after its hour, minute, second and
+  // millisecond fields.
   const U8* b = entry.get_data() + 2;
   if (b[2] != ':' || b[5] != ':' || b[8] != '.') {
     return false;
   }
 
-  // Validate all number values
+  // Every remaining timestamp position must contain one decimal digit.
   constexpr Storage::Vector<Count, 9> number_indexes = {{
     0,
     1,
