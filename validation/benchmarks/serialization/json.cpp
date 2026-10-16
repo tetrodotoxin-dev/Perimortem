@@ -5,7 +5,7 @@
 #include "toolchain/validation/benchmark.hpp"
 
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/serialization/json/blueprint.hpp"

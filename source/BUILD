@@ -22,7 +22,6 @@ _COMPONENTS = {
     "system": [
         "core",
         "memory",
-        "utility",
     ],
 }
 

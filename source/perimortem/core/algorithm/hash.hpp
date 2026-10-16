@@ -7,7 +7,7 @@
 
 #include "perimortem/core/view/bytes.h"
 
-namespace Perimortem::Core {
+namespace Perimortem::Core::Algorithm {
 
 // Hash produces 64 bit values for byte sequences, numeric values, pointers, and
 // types that provide a `hash` operation. Byte input uses two accumulation lanes
@@ -250,4 +250,4 @@ class Hash {
   U64 value;
 };
 
-}  // namespace Perimortem::Core
+}  // namespace Perimortem::Core::Algorithm

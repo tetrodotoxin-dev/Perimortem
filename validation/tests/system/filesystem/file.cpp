@@ -31,7 +31,7 @@
 #endif
 
 #include "perimortem/core/algorithm/search.hpp"
-#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/system/filesystem/path.hpp"
 #include "perimortem/system/random.hpp"
@@ -144,7 +144,7 @@ static auto traced_child(
   Storage::Option<Filesystem::File::Root> root;
   if (root_path) {
     root = Filesystem::File::Root::open(
-        NullTerminated(root_path, temporary_path_capacity).get_view());
+        View::NullTerminated(root_path, temporary_path_capacity).get_view());
     if (!root) {
       _exit(21);
     }
@@ -158,7 +158,7 @@ static auto traced_child(
 
   const char* selected_path = read_path ? read_path : path;
   View::Bytes requested_path =
-      NullTerminated(selected_path, temporary_path_capacity).get_view();
+      View::NullTerminated(selected_path, temporary_path_capacity).get_view();
   if (arena_read) {
     Allocator::Arena arena;
     auto source = root.visit(
@@ -546,7 +546,7 @@ class TemporaryRoot {
   operator bool() const { return bool(valid); }
 
   auto get_location() const -> View::Bytes {
-    return NullTerminated(root_path, sizeof(root_path)).get_view();
+    return View::NullTerminated(root_path, sizeof(root_path)).get_view();
   }
 
   auto get_path() const -> const char* { return root_path; }
@@ -568,12 +568,13 @@ class TemporaryRoot {
     }
 
     return Filesystem::File::write(
-        data, NullTerminated(path, sizeof(path)).get_view());
+        data, View::NullTerminated(path, sizeof(path)).get_view());
   }
 
   auto write_outside(View::Bytes data) const -> Bool {
     return Filesystem::File::write(
-        data, NullTerminated(outside_path, sizeof(outside_path)).get_view());
+        data,
+        View::NullTerminated(outside_path, sizeof(outside_path)).get_view());
   }
 
   auto create_outside_directory() const -> Bool {
@@ -590,7 +591,7 @@ class TemporaryRoot {
     }
 
     return Filesystem::File::write(
-        data, NullTerminated(path, sizeof(path)).get_view());
+        data, View::NullTerminated(path, sizeof(path)).get_view());
   }
 
   auto read_outside_member(const char* member) const
@@ -603,7 +604,7 @@ class TemporaryRoot {
     }
 
     return Filesystem::File::read(
-        NullTerminated(path, sizeof(path)).get_view());
+        View::NullTerminated(path, sizeof(path)).get_view());
   }
 
   auto create_directory(const char* member) const -> Bool {
@@ -946,7 +947,7 @@ VALIDATION_TEST(SystemFileRoot, file_root) {
   ASSERT(built);
 
   auto root = Filesystem::File::Root::open(
-      NullTerminated(path, sizeof(path)).get_view());
+      View::NullTerminated(path, sizeof(path)).get_view());
   EXPECT_NOT(root);
 }
 
@@ -1180,8 +1181,8 @@ VALIDATION_TEST(SystemFileRoot, absolute_member) {
 
   root.visit(
       [&](Filesystem::File::Root& selected_root) {
-        auto source =
-            selected_root.read(NullTerminated(path, sizeof(path)).get_view());
+        auto source = selected_root.read(
+            View::NullTerminated(path, sizeof(path)).get_view());
         ASSERT(source);
         expect_contents(source, test_contents, result);
       },
@@ -1273,7 +1274,8 @@ VALIDATION_TEST(SystemFileRoot, symlink_write) {
       [&] { EXPECT(false); });
 
   auto outside_source = Filesystem::File::read(
-      NullTerminated(temporary.get_outside_path(), temporary_path_capacity)
+      View::NullTerminated(
+          temporary.get_outside_path(), temporary_path_capacity)
           .get_view());
   ASSERT(outside_source);
   expect_contents(outside_source, replacement_contents, result);
@@ -1566,8 +1568,9 @@ VALIDATION_TEST(SystemFileRoot, snapshot_identity) {
             "file", destination, sizeof(destination)));
         ASSERT(
             Filesystem::File::replace(
-                NullTerminated(source, sizeof(source)).get_view(),
-                NullTerminated(destination, sizeof(destination)).get_view()));
+                View::NullTerminated(source, sizeof(source)).get_view(),
+                View::NullTerminated(destination, sizeof(destination))
+                    .get_view()));
 
         auto after = selected_root.read_snapshot("file"_view);
         ASSERT(after);

@@ -13,8 +13,8 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/time.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::System;

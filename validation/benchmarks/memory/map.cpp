@@ -7,18 +7,17 @@
 #include "toolchain/validation/benchmark.hpp"
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/pair.hpp"
+#include "perimortem/core/storage/table.hpp"
 #include "perimortem/core/storage/vector.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/system/random.hpp"
-#include "perimortem/utility/pair.hpp"
-#include "perimortem/utility/table.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Perimortem::Utility;
 using namespace Toolchain::Validation;
 
 constexpr Count max_key_count = 1 << 16;
@@ -176,7 +175,7 @@ MAP_POINTER_INSERT(32, reserved, duplicate);
 MAP_POINTER_INSERT(900, reserved, duplicate);
 MAP_POINTER_INSERT(921, reserved, duplicate);
 
-static constexpr Pair<View::Bytes, Count> keyword_source[] = {
+static constexpr Storage::Pair<View::Bytes, Count> keyword_source[] = {
   {"as"_view, 0},         {"if"_view, 1},          {"for"_view, 2},
   {"new"_view, 3},        {"else"_view, 4},        {"func"_view, 5},
   {"init"_view, 6},       {"self"_view, 7},        {"true"_view, 8},
@@ -190,7 +189,7 @@ static constexpr Pair<View::Bytes, Count> keyword_source[] = {
   {"y"_view, 30},         {"main"_view, 31},
 };
 
-static constexpr Pair<View::Bytes, Count> non_keyword_source[] = {
+static constexpr Storage::Pair<View::Bytes, Count> non_keyword_source[] = {
   {"af"_view, 0},         {"1f"_view, 1},          {"f2r"_view, 2},
   {"naw"_view, 3},        {"el.e"_view, 4},        {"fu1c"_view, 5},
   {"ini?"_view, 6},       {"sel2"_view, 7},        {"t4ue"_view, 8},
@@ -206,7 +205,7 @@ static constexpr Pair<View::Bytes, Count> non_keyword_source[] = {
 
 static constexpr Count keyword_count = Data::array_size(keyword_source);
 
-using KeywordTable = Table<Count, keyword_source>;
+using KeywordTable = Storage::Table<Count, keyword_source>;
 
 static Storage::Vector<const View::Bytes*, max_key_count> lookup_scramble;
 static auto create_scramble(Count mask) -> void {

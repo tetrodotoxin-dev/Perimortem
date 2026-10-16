@@ -1,19 +1,17 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/utility/table.hpp"
+#include "perimortem/core/storage/table.hpp"
 
 #include "toolchain/validation/test.hpp"
 
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/storage/vector.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Utility;
-
 using namespace Toolchain::Validation;
 
-using KeywordEntry = Pair<View::Bytes, U8>;
+using KeywordEntry = Storage::Pair<View::Bytes, U8>;
 constexpr Storage::Vector<KeywordEntry, 23> keyword_source = {{
   KeywordEntry{"as"_view, 1},
   {"if"_view, 2},
@@ -40,12 +38,12 @@ constexpr Storage::Vector<KeywordEntry, 23> keyword_source = {{
   {"warning"_view, 23},
 }};
 
-using keyword_table = Table<U32, keyword_source>;
+using keyword_table = Storage::Table<U32, keyword_source>;
 static_assert(__is_same(
     decltype(keyword_table::find("as"_view)),
     Storage::Option<const U32&>));
 
-using WordEntry = Pair<View::Bytes, View::Bytes>;
+using WordEntry = Storage::Pair<View::Bytes, View::Bytes>;
 constexpr Storage::Vector<WordEntry, 8> word_source = {{
   WordEntry{"a"_view, "b"_view},
   {"b"_view, "test"_view},
@@ -57,7 +55,7 @@ constexpr Storage::Vector<WordEntry, 8> word_source = {{
   {"future"_view, "comming on"_view},
 }};
 
-using word_table = Table<View::Bytes, word_source>;
+using word_table = Storage::Table<View::Bytes, word_source>;
 
 struct TypeMetadata {
   View::Bytes name{};
@@ -65,14 +63,14 @@ struct TypeMetadata {
   Bool exposed = False;
 };
 
-using MetadataEntry = Pair<View::Bytes, TypeMetadata>;
+using MetadataEntry = Storage::Pair<View::Bytes, TypeMetadata>;
 constexpr Storage::Vector<MetadataEntry, 3> metadata_source = {{
   MetadataEntry{"Vec2D"_view, {"Vec2D"_view, 8, True}},
   {"Vec3D"_view, {"Vec3D"_view, 12, True}},
   {"Sampler2D"_view, {"Sampler2D"_view, 0, False}},
 }};
 
-using metadata_table = Table<TypeMetadata, metadata_source>;
+using metadata_table = Storage::Table<TypeMetadata, metadata_source>;
 
 constexpr auto make_limit_key(Count index) -> U8 {
   return U8(index);
@@ -80,16 +78,16 @@ constexpr auto make_limit_key(Count index) -> U8 {
 
 constexpr Storage::Vector<U8, U8(-1)> limit_keys(make_limit_key);
 
-using LimitEntry = Pair<View::Bytes, U8>;
+using LimitEntry = Storage::Pair<View::Bytes, U8>;
 constexpr auto make_limit_entry(Count index) -> LimitEntry {
   return {View::Bytes(limit_keys.get_data() + index, 1), U8(index)};
 }
 
 constexpr Storage::Vector<LimitEntry, U8(-1)> limit_source(make_limit_entry);
-using limit_table = Table<U8, limit_source>;
+using limit_table = Storage::Table<U8, limit_source>;
 
 static Harness StaticTable = {
-  .name = "Utility::Table",
+  .name = "Core::Storage::Table",
 };
 
 VALIDATION_TEST(StaticTable, keyword_table) {

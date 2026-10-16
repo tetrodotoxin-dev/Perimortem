@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include "perimortem/core/algorithm/hash.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/hash.hpp"
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/storage/option.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 
 namespace Perimortem::Memory::Container {
 
@@ -560,7 +560,7 @@ class Map {
   }
 
   static auto get_hash(const key_type& key) -> U32 {
-    return U32(Core::Hash(key).get_value());
+    return U32(Core::Algorithm::Hash(key).get_value());
   }
 
   U32* hashes = nullptr;

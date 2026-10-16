@@ -3,7 +3,7 @@
 
 #include "perimortem/core/diagnostics/source.hpp"
 
-#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 
@@ -28,7 +28,8 @@ auto Diagnostics::Source::get_file() const -> View::Bytes {
     return file;
   }
 
-  return NullTerminated(location.get_file(), max_source_name_size).get_view();
+  return View::NullTerminated(location.get_file(), max_source_name_size)
+      .get_view();
 }
 
 auto Diagnostics::Source::get_function() const -> View::Bytes {
@@ -36,6 +37,6 @@ auto Diagnostics::Source::get_function() const -> View::Bytes {
     return function;
   }
 
-  return NullTerminated(location.get_function(), max_source_name_size)
+  return View::NullTerminated(location.get_function(), max_source_name_size)
       .get_view();
 }

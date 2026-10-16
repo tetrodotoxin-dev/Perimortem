@@ -21,18 +21,20 @@ the runtime grows.
 ## Components
 
 - [Core](source/perimortem/core) supplies fundamental data operations, embedded
-  storage abstractions, algorithms, readers, writers, diagnostics, time, hashes
-  identifiers, coordinates, dimensions, volumes and boundary behavior.
-- [Utility](source/perimortem/utility) supplies ranges, versions and tables
-  built on Core.
+  storage abstractions, algorithms, readers, writers, diagnostics, time,
+  hashes, identifiers, coordinates, dimensions, ranges, volumes and boundary
+  behavior.
+- [Utility](source/perimortem/utility) supplies compact version values built on
+  Core.
 - [Memory](source/perimortem/memory) supplies the runtime allocator, arenas,
   containers and matrices for fixed, dynamic and transaction lifetimes.
 - [Compression](source/perimortem/compression) implements Deflate with Huffman
   and LZ77 codecs.
 - [Serialization](source/perimortem/serialization) reads and writes binary,
   textual, JSON, PNG and Base64 data.
-- [System](source/perimortem/system) integrates files, paths, processes, shared
-  libraries, worker threads and random generation with the host.
+- [System](source/perimortem/system) integrates files, paths, processes,
+  synchronization, shared libraries, worker threads and random generation with
+  the host.
 
 ## Building and testing
 

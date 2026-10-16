@@ -11,8 +11,8 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
 #include "perimortem/memory/thread/vector.hpp"
@@ -55,7 +55,7 @@ Process::Library::~Library() {
 
   if (handle && dlclose(handle) != 0) {
     Diagnostics::Log::fatal(
-        NullTerminated(dlerror(), max_loader_message_size).get_view());
+        View::NullTerminated(dlerror(), max_loader_message_size).get_view());
   }
 
 #endif
@@ -98,7 +98,7 @@ auto Process::Library::open(View::Bytes path, Allocator::Arena& errors)
       RTLD_NOW | RTLD_LOCAL);
   if (!handle) {
     return errors.copy(
-        NullTerminated(dlerror(), max_loader_message_size).get_view());
+        View::NullTerminated(dlerror(), max_loader_message_size).get_view());
   }
 
 #endif
@@ -128,7 +128,7 @@ auto Process::Library::symbol(View::Bytes name, Allocator::Arena& errors) const
       dlsym(handle, Data::cast<const char>(terminated.get_view().get_data()));
   if (const auto* error = dlerror()) {
     return errors.copy(
-        NullTerminated(error, max_loader_message_size).get_view());
+        View::NullTerminated(error, max_loader_message_size).get_view());
   }
 
 #endif

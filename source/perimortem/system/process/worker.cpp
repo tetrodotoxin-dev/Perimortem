@@ -14,11 +14,11 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/storage/vector.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
-#include "perimortem/system/mutex.hpp"
+#include "perimortem/system/synchronization/mutex.hpp"
 
 #ifndef TOOLCHAIN_WINDOWS
 
@@ -40,7 +40,7 @@ static thread_local View::Bytes this_thread_name = ""_view;
 
 using WorkerJobFunction = Process::Worker::JobFunction;
 
-static Mutex worker_mutex;
+static Synchronization::Mutex worker_mutex;
 
 #ifdef TOOLCHAIN_WINDOWS
 
@@ -127,7 +127,7 @@ class ThreadInitializer {
   auto operator=(const ThreadInitializer&) -> ThreadInitializer& = delete;
 
   static auto get_worker_count() -> Count {
-    Mutex::Lock lock(worker_mutex);
+    Synchronization::Mutex::Lock lock(worker_mutex);
 
     Count worker_count = 0;
     for (Count i = 0; i < thread_occupancy.get_size(); i++) {
@@ -151,7 +151,7 @@ class ThreadInitializer {
   // when one exists. If `thread_occupancy[worker_index]` is one, every worker
   // identity is reserved and the process aborts.
   static auto reserve_thread() -> Count {
-    Mutex::Lock lock(worker_mutex);
+    Synchronization::Mutex::Lock lock(worker_mutex);
 
     auto worker_index =
         Algorithm::Search::min(View::Vector<U8>(thread_occupancy));
@@ -166,7 +166,7 @@ class ThreadInitializer {
   }
 
   static auto release_thread(Count worker_index) -> void {
-    Mutex::Lock lock(worker_mutex);
+    Synchronization::Mutex::Lock lock(worker_mutex);
     thread_occupancy[worker_index] = 0;
   }
 

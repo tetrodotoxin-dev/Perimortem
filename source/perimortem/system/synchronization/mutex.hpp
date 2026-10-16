@@ -5,7 +5,7 @@
 
 #include "toolchain/toolchain.hpp"
 
-namespace Perimortem::System {
+namespace Perimortem::System::Synchronization {
 
 // Mutex serializes one critical section among threads in the same process.
 // The host synchronization object remains opaque so this header and the public
@@ -48,4 +48,4 @@ class Mutex {
   void* implementation = nullptr;
 };
 
-}  // namespace Perimortem::System
+}  // namespace Perimortem::System::Synchronization

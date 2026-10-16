@@ -1,28 +1,28 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/utility/range.hpp"
+#include "perimortem/core/math/range.hpp"
 
 #include "toolchain/validation/test.hpp"
 
-using namespace Perimortem::Utility;
+using namespace Perimortem::Core;
 using namespace Toolchain::Validation;
 
-static Harness UtilityRange = {
-  .name = "Utility::Range",
+static Harness CoreMathRange = {
+  .name = "Core::Math::Range",
 };
 
-VALIDATION_TEST(UtilityRange, overlap) {
-  constexpr Range source = {2, 4};
-  constexpr Range invalid = {Count(-1), 1};
+VALIDATION_TEST(CoreMathRange, overlap) {
+  constexpr Math::Range source = {2, 4};
+  constexpr Math::Range invalid = {Count(-1), 1};
   EXPECT(source.has_overlap({5, 3}));
   EXPECT_NOT(source.has_overlap({6, 3}));
-  EXPECT_NOT(Range().has_overlap({0, 1}));
+  EXPECT_NOT(Math::Range().has_overlap({0, 1}));
   EXPECT_NOT(invalid.has_overlap(invalid));
 }
 
-VALIDATION_TEST(UtilityRange, include) {
-  Range range;
+VALIDATION_TEST(CoreMathRange, include) {
+  Math::Range range;
   EXPECT(range.include(4));
   EXPECT(range.include(7));
   EXPECT(range.include(2));
@@ -31,8 +31,8 @@ VALIDATION_TEST(UtilityRange, include) {
   EXPECT_EQ(range.size, Count(6));
 }
 
-VALIDATION_TEST(UtilityRange, representable_end) {
-  Range range;
+VALIDATION_TEST(CoreMathRange, representable_end) {
+  Math::Range range;
   EXPECT(range.include(Count(-2)));
   EXPECT_EQ(range.start, Count(-2));
   EXPECT_EQ(range.size, Count(1));
@@ -45,7 +45,7 @@ VALIDATION_TEST(UtilityRange, representable_end) {
   EXPECT_EQ(range.start, Count(-2));
   EXPECT_EQ(range.size, Count(1));
 
-  Range invalid = {Count(-1), 1};
+  Math::Range invalid = {Count(-1), 1};
   EXPECT_NOT(invalid.is_valid());
   EXPECT_NOT(invalid.get_end());
   EXPECT_NOT(invalid.include(0));

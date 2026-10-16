@@ -4,8 +4,8 @@
 #pragma once
 
 #include "perimortem/core/access/bytes.h"
+#include "perimortem/core/algorithm/hash.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/hash.hpp"
 #include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/view/bytes.h"
 
@@ -101,7 +101,10 @@ class Bytes {
     return Core::Access::Bytes(source_block, size);
   }
 
-  auto hash() const -> U64 { return Core::Hash(get_view()).get_value(); }
+  auto hash() const -> U64 {
+    return Core::Algorithm::Hash(get_view()).get_value();
+  }
+
   constexpr auto is_empty() const -> Bool { return size == 0; }
 
   EXPORTED(PERIMORTEM) auto clear() -> void;

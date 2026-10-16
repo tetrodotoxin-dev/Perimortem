@@ -15,8 +15,8 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/global/bytes.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 

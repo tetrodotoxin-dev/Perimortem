@@ -5,8 +5,8 @@
 
 #include "toolchain/validation/test.hpp"
 
-#include "perimortem/core/hash.hpp"
-#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/algorithm/hash.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/memory/global/set.hpp"
@@ -270,7 +270,7 @@ VALIDATION_TEST(ThreadSet, remove_collisions) {
 }
 
 VALIDATION_TEST(ThreadSet, remove_displacements) {
-  EXPECT_EQ(Hash(ProbeKey(3, 99)).get_value(), 3);
+  EXPECT_EQ(Algorithm::Hash(ProbeKey(3, 99)).get_value(), 3);
 
   {
     Thread::Set<ProbeKey> values(8);
@@ -351,7 +351,7 @@ VALIDATION_TEST(ThreadSet, pointer_keys) {
     StableObjectKey(const StableObject* object) : object(object) {}
 
     auto hash() const -> U64 {
-      return Hash(U64(Data::address(object))).get_value();
+      return Algorithm::Hash(U64(Data::address(object))).get_value();
     }
 
     constexpr auto operator==(const StableObjectKey& rhs) const -> Bool {

@@ -5,12 +5,12 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/storage/option.hpp"
+#include "perimortem/core/storage/pair.hpp"
 #include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/utility/pair.hpp"
 
-namespace Perimortem::Utility {
+namespace Perimortem::Core::Storage {
 
 // Table compiles a fixed set of byte keys into one immutable lookup layout. Key
 // length selects a bucket directly, and each bucket packs its key bytes inline
@@ -198,4 +198,4 @@ class Table {
   }
 };
 
-}  // namespace Perimortem::Utility
+}  // namespace Perimortem::Core::Storage

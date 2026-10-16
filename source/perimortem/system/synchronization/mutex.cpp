@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/system/mutex.hpp"
+#include "perimortem/system/synchronization/mutex.hpp"
 
 #ifdef TOOLCHAIN_WINDOWS
 #include <windows.h>
@@ -13,7 +13,7 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/allocator/global.hpp"
 
 using namespace Perimortem::Core;
@@ -39,15 +39,18 @@ static auto get_native(void* implementation) -> NativeMutex& {
   return *Data::cast<NativeMutex>(implementation);
 }
 
-Mutex::Lock::Lock(Mutex& mutex) : mutex(mutex) {
+Synchronization::Mutex::Lock::Lock(Mutex& mutex) : mutex(mutex) {
   mutex.lock();
 }
 
-Mutex::Lock::~Lock() {
+Synchronization::Mutex::Lock::~Lock() {
   mutex.unlock();
 }
 
-Mutex::Mutex() {
+Synchronization::Mutex::Mutex() {
+  // Global storage keeps the opaque native object at one stable address shared
+  // by every thread. Destruction can release that process allocation from a
+  // different thread after all access has ended.
   auto allocation = Allocator::Global::allocate(sizeof(NativeMutex));
   implementation = allocation.get_data();
 
@@ -68,7 +71,7 @@ Mutex::Mutex() {
 #endif
 }
 
-Mutex::~Mutex() {
+Synchronization::Mutex::~Mutex() {
   auto& native = get_native(implementation);
 
 #ifndef TOOLCHAIN_WINDOWS
@@ -83,7 +86,7 @@ Mutex::~Mutex() {
   Allocator::Global::release(Data::cast<U8>(implementation));
 }
 
-auto Mutex::lock() -> void {
+auto Synchronization::Mutex::lock() -> void {
   auto& native = get_native(implementation);
 
 #ifdef TOOLCHAIN_WINDOWS
@@ -99,7 +102,7 @@ auto Mutex::lock() -> void {
 #endif
 }
 
-auto Mutex::unlock() -> void {
+auto Synchronization::Mutex::unlock() -> void {
   auto& native = get_native(implementation);
 
 #ifdef TOOLCHAIN_WINDOWS

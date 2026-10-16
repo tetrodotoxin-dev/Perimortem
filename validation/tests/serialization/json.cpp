@@ -3,7 +3,7 @@
 
 #include "toolchain/validation/test.hpp"
 
-#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/serialization/json/blueprint.hpp"
 #include "perimortem/serialization/json/node.hpp"
 #include "perimortem/serialization/stream/textual.hpp"

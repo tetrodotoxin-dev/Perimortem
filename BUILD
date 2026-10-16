@@ -58,7 +58,6 @@ package(
         "system": [
             "core",
             "memory",
-            "utility",
         ],
         "utility": ["core"],
     },

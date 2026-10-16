@@ -5,7 +5,7 @@
 
 #include "toolchain/validation/test.hpp"
 
-#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;

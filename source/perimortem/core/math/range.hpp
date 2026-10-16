@@ -5,7 +5,7 @@
 
 #include "perimortem/core/storage/option.hpp"
 
-namespace Perimortem::Utility {
+namespace Perimortem::Core::Math {
 
 // A half open interval stores its first index and element count. Its exclusive
 // end must fit in `Count`, so its greatest value cannot be included in the
@@ -71,4 +71,4 @@ struct Range {
   }
 };
 
-}  // namespace Perimortem::Utility
+}  // namespace Perimortem::Core::Math

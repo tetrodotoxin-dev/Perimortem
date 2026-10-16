@@ -7,8 +7,8 @@
 #include "perimortem/compression/deflate.hpp"
 #include "perimortem/compression/huffman.hpp"
 #include "perimortem/compression/lz77.hpp"
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "validation/tests/log.hpp"
 
 using namespace Perimortem::Core;

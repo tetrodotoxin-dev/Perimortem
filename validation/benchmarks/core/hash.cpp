@@ -1,13 +1,13 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/hash.hpp"
+#include "perimortem/core/algorithm/hash.hpp"
 
 #include "toolchain/toolchain.hpp"
 #include "toolchain/validation/benchmark.hpp"
 
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;
@@ -41,7 +41,7 @@ VALIDATION_BENCHMARK(HashBench, u32_x8192) {
   U32 input = Data::cast<U32>(hash_buffer.get_data())[0];
   U64 accumulator = 0;
   for (Count i = 0; i < hash_batch; i++) {
-    U64 result = Hash(input).get_value();
+    U64 result = Algorithm::Hash(input).get_value();
     accumulator ^= result;
     input = U32(result);
   }
@@ -53,7 +53,7 @@ VALIDATION_BENCHMARK(HashBench, u64_x8192) {
   U64 input = Data::cast<U64>(hash_buffer.get_data())[0];
   U64 accumulator = 0;
   for (Count i = 0; i < hash_batch; i++) {
-    U64 result = Hash(input).get_value();
+    U64 result = Algorithm::Hash(input).get_value();
     accumulator ^= result;
     input = result;
   }
@@ -69,7 +69,8 @@ static auto compute_hash() -> void {
   U64 accumulator = 0;
   for (Count i = 0; i < hash_batch; i++) {
     Count offset = (max_offset > 0) ? (i % (max_offset + 1)) : 0;
-    accumulator ^= Hash(hash_buffer.slice(offset, hash_length)).get_value();
+    accumulator ^=
+        Algorithm::Hash(hash_buffer.slice(offset, hash_length)).get_value();
   }
 
   Benchmark::prevent_optimization(accumulator);

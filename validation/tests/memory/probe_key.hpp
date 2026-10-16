@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/hash.hpp"
+#include "perimortem/core/algorithm/hash.hpp"
 
 namespace Perimortem::Validation {
 

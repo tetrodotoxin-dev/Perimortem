@@ -10,15 +10,14 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/scalar.hpp"
+#include "perimortem/core/storage/pair.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
-#include "perimortem/utility/pair.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Perimortem::Utility;
 
 static auto basename(View::Bytes path) -> View::Bytes {
   for (Count i = path.get_size(); i > 0; i--) {
@@ -51,7 +50,7 @@ static auto process_name() -> View::Bytes {
 // Text after the first equals sign becomes its value, while an option without
 // an equals sign receives `true`.
 static auto parse_argument(View::Bytes argument)
-    -> Pair<View::Bytes, View::Bytes> {
+    -> Storage::Pair<View::Bytes, View::Bytes> {
   if (argument.is_empty() || argument[0] != '-') {
     return {View::Bytes(), argument};
   }

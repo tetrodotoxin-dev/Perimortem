@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/hash.hpp"
+#include "perimortem/core/algorithm/hash.hpp"
 
 namespace Perimortem::Validation {
 
@@ -34,7 +34,10 @@ class ArenaRetainedValue {
   constexpr auto get_value() const -> Count { return value; }
   constexpr auto has_valid_location() const -> Bool { return location == this; }
 
-  constexpr auto hash() const -> U64 { return Core::Hash(value).get_value(); }
+  constexpr auto hash() const -> U64 {
+    return Core::Algorithm::Hash(value).get_value();
+  }
+
   constexpr auto operator==(const ArenaRetainedValue& rhs) const -> Bool {
     return value == rhs.value;
   }

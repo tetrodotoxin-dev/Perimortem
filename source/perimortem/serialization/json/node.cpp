@@ -4,7 +4,7 @@
 #include "perimortem/serialization/json/node.hpp"
 
 #include "perimortem/core/algorithm/search.hpp"
-#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 #include "perimortem/serialization/stream/textual.hpp"

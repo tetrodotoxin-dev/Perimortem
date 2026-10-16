@@ -7,7 +7,7 @@
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/view/bytes.h"
 
-namespace Perimortem::Core {
+namespace Perimortem::Core::View {
 
 // NullTerminated calculates the byte extent of a bounded C string once. The
 // resulting View uses the source storage and excludes the first null byte. It
@@ -52,16 +52,16 @@ class NullTerminated {
   Count size = 0;
 };
 
-}  // namespace Perimortem::Core
+}  // namespace Perimortem::Core::View
 
 // Produces a compile time View containing every authored literal byte except
 // C++'s implicit final terminator. Authored null bytes remain in the View.
-template <Perimortem::Core::NullTerminated::Literal c_string>
+template <Perimortem::Core::View::NullTerminated::Literal c_string>
 consteval const Perimortem::Core::View::Bytes operator""_view() {
   return c_string.get_view();
 }
 
-template <Perimortem::Core::NullTerminated::Literal c_string>
+template <Perimortem::Core::View::NullTerminated::Literal c_string>
 consteval const Perimortem::Core::Storage::Bytes<c_string.get_size()>
     operator""_bytes() {
   return Perimortem::Core::Storage::Bytes<c_string.get_size()>(

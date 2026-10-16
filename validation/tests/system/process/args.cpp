@@ -7,8 +7,8 @@
 
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/storage/vector.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
 #include "validation/tests/log.hpp"

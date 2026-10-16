@@ -3,7 +3,7 @@
 
 #pragma once
 
-namespace Perimortem::Utility {
+namespace Perimortem::Core::Storage {
 
 // Pair names two related values for local transformations and compile time
 // table declarations without adding lookup, ordering, or lifetime behavior.
@@ -13,4 +13,4 @@ struct Pair {
   value_type value;
 };
 
-}  // namespace Perimortem::Utility
+}  // namespace Perimortem::Core::Storage

@@ -4,8 +4,8 @@
 #pragma once
 
 #include "perimortem/core/access/bytes.h"
+#include "perimortem/core/algorithm/hash.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/hash.hpp"
 #include "perimortem/core/scalar.hpp"
 #include "perimortem/core/view/bytes.h"
 
@@ -126,7 +126,7 @@ class Bytes {
   }
 
   constexpr auto hash() const -> U64 {
-    return Core::Hash(get_view()).get_value();
+    return Core::Algorithm::Hash(get_view()).get_value();
   }
 };
 

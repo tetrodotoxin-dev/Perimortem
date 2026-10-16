@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/hash.hpp"
+#include "perimortem/core/algorithm/hash.hpp"
 
 namespace Perimortem::Validation {
 
@@ -28,7 +28,10 @@ class MoveOnlyValue {
   }
 
   constexpr auto get_value() const -> value_type { return value; }
-  constexpr auto hash() const -> U64 { return Core::Hash(value).get_value(); }
+  constexpr auto hash() const -> U64 {
+    return Core::Algorithm::Hash(value).get_value();
+  }
+
   constexpr auto operator==(const MoveOnlyValue& rhs) const -> Bool {
     return value == rhs.value;
   }
@@ -63,7 +66,10 @@ class TrackedValue {
 
   ~TrackedValue() { counts->destructions++; }
 
-  constexpr auto hash() const -> U64 { return Core::Hash(value).get_value(); }
+  constexpr auto hash() const -> U64 {
+    return Core::Algorithm::Hash(value).get_value();
+  }
+
   constexpr auto operator==(const TrackedValue& rhs) const -> Bool {
     return value == rhs.value;
   }

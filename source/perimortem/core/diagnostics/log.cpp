@@ -13,10 +13,10 @@
 
 #include "perimortem/core/access/bytes.h"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/time.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
@@ -332,7 +332,8 @@ auto Diagnostics::Log::fatal(View::Bytes message, const Source& location)
     const S32 resolved = dladdr(frames[index], &symbol);
     if (resolved && symbol.dli_sname) {
       log(Level::Fatal,
-          NullTerminated(symbol.dli_sname, max_message_capacity).get_view(),
+          View::NullTerminated(symbol.dli_sname, max_message_capacity)
+              .get_view(),
           Source());
     } else {
       log(Level::Fatal, "Unknown backtrace frame."_view, Source());

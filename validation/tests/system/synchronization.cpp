@@ -1,36 +1,41 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/system/mutex.hpp"
-
 #include "toolchain/validation/test.hpp"
 
-#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/system/process/worker.hpp"
+#include "perimortem/system/synchronization/mutex.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 
 static Harness SystemMutex = {
-  .name = "System::Mutex",
+  .name = "System::Synchronization::Mutex",
 };
 
-static Mutex counter_mutex;
+static Synchronization::Mutex counter_mutex;
 static Count counter = 0;
 static constexpr Count worker_iterations = 10000;
 
 static auto increment_counter(View::Bytes) -> void {
   for (Count iteration = 0; iteration < worker_iterations; iteration++) {
-    Mutex::Lock lock(counter_mutex);
+    Synchronization::Mutex::Lock lock(counter_mutex);
     counter++;
   }
 }
 
-static_assert(!__is_constructible(Mutex, const Mutex&));
-static_assert(!__is_constructible(Mutex, Mutex&&));
-static_assert(!__is_constructible(Mutex::Lock, const Mutex::Lock&));
-static_assert(!__is_constructible(Mutex::Lock, Mutex::Lock&&));
+static_assert(
+    !__is_constructible(Synchronization::Mutex, const Synchronization::Mutex&));
+static_assert(
+    !__is_constructible(Synchronization::Mutex, Synchronization::Mutex&&));
+static_assert(!__is_constructible(
+    Synchronization::Mutex::Lock,
+    const Synchronization::Mutex::Lock&));
+static_assert(!__is_constructible(
+    Synchronization::Mutex::Lock,
+    Synchronization::Mutex::Lock&&));
 
 VALIDATION_TEST(SystemMutex, serializes_workers) {
   constexpr Count worker_count = 4;

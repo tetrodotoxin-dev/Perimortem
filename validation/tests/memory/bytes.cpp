@@ -6,7 +6,7 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
@@ -62,7 +62,7 @@ static auto check_bytes_contract(
   bytes.set(U8('x'));
   EXPECT_EQ(bytes.get_view(), "xxx"_view);
   EXPECT(bytes == "xxx"_view);
-  EXPECT_EQ(bytes.hash(), Hash(bytes.get_view()).get_value());
+  EXPECT_EQ(bytes.hash(), Algorithm::Hash(bytes.get_view()).get_value());
 
   View::Bytes converted_view = bytes;
   Access::Bytes converted_access = bytes;

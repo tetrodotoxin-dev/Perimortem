@@ -3,8 +3,8 @@
 
 #pragma once
 
+#include "perimortem/core/algorithm/hash.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/hash.hpp"
 #include "perimortem/memory/allocator/global.hpp"
 
 namespace Perimortem::Validation {
@@ -53,7 +53,7 @@ class GlobalAllocationValue {
   auto get_value() const -> U32 { return *value; }
   auto get_data() const -> const U32* { return value; }
   auto has_valid_location() const -> Bool { return location == this; }
-  auto hash() const -> U64 { return Core::Hash(*value).get_value(); }
+  auto hash() const -> U64 { return Core::Algorithm::Hash(*value).get_value(); }
   auto operator==(const GlobalAllocationValue& rhs) const -> Bool {
     return *value == *rhs.value;
   }
