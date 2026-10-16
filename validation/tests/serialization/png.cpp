@@ -27,12 +27,19 @@ static Harness SerializationPng = {
   .teardown = Log::end,
 };
 
-VALIDATION_TEST(SerializationPng, red_1x1_dimensions) {
-  auto source = File::read("validation/data/pngs/red_1x1.png"_view);
-  ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
+static auto read_fixture(View::Bytes path) -> Global::Bytes {
+  auto result = File::read(path);
+  Global::Bytes bytes;
+  result.visit(
+      [&](Global::Bytes& source) { bytes = Data::take(source); }, []() {});
+  return bytes;
+}
 
-  auto image = Png::decode(*source);
+VALIDATION_TEST(SerializationPng, red_1x1_dimensions) {
+  auto source = read_fixture("validation/data/pngs/red_1x1.png"_view);
+  ASSERT_NOT(source.is_empty());
+
+  auto image = Png::decode(source);
 
   EXPECT_EQ(image.get_column_count(), U32(1));
   EXPECT_EQ(image.get_row_count(), U32(1));
@@ -47,11 +54,10 @@ VALIDATION_TEST(SerializationPng, red_1x1_dimensions) {
 }
 
 VALIDATION_TEST(SerializationPng, checkerboard_2x2) {
-  auto source = File::read("validation/data/pngs/checkerboard_2x2.png"_view);
-  ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
+  auto source = read_fixture("validation/data/pngs/checkerboard_2x2.png"_view);
+  ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(*source);
+  auto image = Png::decode(source);
   auto pixels = image.get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(4));
@@ -74,19 +80,18 @@ VALIDATION_TEST(SerializationPng, checkerboard_2x2) {
 }
 
 VALIDATION_TEST(SerializationPng, unaligned_input) {
-  auto source = File::read("validation/data/pngs/red_1x1.png"_view);
-  ASSERT(source);
+  auto source = read_fixture("validation/data/pngs/red_1x1.png"_view);
+  ASSERT_NOT(source.is_empty());
 
   // A PNG can arrive as a slice of another byte buffer. Move this fixture by
   // one byte so its header and chunk integers cannot rely on native alignment.
   // Sanitized builds must accept that input and still decode the same pixel.
   Thread::Vector<U8> storage;
-  storage.resize(source->get_size() + 1);
+  storage.resize(source.get_size() + 1);
   Data::copy(
-      storage.get_data() + 1, source->get_view().get_data(),
-      source->get_size());
+      storage.get_data() + 1, source.get_view().get_data(), source.get_size());
 
-  const View::Bytes shifted(storage.get_data() + 1, source->get_size());
+  const View::Bytes shifted(storage.get_data() + 1, source.get_size());
   auto image = Png::decode(shifted);
   const auto pixels = image.get_values();
 
@@ -98,11 +103,10 @@ VALIDATION_TEST(SerializationPng, unaligned_input) {
 }
 
 VALIDATION_TEST(SerializationPng, decode_rgb_to_rgba) {
-  auto source = File::read("validation/data/pngs/rgb_3x1.png"_view);
-  ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
+  auto source = read_fixture("validation/data/pngs/rgb_3x1.png"_view);
+  ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(*source);
+  auto image = Png::decode(source);
   auto pixels = image.get_values();
 
   // RGB source: alpha must be synthesized as fully opaque.
@@ -116,11 +120,10 @@ VALIDATION_TEST(SerializationPng, decode_rgb_to_rgba) {
 }
 
 VALIDATION_TEST(SerializationPng, gray_to_rgba) {
-  auto source = File::read("validation/data/pngs/gray_2x2.png"_view);
-  ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
+  auto source = read_fixture("validation/data/pngs/gray_2x2.png"_view);
+  ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(*source);
+  auto image = Png::decode(source);
   auto pixels = image.get_values();
 
   // Greyscale source: gray value replicates to all three color channels.
@@ -147,11 +150,10 @@ VALIDATION_TEST(SerializationPng, gray_to_rgba) {
 }
 
 VALIDATION_TEST(SerializationPng, decode_gradient_4x4) {
-  auto source = File::read("validation/data/pngs/gradient_4x4.png"_view);
-  ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
+  auto source = read_fixture("validation/data/pngs/gradient_4x4.png"_view);
+  ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(*source);
+  auto image = Png::decode(source);
   auto pixels = image.get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(16));
@@ -164,11 +166,10 @@ VALIDATION_TEST(SerializationPng, decode_gradient_4x4) {
 }
 
 VALIDATION_TEST(SerializationPng, decode_pattern_8x1) {
-  auto source = File::read("validation/data/pngs/pattern_8x1.png"_view);
-  ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
+  auto source = read_fixture("validation/data/pngs/pattern_8x1.png"_view);
+  ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(*source);
+  auto image = Png::decode(source);
   auto pixels = image.get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(8));
@@ -183,6 +184,7 @@ VALIDATION_TEST(SerializationPng, decode_pattern_8x1) {
 VALIDATION_TEST(SerializationPng, decode_invalid) {
   constexpr Static::Bytes<8> garbage = {
     {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}};
+
   auto image = Png::decode(garbage);
   EXPECT_EQ(image.get_column_count(), U32(0));
   EXPECT_EQ(image.get_row_count(), U32(0));
@@ -191,10 +193,10 @@ VALIDATION_TEST(SerializationPng, decode_invalid) {
 // The altered IHDR has a matching CRC so decoding reaches the extent check.
 // It must reject the claimed storage before inflating the tiny source payload.
 VALIDATION_TEST(SerializationPng, decoded_extent_overflow) {
-  auto source = File::read("validation/data/pngs/red_1x1.png"_view);
-  ASSERT(source);
+  auto source = read_fixture("validation/data/pngs/red_1x1.png"_view);
+  ASSERT_NOT(source.is_empty());
 
-  auto bytes = source->get_access();
+  auto bytes = source.get_access();
   ASSERT(bytes.get_size() >= 33);
   for (Count index = 16; index < 24; index++) {
     bytes.get_data()[index] = 0xFF;
@@ -205,7 +207,7 @@ VALIDATION_TEST(SerializationPng, decoded_extent_overflow) {
   bytes.get_data()[31] = 0x2E;
   bytes.get_data()[32] = 0x3E;
 
-  auto decoded = Png::decode(source->get_view());
+  auto decoded = Png::decode(source.get_view());
   EXPECT(decoded.is_empty());
   EXPECT(Log::error_contains("Png: Decoded extent exceeds address space"_view));
 }
@@ -301,11 +303,10 @@ VALIDATION_TEST(SerializationPng, empty_image) {
 VALIDATION_TEST(SerializationPng, chunk_header_trunc) {
   // PNG with a valid IHDR that's shorter than the valid size.
   auto source =
-      File::read("validation/data/pngs/error_truncated_header.png"_view);
-  ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
+      read_fixture("validation/data/pngs/error_truncated_header.png"_view);
+  ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(*source);
+  auto image = Png::decode(source);
 
   EXPECT_EQ(image.get_column_count(), 0);
   EXPECT(
@@ -315,11 +316,10 @@ VALIDATION_TEST(SerializationPng, chunk_header_trunc) {
 
 VALIDATION_TEST(SerializationPng, chunk_length_overrun) {
   // PNG with a chunk that claims a length of 4294967295 bytes.
-  auto source = File::read("validation/data/pngs/error_overrun.png"_view);
-  ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
+  auto source = read_fixture("validation/data/pngs/error_overrun.png"_view);
+  ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(*source);
+  auto image = Png::decode(source);
 
   EXPECT_EQ(image.get_column_count(), 0);
   EXPECT(
@@ -328,11 +328,10 @@ VALIDATION_TEST(SerializationPng, chunk_length_overrun) {
 }
 
 VALIDATION_TEST(SerializationPng, roundtrip_icon) {
-  auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
-  ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
+  auto source = read_fixture("validation/data/pngs/perimortem_icon.png"_view);
+  ASSERT_NOT(source.is_empty());
 
-  auto original = Png::decode(*source);
+  auto original = Png::decode(source);
   ASSERT_EQ(original.get_column_count(), 128);
   ASSERT_EQ(original.get_row_count(), 128);
 
@@ -363,11 +362,11 @@ VALIDATION_TEST(SerializationPng, roundtrip_icon) {
 VALIDATION_TEST(SerializationPng, crc_mismatch) {
   // PNG with corrupted chunk CRC should log the chunk type and offset so the
   // caller can identify which chunk was damaged.
-  auto source = File::read("validation/data/pngs/error_crc_mismatch.png"_view);
-  ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
+  auto source =
+      read_fixture("validation/data/pngs/error_crc_mismatch.png"_view);
+  ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(*source);
+  auto image = Png::decode(source);
 
   EXPECT_EQ(image.get_column_count(), 0);
   EXPECT(

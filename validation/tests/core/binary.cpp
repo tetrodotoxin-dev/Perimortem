@@ -21,7 +21,7 @@ template <typename T>
 static auto expect_read(Option<T> actual, T expected, Test::TestResult& result)
     -> void {
   actual.visit(
-      [&] { EXPECT(false); }, [&](T value) { EXPECT_EQ(value, expected); });
+      [&](T value) { EXPECT_EQ(value, expected); }, [&] { EXPECT(false); });
 }
 
 VALIDATION_TEST(CoreBinaryReader, little_unsigned) {
@@ -191,7 +191,13 @@ static constexpr auto optional_reads() -> Bool {
       View::Bytes{bytes, sizeof(bytes)});
   const auto zero = reader.read_u32();
   const auto empty = reader.read_bytes(0);
-  if (!zero || *zero != 0 || !empty || !empty->is_empty()) {
+  const Bool zero_is_valid = zero.visit(
+      [](U32 value) { return value == 0 ? True : False; },
+      []() { return False; });
+  const Bool empty_is_valid = empty.visit(
+      [](View::Bytes value) { return value.is_empty() ? True : False; },
+      []() { return False; });
+  if (!zero_is_valid || !empty_is_valid) {
     return False;
   }
 
@@ -200,14 +206,19 @@ static constexpr auto optional_reads() -> Bool {
   }
 
   const auto retry = reader.read_bytes(0);
-  if (!retry || !retry->is_empty()) {
+  const Bool retry_is_valid = retry.visit(
+      [](View::Bytes value) { return value.is_empty() ? True : False; },
+      []() { return False; });
+  if (!retry_is_valid) {
     return False;
   }
 
   reader.reset();
 
   const auto restored = reader.read_u32();
-  return restored && *restored == 0;
+  return restored.visit(
+      [](U32 value) { return value == 0 ? True : False; },
+      []() { return False; });
 }
 
 static_assert(optional_reads());
@@ -422,8 +433,21 @@ static_assert([] {
   const auto first = reader.read_u64();
   const auto second = reader.read_u32();
   const auto past_end = reader.read_u32();
-  return first && second && *first == 0x0102030405060708ULL &&
-         *second == 0x090a0b0c && !past_end && !reader.has_content();
+  return first.visit(
+      [&](U64 first_value) {
+        return second.visit(
+            [&](U32 second_value) {
+              return first_value == 0x0102030405060708ULL &&
+                             second_value == 0x090a0b0c && !past_end &&
+                             !reader.has_content()
+                         ? True
+                         : False;
+            },
+
+            []() { return False; });
+      },
+
+      []() { return False; });
 }());
 
 // Literal bytes pin both byte orders independently of the writer and reader.
@@ -449,15 +473,15 @@ VALIDATION_TEST(CoreBinaryReader, constant_word_io) {
       View::Bytes(little.get_data(), 12));
   Reader::Binary<Data::ByteOrder::Big> be(View::Bytes(big.get_data(), 12));
   le.read_u64().visit(
-      [&] { EXPECT(false); },
-      [&](U64 value) { EXPECT_EQ(value, U64(0x0102030405060708ULL)); });
+      [&](U64 value) { EXPECT_EQ(value, U64(0x0102030405060708ULL)); },
+      [&] { EXPECT(false); });
   be.read_u64().visit(
-      [&] { EXPECT(false); },
-      [&](U64 value) { EXPECT_EQ(value, U64(0x0102030405060708ULL)); });
+      [&](U64 value) { EXPECT_EQ(value, U64(0x0102030405060708ULL)); },
+      [&] { EXPECT(false); });
   le.read_u32().visit(
-      [&] { EXPECT(false); },
-      [&](U32 value) { EXPECT_EQ(value, U32(0x090a0b0c)); });
+      [&](U32 value) { EXPECT_EQ(value, U32(0x090a0b0c)); },
+      [&] { EXPECT(false); });
   be.read_u32().visit(
-      [&] { EXPECT(false); },
-      [&](U32 value) { EXPECT_EQ(value, U32(0x090a0b0c)); });
+      [&](U32 value) { EXPECT_EQ(value, U32(0x090a0b0c)); },
+      [&] { EXPECT(false); });
 }

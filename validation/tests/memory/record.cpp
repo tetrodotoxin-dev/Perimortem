@@ -170,7 +170,12 @@ VALIDATION_TEST(DynamicRecord, map_retains_record) {
 
   auto found = values.find(0);
   ASSERT(found);
-  EXPECT_EQ((*found)->get_value(), Count(7));
+  found.visit(
+      [&](const Dynamic::Record<RaiiProbe>& value) {
+        EXPECT_EQ(value->get_value(), Count(7));
+      },
+
+      []() {});
 
   values.remove(0);
   EXPECT_EQ(destructor_count, Count(1));
@@ -188,7 +193,12 @@ VALIDATION_TEST(DynamicRecord, map_rehash) {
   for (Count i = 0; i < 16; i++) {
     auto found = values.find(i);
     ASSERT(found);
-    EXPECT_EQ((*found)->get_value(), i);
+    found.visit(
+        [&](const Dynamic::Record<RaiiProbe>& value) {
+          EXPECT_EQ(value->get_value(), i);
+        },
+
+        []() {});
   }
 
   values.clear();

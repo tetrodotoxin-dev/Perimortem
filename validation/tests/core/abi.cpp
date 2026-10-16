@@ -35,7 +35,7 @@ static_assert([] {
     return false;
   }
 
-  *selected = 4;
+  selected.visit([](U8& value) { value = 4; }, []() {});
   return data[1] == 4;
 }());
 static_assert(
@@ -57,7 +57,7 @@ VALIDATION_TEST(CoreAbi, c_records) {
   Access::Bytes access(perimortem_test_access(data, 3));
   auto selected = access[1];
   ASSERT(selected);
-  *selected = 4;
+  selected.visit([](U8& value) { value = 4; }, []() {});
   EXPECT_EQ(data[1], 4);
 
   Uuid uuid = perimortem_test_uuid(5, 6);

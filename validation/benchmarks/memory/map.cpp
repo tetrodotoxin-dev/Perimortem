@@ -56,7 +56,9 @@ static auto map_test() -> void {
     Benchmark::start_time();
     accumulator = 0;
     for (Count i = 0; i < values; i++) {
-      accumulator += *local_map.find(lookup_keys[i % values]);
+      accumulator +=
+          local_map.find(lookup_keys[i % values])
+              .visit([](S32 value) { return value; }, [] { return S32(0); });
     }
   }
 
@@ -103,7 +105,8 @@ static auto pointer_lookup_test() -> void {
   for (Count i = 0; i < values; i++) {
     const S32* key = pointer_key(i, misses);
     auto value = map.find(key);
-    accumulator += value ? *value : 1;
+    accumulator += value.visit(
+        [](Count selected) { return selected; }, [] { return Count(1); });
   }
 
   Benchmark::end_time();
@@ -236,7 +239,8 @@ static auto keyword_test() -> void {
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
     auto value = local_map.find(*lookup_scramble[i]);
-    accumulator += value ? *value : -1;
+    accumulator += value.visit(
+        [](S32 selected) { return selected; }, [] { return S32(-1); });
   }
 
   Benchmark::prevent_optimization(accumulator);
@@ -252,7 +256,8 @@ static auto keyword_table() -> void {
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
     auto value = KeywordTable::find(*lookup_scramble[i]);
-    accumulator += value ? *value : -1;
+    accumulator += value.visit(
+        [](S32 selected) { return selected; }, [] { return S32(-1); });
   }
 
   Benchmark::prevent_optimization(accumulator);

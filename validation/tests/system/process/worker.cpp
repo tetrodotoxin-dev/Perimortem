@@ -104,57 +104,91 @@ static auto read_large_payload_job(View::Bytes job_data) -> void {
   Reader::Binary<Data::ByteOrder::Native> reader(job_data);
   const auto result_address = reader.read_u64();
   const auto payload_bytes = reader.read_bytes(large_worker_payload_size);
-  if (!result_address || !payload_bytes || *result_address == 0) {
-    return;
-  }
+  result_address.visit(
+      [&](U64 address) {
+        if (address == 0) {
+          return;
+        }
 
-  auto* worker_result =
-      Data::restore<WorkerPayloadResult*>(CppSize(*result_address));
-  worker_result->byte_count = payload_bytes->get_size();
-  worker_result->checksum = checksum_worker_payload(*payload_bytes);
-  worker_result->read_successfully = reader.get_location() == reader.get_size();
+        payload_bytes.visit(
+            [&](View::Bytes payload) {
+              auto* worker_result =
+                  Data::restore<WorkerPayloadResult*>(CppSize(address));
+              worker_result->byte_count = payload.get_size();
+              worker_result->checksum = checksum_worker_payload(payload);
+              worker_result->read_successfully =
+                  reader.get_location() == reader.get_size();
+            },
+
+            []() {});
+      },
+
+      []() {});
 }
 
 static auto read_thread_name_job(View::Bytes job_data) -> void {
   Reader::Binary<Data::ByteOrder::Native> reader(job_data);
   const auto result_address = reader.read_u64();
   const auto expected_name_size = reader.read_u64();
-  if (!result_address || !expected_name_size || *result_address == 0) {
-    return;
-  }
+  result_address.visit(
+      [&](U64 address) {
+        if (address == 0) {
+          return;
+        }
 
-  const auto expected_name = reader.read_bytes(*expected_name_size);
-  if (!expected_name) {
-    return;
-  }
+        expected_name_size.visit(
+            [&](U64 name_size) {
+              reader.read_bytes(name_size).visit(
+                  [&](View::Bytes expected_name) {
+                    auto* worker_result =
+                        Data::restore<WorkerNameResult*>(CppSize(address));
+                    const View::Bytes actual_name =
+                        Process::Worker::get_thread_name();
+                    worker_result->on_main_thread =
+                        Process::Worker::on_main_thread();
+                    worker_result->name_size = actual_name.get_size();
+                    worker_result->checksum =
+                        checksum_worker_payload(actual_name);
+                    worker_result->matches_expected =
+                        actual_name == expected_name;
+                    worker_result->read_successfully =
+                        reader.get_location() == reader.get_size();
+                  },
 
-  auto* worker_result =
-      Data::restore<WorkerNameResult*>(CppSize(*result_address));
-  const View::Bytes actual_name = Process::Worker::get_thread_name();
-  worker_result->on_main_thread = Process::Worker::on_main_thread();
-  worker_result->name_size = actual_name.get_size();
-  worker_result->checksum = checksum_worker_payload(actual_name);
-  worker_result->matches_expected = actual_name == *expected_name;
-  worker_result->read_successfully = reader.get_location() == reader.get_size();
+                  []() {});
+            },
+
+            []() {});
+      },
+
+      []() {});
 }
 
 static auto hold_worker_job(View::Bytes job_data) -> void {
   Reader::Binary<Data::ByteOrder::Native> reader(job_data);
   const auto result_address = reader.read_u64();
-  if (!result_address || *result_address == 0) {
-    return;
-  }
+  result_address.visit(
+      [&](U64 address) {
+        if (address == 0) {
+          return;
+        }
 
-  auto* worker_result =
-      Data::restore<WorkerCountResult*>(CppSize(*result_address));
-  worker_result->active_worker_count = Process::Worker::get_worker_count();
-  worker_result->thread_id = Process::Worker::get_thread_id();
-  worker_result->read_successfully = reader.get_location() == reader.get_size();
-  __atomic_store_n(&worker_result->started.value, True.value, __ATOMIC_RELEASE);
-  while (Bool(__atomic_load_n(
-             &worker_result->release.value, __ATOMIC_ACQUIRE)) != True) {
-    yield_thread();
-  }
+        auto* worker_result =
+            Data::restore<WorkerCountResult*>(CppSize(address));
+        worker_result->active_worker_count =
+            Process::Worker::get_worker_count();
+        worker_result->thread_id = Process::Worker::get_thread_id();
+        worker_result->read_successfully =
+            reader.get_location() == reader.get_size();
+        __atomic_store_n(
+            &worker_result->started.value, True.value, __ATOMIC_RELEASE);
+        while (Bool(__atomic_load_n(
+                   &worker_result->release.value, __ATOMIC_ACQUIRE)) != True) {
+          yield_thread();
+        }
+      },
+
+      []() {});
 }
 
 static auto select_worker_logger(View::Bytes) -> void {

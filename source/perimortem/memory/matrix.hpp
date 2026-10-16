@@ -125,21 +125,21 @@ class Matrix {
   // until Matrix storage changes.
   constexpr auto get(Math::Point<S64, 2> point) const
       -> Core::Option<const type&> {
-    auto mapped = domain.resolve(point);
-    if (!mapped) {
-      return {};
-    }
+    return domain.resolve(point).visit(
+        [this](Math::Point<U32, 2> mapped) -> Core::Option<const type&> {
+          return values[get_index(mapped)];
+        },
 
-    return values[get_index(*mapped)];
+        []() -> Core::Option<const type&> { return {}; });
   }
 
   constexpr auto get(Math::Point<S64, 2> point) -> Core::Option<type&> {
-    auto mapped = domain.resolve(point);
-    if (!mapped) {
-      return {};
-    }
+    return domain.resolve(point).visit(
+        [this](Math::Point<U32, 2> mapped) -> Core::Option<type&> {
+          return values[get_index(mapped)];
+        },
 
-    return values[get_index(*mapped)];
+        []() -> Core::Option<type&> { return {}; });
   }
 
  private:

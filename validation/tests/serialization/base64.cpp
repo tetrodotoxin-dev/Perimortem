@@ -86,17 +86,29 @@ VALIDATION_TEST(SerializationBase64, decode_image) {
       File::read("validation/data/base64/perimortem_icon.base64"_view);
   ASSERT(source);
   ASSERT(base64);
-  ASSERT_NOT((*source).is_empty());
-  ASSERT_NOT((*base64).is_empty());
-  ASSERT((*base64).get_view()[(*base64).get_size() - 1] == '\n');
+  source.visit(
+      [&](Global::Bytes& source_bytes) {
+        base64.visit(
+            [&](Global::Bytes& base64_bytes) {
+              ASSERT_NOT(source_bytes.is_empty());
+              ASSERT_NOT(base64_bytes.is_empty());
+              ASSERT(
+                  base64_bytes.get_view()[base64_bytes.get_size() - 1] == '\n');
 
-  const View::Bytes encoded =
-      (*base64).get_view().slice(0, (*base64).get_size() - 1);
+              const View::Bytes encoded =
+                  base64_bytes.get_view().slice(0, base64_bytes.get_size() - 1);
 
-  // This binary fixture is independent of the evolving TTX source grammar.
-  // Regenerate the golden encoding only when intentionally replacing the PNG.
-  const auto decoded_bytes = Base64::decode(encoded);
-  EXPECT(decoded_bytes.get_view() == (*source).get_view());
+              // This binary fixture is independent of the evolving TTX source
+              // grammar. Regenerate the golden encoding only when intentionally
+              // replacing the PNG.
+              const auto decoded_bytes = Base64::decode(encoded);
+              EXPECT(decoded_bytes.get_view() == source_bytes.get_view());
+            },
+
+            []() {});
+      },
+
+      []() {});
 }
 
 VALIDATION_TEST(SerializationBase64, encode_empty) {
@@ -120,15 +132,28 @@ VALIDATION_TEST(SerializationBase64, encode_image) {
       File::read("validation/data/base64/perimortem_icon.base64"_view);
   ASSERT(source);
   ASSERT(base64);
-  ASSERT_NOT((*source).is_empty());
-  ASSERT_NOT((*base64).is_empty());
-  ASSERT((*base64).get_view()[(*base64).get_size() - 1] == '\n');
+  source.visit(
+      [&](Global::Bytes& source_bytes) {
+        base64.visit(
+            [&](Global::Bytes& base64_bytes) {
+              ASSERT_NOT(source_bytes.is_empty());
+              ASSERT_NOT(base64_bytes.is_empty());
+              ASSERT(
+                  base64_bytes.get_view()[base64_bytes.get_size() - 1] == '\n');
 
-  const View::Bytes encoded =
-      (*base64).get_view().slice(0, (*base64).get_size() - 1);
+              const View::Bytes encoded =
+                  base64_bytes.get_view().slice(0, base64_bytes.get_size() - 1);
 
-  // This binary fixture is independent of the evolving TTX source grammar.
-  // Regenerate the golden encoding only when intentionally replacing the PNG.
-  const auto encoded_bytes = Base64::encode((*source).get_view());
-  EXPECT_TEXT(encoded_bytes.get_view(), encoded);
+              // This binary fixture is independent of the evolving TTX source
+              // grammar. Regenerate the golden encoding only when intentionally
+              // replacing the PNG.
+              const auto encoded_bytes =
+                  Base64::encode(source_bytes.get_view());
+              EXPECT_TEXT(encoded_bytes.get_view(), encoded);
+            },
+
+            []() {});
+      },
+
+      []() {});
 }

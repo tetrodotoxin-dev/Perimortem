@@ -39,7 +39,7 @@ VALIDATION_TEST(UtilityRange, representable_end) {
 
   const auto end = range.get_end();
   ASSERT(end);
-  EXPECT_EQ(*end, Count(-1));
+  end.visit([&](Count value) { EXPECT_EQ(value, Count(-1)); }, []() {});
 
   EXPECT_NOT(range.extend(Count(-1)));
   EXPECT_EQ(range.start, Count(-2));

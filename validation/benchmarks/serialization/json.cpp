@@ -26,12 +26,15 @@ static constexpr Count json_batch = 1024;
 
 static auto load_json(View::Bytes source_path) -> void {
   auto source = File::read(source_path);
-  if (!source) {
-    Diagnostics::Log::fatal("Unable to load JSON benchmark source."_view);
-  }
+  source.visit(
+      [](const Global::Bytes& contents) {
+        json_text.set_pointer(0);
+        json_text << contents;
+      },
 
-  json_text.set_pointer(0);
-  json_text << *source;
+      [] {
+        Diagnostics::Log::fatal("Unable to load JSON benchmark source."_view);
+      });
 }
 
 static Harness JsonBlueprint = {
@@ -52,6 +55,7 @@ VALIDATION_BENCHMARK(JsonBlueprint, blueprint_x1024) {
            {"version"_view, "1.0"_view},
          }},
       }}.construct(arena);
+
     size += node.get_size();
     arena.reset();
   }

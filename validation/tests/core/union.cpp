@@ -29,9 +29,11 @@ VALIDATION_TEST(CoreUnion, alternatives) {
   Static::Union<U32, View::Bytes, Bool> text("open"_view);
   Static::Union<U32, View::Bytes, Bool> flag(True);
 
-  EXPECT_EQ(*bits.find<U32>(), U32(42));
-  EXPECT_TEXT(*text.find<View::Bytes>(), "open"_view);
-  EXPECT(*flag.find<Bool>());
+  bits.find<U32>().visit(
+      [&](U32 value) { EXPECT_EQ(value, U32(42)); }, []() {});
+  text.find<View::Bytes>().visit(
+      [&](View::Bytes value) { EXPECT_TEXT(value, "open"_view); }, []() {});
+  flag.find<Bool>().visit([&](Bool value) { EXPECT(value); }, []() {});
 }
 
 VALIDATION_TEST(CoreUnion, visit) {
@@ -50,7 +52,8 @@ VALIDATION_TEST(CoreUnion, visit) {
 
   bits.visit(
       []() {}, [](U32& selected) -> void { selected++; }, [](View::Bytes&) {});
-  EXPECT_EQ(*bits.find<U32>(), U32(43));
+  bits.find<U32>().visit(
+      [&](U32 value) { EXPECT_EQ(value, U32(43)); }, []() {});
 }
 
 VALIDATION_TEST(CoreUnion, copy_move) {
@@ -63,8 +66,10 @@ VALIDATION_TEST(CoreUnion, copy_move) {
   copied = first;
   moved = Data::take(copied);
 
-  EXPECT_TEXT(*third.find<View::Bytes>(), "copy"_view);
-  EXPECT_TEXT(*moved.find<View::Bytes>(), "copy"_view);
+  third.find<View::Bytes>().visit(
+      [&](View::Bytes value) { EXPECT_TEXT(value, "copy"_view); }, []() {});
+  moved.find<View::Bytes>().visit(
+      [&](View::Bytes value) { EXPECT_TEXT(value, "copy"_view); }, []() {});
 
   moved = Static::Union<U32, View::Bytes>();
   EXPECT(moved.is_null());
@@ -77,7 +82,12 @@ VALIDATION_TEST(CoreUnion, move_only_alternative) {
   auto found = moved.find<MoveOnlyValue<U64>>();
 
   ASSERT(found);
-  EXPECT_EQ((*found).get_value(), U64(42));
+  found.visit(
+      [&](const MoveOnlyValue<U64>& value) {
+        EXPECT_EQ(value.get_value(), U64(42));
+      },
+
+      []() {});
   EXPECT_EQ(source.get_value(), U64(0));
 }
 

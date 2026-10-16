@@ -291,21 +291,23 @@ static auto get_file_fingerprint(
     View::Bytes operation,
     View::Bytes path,
     FailureReporting reporting) -> Option<File::Fingerprint> {
-  auto fingerprint = inspect_stream(file);
-  if (!fingerprint) {
-    report_file_warning(
-        reporting, operation, path, "metadata"_view, "errno"_view, errno);
-    return {};
-  }
+  return inspect_stream(file).visit(
+      [&](const File::Fingerprint& fingerprint) -> Option<File::Fingerprint> {
+        if (fingerprint.get_size() > max_read_size) {
+          report_file_warning(
+              reporting, operation, path, "size"_view, "value"_view,
+              S64(fingerprint.get_size()));
+          return {};
+        }
 
-  if (fingerprint->get_size() > max_read_size) {
-    report_file_warning(
-        reporting, operation, path, "size"_view, "value"_view,
-        S64(fingerprint->get_size()));
-    return {};
-  }
+        return fingerprint;
+      },
 
-  return fingerprint;
+      [&]() -> Option<File::Fingerprint> {
+        report_file_warning(
+            reporting, operation, path, "metadata"_view, "errno"_view, errno);
+        return {};
+      });
 }
 
 // Global and Managed destinations receive file values directly into their final
@@ -319,31 +321,34 @@ static auto read_file(
     View::Bytes operation,
     View::Bytes path,
     FailureReporting reporting) -> Bool {
-  auto selected = get_file_fingerprint(file, operation, path, reporting);
-  if (!selected) {
-    return False;
-  }
+  return get_file_fingerprint(file, operation, path, reporting)
+      .visit(
+          [&](const File::Fingerprint& selected) {
+            fingerprint = selected;
 
-  fingerprint = *selected;
+            const Count size = selected.get_size();
+            // The file read replaces every requested byte. Forgetful resize
+            // avoids clearing storage that cannot be observed before that
+            // overwrite completes.
+            data.forgetful_resize(size);
+            if (size == 0) {
+              return True;
+            }
 
-  Count size = selected->get_size();
-  // The file read replaces every requested byte. Forgetful resize avoids
-  // clearing storage that cannot be observed before that overwrite completes.
-  data.forgetful_resize(size);
-  if (size == 0) {
-    return True;
-  }
+            CppSize items_read =
+                fread(data.get_access().get_data(), 1, CppSize(size), file);
+            if (items_read != CppSize(size) || ferror(file) != 0) {
+              S32 read_error = errno;
+              report_file_warning(
+                  reporting, operation, path, "content"_view, "errno"_view,
+                  read_error);
+              return False;
+            }
 
-  CppSize items_read =
-      fread(data.get_access().get_data(), 1, CppSize(size), file);
-  if (items_read != CppSize(size) || ferror(file) != 0) {
-    S32 read_error = errno;
-    report_file_warning(
-        reporting, operation, path, "content"_view, "errno"_view, read_error);
-    return False;
-  }
+            return True;
+          },
 
-  return True;
+          []() { return False; });
 }
 
 // Completes the content stage against an already opened stream. Empty content
@@ -424,34 +429,39 @@ static auto member_path(
     View::Bytes directory,
     View::Bytes member) -> Option<View::Bytes> {
   Static::Bytes<max_path_size> member_buffer;
-  auto path = create_path(member_buffer, member);
-  if (!path || path->is_empty() || directory.is_empty()) {
-    return {};
-  }
+  return create_path(member_buffer, member)
+      .visit(
+          [&](View::Bytes path) -> Option<View::Bytes> {
+            if (path.is_empty() || directory.is_empty()) {
+              return {};
+            }
 
-  Bool absolute = (*path)[0] == '/';
+            Bool absolute = path[0] == '/';
 
 #ifdef TOOLCHAIN_WINDOWS
 
-  absolute |= path->get_size() >= 2 && (*path)[1] == ':';
+            absolute |= path.get_size() >= 2 && path[1] == ':';
 
 #endif
 
-  if (absolute) {
-    return create_path(output, *path);
-  }
+            if (absolute) {
+              return create_path(output, path);
+            }
 
-  const Count prefix = directory.get_size();
-  const Count suffix = path->get_size();
-  if (prefix + 1 + suffix >= output.get_size()) {
-    return {};
-  }
+            const Count prefix = directory.get_size();
+            const Count suffix = path.get_size();
+            if (prefix + 1 + suffix >= output.get_size()) {
+              return {};
+            }
 
-  Data::copy(output.get_data(), directory.get_data(), prefix);
-  output.get_data()[prefix] = '/';
-  Data::copy(output.get_data() + prefix + 1, path->get_data(), suffix);
-  output.get_data()[prefix + 1 + suffix] = 0;
-  return View::Bytes(output.get_data(), prefix + 1 + suffix);
+            Data::copy(output.get_data(), directory.get_data(), prefix);
+            output.get_data()[prefix] = '/';
+            Data::copy(output.get_data() + prefix + 1, path.get_data(), suffix);
+            output.get_data()[prefix + 1 + suffix] = 0;
+            return View::Bytes(output.get_data(), prefix + 1 + suffix);
+          },
+
+          []() -> Option<View::Bytes> { return {}; });
 }
 
 template <typename bytes_type>
@@ -463,116 +473,148 @@ static auto read_file(
   // Serialize the caller path into bounded native storage before any
   // filesystem operation begins.
   Static::Bytes<max_path_size> path_buffer;
-  auto path = create_path(path_buffer, location);
-  if (!path) {
-    report_file_warning(
-        reporting, file_read_operation, location, "path"_view, "size"_view,
-        S64(location.get_size()));
-    return False;
-  }
+  return create_path(path_buffer, location)
+      .visit(
+          [&](View::Bytes path) {
+            // Open the selected path exactly once. Metadata, content, and close
+            // all use this stream when the pathname later changes.
+            const char* native_path = Data::cast<const char>(path.get_data());
+            FILE* file = open_stream(native_path, "rb");
+            if (!file) {
+              S32 open_error = errno;
+              report_file_warning(
+                  reporting, file_read_operation, location, "open"_view,
+                  "errno"_view, open_error);
+              return False;
+            }
 
-  // Open the selected path exactly once. Metadata, content, and close all use
-  // this stream when the pathname later changes.
-  const char* native_path = Data::cast<const char>((*path).get_data());
-  FILE* file = open_stream(native_path, "rb");
-  if (!file) {
-    S32 open_error = errno;
-    report_file_warning(
-        reporting, file_read_operation, location, "open"_view, "errno"_view,
-        open_error);
-    return False;
-  }
+            // Fill the storage selected by the public overload and include
+            // stream closure in the reported result.
+            Bool read = read_file(
+                file, data, fingerprint, file_read_operation, location,
+                reporting);
+            Bool closed =
+                close_stream(file, file_read_operation, location, reporting);
+            return Bool(read && closed);
+          },
 
-  // Fill the storage selected by the public overload and include
-  // stream closure in the reported result.
-  Bool read = read_file(
-      file, data, fingerprint, file_read_operation, location, reporting);
-  Bool closed = close_stream(file, file_read_operation, location, reporting);
-
-  return read && closed;
+          [&]() {
+            report_file_warning(
+                reporting, file_read_operation, location, "path"_view,
+                "size"_view, S64(location.get_size()));
+            return False;
+          });
 }
 
 auto File::Root::open(View::Bytes location) -> Option<Root> {
   Static::Bytes<max_path_size> buffer;
-  auto path = create_path(buffer, location);
-  if (!path || path->is_empty() ||
-      inspect_path(Data::cast<const char>(path->get_data())) !=
-          FileKind::Directory) {
-    return {};
-  }
+  return create_path(buffer, location)
+      .visit(
+          [](View::Bytes path) -> Option<Root> {
+            if (path.is_empty() ||
+                inspect_path(Data::cast<const char>(path.get_data())) !=
+                    FileKind::Directory) {
+              return {};
+            }
 
-  return Root(*path);
+            return Root(path);
+          },
+
+          []() -> Option<Root> { return {}; });
 }
 
 auto File::Root::read(View::Bytes relative_path) const
     -> Option<Global::Bytes> {
-  auto snapshot = read_snapshot(relative_path);
-  return snapshot ? Option<Global::Bytes>(snapshot->take_contents())
-                  : Option<Global::Bytes>();
+  return read_snapshot(relative_path)
+      .visit(
+          [](Snapshot& snapshot) -> Option<Global::Bytes> {
+            return snapshot.take_contents();
+          },
+
+          []() -> Option<Global::Bytes> { return {}; });
 }
 
 auto File::Root::read_snapshot(View::Bytes relative_path) const
     -> Option<File::Snapshot> {
   Static::Bytes<max_path_size> buffer;
-  auto path = member_path(buffer, location, relative_path);
-  Global::Bytes data{};
-  File::Fingerprint fingerprint;
-  if (!path || !read_file(*path, data, fingerprint, FailureReporting::Silent)) {
-    return {};
-  }
+  return member_path(buffer, location, relative_path)
+      .visit(
+          [&](View::Bytes path) -> Option<File::Snapshot> {
+            Global::Bytes data{};
+            File::Fingerprint fingerprint;
+            if (!read_file(path, data, fingerprint, FailureReporting::Silent)) {
+              return {};
+            }
 
-  return File::Snapshot(Data::take(data), fingerprint);
+            return File::Snapshot(Data::take(data), fingerprint);
+          },
+
+          []() -> Option<File::Snapshot> { return {}; });
 }
 
 auto File::Root::fingerprint(View::Bytes relative_path) const
     -> Option<File::Fingerprint> {
   Static::Bytes<max_path_size> buffer;
-  auto path = member_path(buffer, location, relative_path);
-  if (!path) {
-    return {};
-  }
+  return member_path(buffer, location, relative_path)
+      .visit(
+          [](View::Bytes path) -> Option<File::Fingerprint> {
+            FILE* file =
+                open_stream(Data::cast<const char>(path.get_data()), "rb");
+            if (!file) {
+              return {};
+            }
 
-  FILE* file = open_stream(Data::cast<const char>(path->get_data()), "rb");
-  if (!file) {
-    return {};
-  }
+            auto fingerprint =
+                get_file_fingerprint(file, {}, path, FailureReporting::Silent);
+            Bool closed =
+                close_stream(file, {}, path, FailureReporting::Silent);
+            return closed ? fingerprint : Option<File::Fingerprint>();
+          },
 
-  auto selected =
-      get_file_fingerprint(file, {}, *path, FailureReporting::Silent);
-  Bool closed = close_stream(file, {}, *path, FailureReporting::Silent);
-  return closed ? selected : Option<File::Fingerprint>();
+          []() -> Option<File::Fingerprint> { return {}; });
 }
 
 auto File::Root::read(Allocator::Arena& arena, View::Bytes relative_path) const
     -> Option<View::Bytes> {
   Static::Bytes<max_path_size> buffer;
-  auto path = member_path(buffer, location, relative_path);
-  Managed::Bytes data{arena};
-  File::Fingerprint fingerprint;
-  if (!path || !read_file(*path, data, fingerprint, FailureReporting::Silent)) {
-    return {};
-  }
+  return member_path(buffer, location, relative_path)
+      .visit(
+          [&](View::Bytes path) -> Option<View::Bytes> {
+            Managed::Bytes data{arena};
+            File::Fingerprint fingerprint;
+            if (!read_file(path, data, fingerprint, FailureReporting::Silent)) {
+              return {};
+            }
 
-  return data.get_view();
+            return data.get_view();
+          },
+
+          []() -> Option<View::Bytes> { return {}; });
 }
 
 auto File::Root::write(View::Bytes data, View::Bytes relative_path) const
     -> Bool {
   Static::Bytes<max_path_size> buffer;
-  auto path = member_path(buffer, location, relative_path);
-  return path && File::write(data, *path);
+  return member_path(buffer, location, relative_path)
+      .visit(
+          [&](View::Bytes path) { return File::write(data, path); },
+          []() { return False; });
 }
 
 auto File::Root::remove(View::Bytes relative_path) const -> Bool {
   Static::Bytes<max_path_size> buffer;
-  auto path = member_path(buffer, location, relative_path);
-  return path && File::remove(*path);
+  return member_path(buffer, location, relative_path)
+      .visit(
+          [](View::Bytes path) { return File::remove(path); },
+          []() { return False; });
 }
 
 auto File::Root::exists(View::Bytes relative_path) const -> Bool {
   Static::Bytes<max_path_size> buffer;
-  auto path = member_path(buffer, location, relative_path);
-  return path && File::exists(*path);
+  return member_path(buffer, location, relative_path)
+      .visit(
+          [](View::Bytes path) { return File::exists(path); },
+          []() { return False; });
 }
 
 auto File::read(View::Bytes location) -> Option<Global::Bytes> {
@@ -604,31 +646,36 @@ auto File::read(Allocator::Arena& arena, View::Bytes location)
 auto File::write(View::Bytes data, View::Bytes location) -> Bool {
   // Serialize the caller path into bounded native storage.
   Static::Bytes<max_path_size> path_buffer;
-  auto path = create_path(path_buffer, location);
-  if (!path) {
-    log_file_warning(
-        file_write_operation, location, "path"_view, "size"_view,
-        S64(location.get_size()));
-    return False;
-  }
+  return create_path(path_buffer, location)
+      .visit(
+          [&](View::Bytes path) {
+            const char* native_path = Data::cast<const char>(path.get_data());
 
-  const char* native_path = Data::cast<const char>((*path).get_data());
+            // Open once for replacement, write through that stream, then treat
+            // closure as part of the operation result.
+            FILE* file = open_stream(native_path, "wb");
+            if (!file) {
+              S32 open_error = errno;
+              log_file_warning(
+                  file_write_operation, location, "open"_view, "errno"_view,
+                  open_error);
+              return False;
+            }
 
-  // Open once for replacement, write through that stream, then treat
-  // closure as part of the operation result.
-  FILE* file = open_stream(native_path, "wb");
-  if (!file) {
-    S32 open_error = errno;
-    log_file_warning(
-        file_write_operation, location, "open"_view, "errno"_view, open_error);
-    return False;
-  }
+            Bool written =
+                write_file(file, data, file_write_operation, location);
+            Bool closed = close_stream(
+                file, file_write_operation, location,
+                FailureReporting::Warning);
+            return Bool(written && closed);
+          },
 
-  Bool written = write_file(file, data, file_write_operation, location);
-  Bool closed = close_stream(
-      file, file_write_operation, location, FailureReporting::Warning);
-
-  return written && closed;
+          [&]() {
+            log_file_warning(
+                file_write_operation, location, "path"_view, "size"_view,
+                S64(location.get_size()));
+            return False;
+          });
 }
 
 auto File::replace(View::Bytes source, View::Bytes destination) -> Bool {
@@ -636,49 +683,62 @@ auto File::replace(View::Bytes source, View::Bytes destination) -> Bool {
   Static::Bytes<max_path_size> destination_buffer;
   auto source_path = create_path(source_buffer, source);
   auto destination_path = create_path(destination_buffer, destination);
-  if (!source_path || !destination_path) {
-    View::Bytes failed = source_path ? destination : source;
-    log_file_warning(
-        file_replace_operation, failed, "path"_view, "size"_view,
-        S64(failed.get_size()));
-    return False;
-  }
+  return source_path.visit(
+      [&](View::Bytes native_source_path) {
+        return destination_path.visit(
+            [&](View::Bytes native_destination_path) {
+              const char* native_source =
+                  Data::cast<const char>(native_source_path.get_data());
+              const char* native_destination =
+                  Data::cast<const char>(native_destination_path.get_data());
+              S32 replaced = replace_path(native_source, native_destination);
+              if (replaced == 0) {
+                return True;
+              }
 
-  const char* native_source = Data::cast<const char>(source_path->get_data());
-  const char* native_destination =
-      Data::cast<const char>(destination_path->get_data());
-  S32 replaced = replace_path(native_source, native_destination);
-  if (replaced == 0) {
-    return True;
-  }
+              S32 replace_error = errno;
+              log_file_warning(
+                  file_replace_operation, destination, "rename"_view,
+                  "errno"_view, replace_error);
+              return False;
+            },
 
-  S32 replace_error = errno;
-  log_file_warning(
-      file_replace_operation, destination, "rename"_view, "errno"_view,
-      replace_error);
-  return False;
+            [&]() {
+              log_file_warning(
+                  file_replace_operation, destination, "path"_view, "size"_view,
+                  S64(destination.get_size()));
+              return False;
+            });
+      },
+
+      [&]() {
+        log_file_warning(
+            file_replace_operation, source, "path"_view, "size"_view,
+            S64(source.get_size()));
+        return False;
+      });
 }
 
 auto File::remove(View::Bytes location) -> Bool {
   Static::Bytes<max_path_size> path_buffer;
-  auto path = create_path(path_buffer, location);
-  if (!path) {
-    return False;
-  }
+  return create_path(path_buffer, location)
+      .visit(
+          [](View::Bytes path) {
+            const char* native_path = Data::cast<const char>(path.get_data());
+            return Bool(remove_path(native_path) == 0);
+          },
 
-  const char* native_path = Data::cast<const char>((*path).get_data());
-  S32 removed = remove_path(native_path);
-  return removed == 0;
+          []() { return False; });
 }
 
 auto File::exists(View::Bytes location) -> Bool {
   Static::Bytes<max_path_size> path_buffer;
-  auto path = create_path(path_buffer, location);
-  if (!path) {
-    return False;
-  }
+  return create_path(path_buffer, location)
+      .visit(
+          [](View::Bytes path) {
+            const char* native_path = Data::cast<const char>(path.get_data());
+            return Bool(inspect_path(native_path) == FileKind::Regular);
+          },
 
-  const char* native_path = Data::cast<const char>((*path).get_data());
-
-  return inspect_path(native_path) == FileKind::Regular;
+          []() { return False; });
 }

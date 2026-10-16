@@ -95,7 +95,9 @@ VALIDATION_TEST(StaticTable, keyword_table) {
   for (Count i = 0; i < keyword_source.get_size(); i++) {
     auto value = keyword_table::find(keyword_source[i].key);
     ASSERT(value);
-    EXPECT_EQ(*value, keyword_source[i].value);
+    value.visit(
+        [&](U32 selected) { EXPECT_EQ(selected, keyword_source[i].value); },
+        []() {});
   }
 
   EXPECT_NOT(keyword_table::find("unknown"_view));
@@ -110,7 +112,12 @@ VALIDATION_TEST(StaticTable, word_table) {
   for (Count i = 0; i < word_source.get_size(); i++) {
     auto value = word_table::find(word_source[i].key);
     ASSERT(value);
-    EXPECT_TEXT(*value, word_source[i].value);
+    value.visit(
+        [&](View::Bytes selected) {
+          EXPECT_TEXT(selected, word_source[i].value);
+        },
+
+        []() {});
   }
 
   EXPECT_NOT(word_table::find("unknown"_view));
@@ -125,12 +132,13 @@ VALIDATION_TEST(StaticTable, find) {
   const auto vec = metadata_table::find("Vec3D"_view);
   ASSERT(vec);
   vec.visit(
-      [] {},
       [&](const TypeMetadata& metadata) {
         EXPECT_TEXT(metadata.name, "Vec3D"_view);
         EXPECT_EQ(metadata.byte_size, 12);
         EXPECT(metadata.exposed);
-      });
+      },
+
+      [] {});
 
   EXPECT_NOT(metadata_table::find("Missing"_view));
   EXPECT_NOT(metadata_table::find(""_view));
@@ -140,6 +148,6 @@ VALIDATION_TEST(StaticTable, entry_limit) {
   for (Count i = 0; i < limit_source.get_size(); i++) {
     auto value = limit_table::find(limit_source[i].key);
     ASSERT(value);
-    EXPECT_EQ(*value, U8(i));
+    value.visit([&](U8 selected) { EXPECT_EQ(selected, U8(i)); }, []() {});
   }
 }

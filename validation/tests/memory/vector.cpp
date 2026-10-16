@@ -102,11 +102,11 @@ static auto check_vector_contract(
 
   static_assert(__is_same(decltype(values[0]), Option<U32&>));
   ASSERT(values[0]);
-  *values[0] = 84;
+  values[0].visit([](U32& value) { value = 84; }, []() {});
 
   const auto& fixed = values;
   static_assert(__is_same(decltype(fixed[0]), Option<const U32&>));
-  EXPECT_EQ(*fixed[0], U32(84));
+  fixed[0].visit([&](U32 value) { EXPECT_EQ(value, U32(84)); }, []() {});
   EXPECT(!fixed[3]);
 
   values.resize(0);

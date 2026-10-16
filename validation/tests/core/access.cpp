@@ -16,12 +16,12 @@ VALIDATION_TEST(CoreAccess, saturates_vector) {
   Access::Vector<S32> access(values);
   auto selected = access[99];
   ASSERT(selected);
-  *selected = 4;
+  selected.visit([](S32& value) { value = 4; }, []() {});
   EXPECT_EQ(values[2], 4);
 
   auto first = access[-1];
   ASSERT(first);
-  EXPECT_EQ(*first, 1);
+  first.visit([&](S32 value) { EXPECT_EQ(value, 1); }, []() {});
 
   Access::Vector<S32> empty;
   EXPECT_NOT(empty[0]);
@@ -36,12 +36,12 @@ VALIDATION_TEST(CoreAccess, saturates_bytes) {
   Access::Bytes access{values, 3};
   auto selected = access[99];
   ASSERT(selected);
-  *selected = 4;
+  selected.visit([](U8& value) { value = 4; }, []() {});
   EXPECT_EQ(values[2], 4);
 
   auto first = access[-1];
   ASSERT(first);
-  EXPECT_EQ(*first, 1);
+  first.visit([&](U8 value) { EXPECT_EQ(value, 1); }, []() {});
 
   Access::Bytes empty{};
   EXPECT_NOT(empty[0]);

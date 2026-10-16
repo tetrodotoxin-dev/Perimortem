@@ -29,30 +29,42 @@ struct Range {
       return False;
     }
 
-    const auto end = get_end();
-    const auto other_end = other.get_end();
-    return end && other_end && start < *other_end && other.start < *end;
+    return get_end().visit(
+        [&](Count end) {
+          return other.get_end().visit(
+              [&](Count other_end) {
+                return Bool(start < other_end && other.start < end);
+              },
+
+              []() { return False; });
+        },
+
+        []() { return False; });
   }
 
   // Adds an index when the resulting exclusive end remains representable.
   // False leaves the interval unchanged.
   constexpr auto extend(Count index) -> Bool {
-    const auto end = get_end();
-    if (!end || index == Count(-1)) {
-      return False;
-    }
+    return get_end().visit(
+        [&](Count end) {
+          if (index == Count(-1)) {
+            return False;
+          }
 
-    if (is_empty()) {
-      start = index;
-      size = 1;
-    } else if (index < start) {
-      size = *end - index;
-      start = index;
-    } else if (index >= *end) {
-      size = index - start + 1;
-    }
+          if (is_empty()) {
+            start = index;
+            size = 1;
+          } else if (index < start) {
+            size = end - index;
+            start = index;
+          } else if (index >= end) {
+            size = index - start + 1;
+          }
 
-    return True;
+          return True;
+        },
+
+        []() { return False; });
   }
 };
 

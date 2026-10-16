@@ -25,6 +25,7 @@ VALIDATION_TEST(MathGeometry, clipped_size) {
       [&](Size<R32, 2>::Failure failure) {
         clipped = failure == Size<R32, 2>::Failure::Clipped;
       });
+
   EXPECT(clipped);
 }
 
@@ -40,6 +41,7 @@ VALIDATION_TEST(MathGeometry, nonfinite_size) {
       [&](Size<R32, 2>::Failure failure) {
         nonfinite = failure == Size<R32, 2>::Failure::NonFinite;
       });
+
   EXPECT(nonfinite);
 }
 
@@ -50,6 +52,7 @@ VALIDATION_TEST(MathGeometry, exact_size) {
       [&](const Size<R32, 2>& size) {
         exact = size[0] == 3.0f && size[1] == 4.0f;
       },
+
       [](Size<R32, 2>::Failure) {});
   EXPECT(exact);
 }
@@ -62,7 +65,7 @@ VALIDATION_TEST(MathGeometry, domain_extent) {
 
   auto count = domain.get_element_count();
   ASSERT(count);
-  EXPECT_EQ(*count, 6);
+  count.visit([&](Count value) { EXPECT_EQ(value, 6); }, []() {});
 
   Domain<3> huge(Size<U32, 3>({{~U32{}, ~U32{}, ~U32{}}}));
   EXPECT_NOT(huge.get_element_count());
@@ -75,7 +78,8 @@ VALIDATION_TEST(MathGeometry, clipped_domain) {
 
   auto inside = domain.resolve(Point<S64, 1>({{2}}));
   ASSERT(inside);
-  EXPECT_EQ((*inside)[0], 2);
+  inside.visit(
+      [&](const Point<U32, 1>& point) { EXPECT_EQ(point[0], 2); }, []() {});
 
   auto limits = domain.get_limits();
   EXPECT(limits.contains(Point<S64, 1>({{2}})));
@@ -86,26 +90,42 @@ VALIDATION_TEST(MathGeometry, mixed_boundaries) {
   Domain<2, Boundary::Wrap, Boundary::Saturate> domain(Size<U32, 2>({{3, 2}}));
   auto mapped = domain.resolve(Point<S64, 2>({{-1, 9}}));
   ASSERT(mapped);
-  EXPECT_EQ((*mapped)[0], 2);
-  EXPECT_EQ((*mapped)[1], 1);
+  mapped.visit(
+      [&](const Point<U32, 2>& point) {
+        EXPECT_EQ(point[0], 2);
+        EXPECT_EQ(point[1], 1);
+      },
+
+      []() {});
 
   auto lower = domain.resolve(Point<S64, 2>({{3, -9}}));
   ASSERT(lower);
-  EXPECT_EQ((*lower)[0], 0);
-  EXPECT_EQ((*lower)[1], 0);
+  lower.visit(
+      [&](const Point<U32, 2>& point) {
+        EXPECT_EQ(point[0], 0);
+        EXPECT_EQ(point[1], 0);
+      },
+
+      []() {});
 
   constexpr S64 minimum = -9223372036854775807LL - 1;
   auto extreme = domain.resolve(Point<S64, 2>({{minimum, 0}}));
   ASSERT(extreme);
-  EXPECT_EQ((*extreme)[0], 1);
+  extreme.visit(
+      [&](const Point<U32, 2>& point) { EXPECT_EQ(point[0], 1); }, []() {});
 }
 
 VALIDATION_TEST(MathGeometry, uniform_boundary) {
   Domain<2, Boundary::Wrap> domain(Size<U32, 2>({{3, 2}}));
   auto mapped = domain.resolve(Point<S64, 2>({{-1, -1}}));
   ASSERT(mapped);
-  EXPECT_EQ((*mapped)[0], 2);
-  EXPECT_EQ((*mapped)[1], 1);
+  mapped.visit(
+      [&](const Point<U32, 2>& point) {
+        EXPECT_EQ(point[0], 2);
+        EXPECT_EQ(point[1], 1);
+      },
+
+      []() {});
 }
 
 VALIDATION_TEST(MathGeometry, mirrored_domain) {
@@ -114,9 +134,12 @@ VALIDATION_TEST(MathGeometry, mirrored_domain) {
   auto edge = domain.resolve(Point<S64, 1>({{3}}));
   auto reflected = domain.resolve(Point<S64, 1>({{4}}));
   ASSERT(before && edge && reflected);
-  EXPECT_EQ((*before)[0], 0);
-  EXPECT_EQ((*edge)[0], 2);
-  EXPECT_EQ((*reflected)[0], 1);
+  before.visit(
+      [&](const Point<U32, 1>& point) { EXPECT_EQ(point[0], 0); }, []() {});
+  edge.visit(
+      [&](const Point<U32, 1>& point) { EXPECT_EQ(point[0], 2); }, []() {});
+  reflected.visit(
+      [&](const Point<U32, 1>& point) { EXPECT_EQ(point[0], 1); }, []() {});
 }
 
 VALIDATION_TEST(MathGeometry, empty_domain_boundary) {

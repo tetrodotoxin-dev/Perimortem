@@ -28,6 +28,14 @@ static Harness ThreadMap = {
   .name = "Thread::Map",
 };
 
+template <typename value_type, typename visitor_type>
+static auto expect_selected(
+    Option<value_type&> selected,
+    visitor_type visitor,
+    Test::TestResult& result) -> void {
+  selected.visit(visitor, [&] { EXPECT(false); });
+}
+
 // Map policies share insertion, lookup, replacement, removal, traversal, copy,
 // capacity, and reset behavior. The factory supplies each policy's construction
 // requirements so every wrapper runs the same capability contract.
@@ -52,16 +60,17 @@ static auto check_map_contract(factory_type create, Test::TestResult& result)
 
   auto found = values.find(2);
   ASSERT(found);
-  EXPECT_EQ(*found, 3);
+  expect_selected(found, [&](S32 value) { EXPECT_EQ(value, 3); }, result);
   EXPECT(!values.find(8));
 
   const auto& fixed = values;
   static_assert(__is_same(decltype(fixed.find(1)), Option<const S32&>));
   static_assert(__is_same(decltype(fixed[1]), Option<const S32&>));
-  EXPECT_EQ(*fixed[1], 2);
+  expect_selected(fixed[1], [&](S32 value) { EXPECT_EQ(value, 2); }, result);
   EXPECT(!fixed[8]);
 
-  EXPECT_EQ(*values.assign(1, 4), 4);
+  expect_selected(
+      values.assign(1, 4), [&](S32 value) { EXPECT_EQ(value, 4); }, result);
   EXPECT(!values.assign(8, 4));
   EXPECT_EQ(values.find_or_create(8), 0);
 
@@ -78,12 +87,12 @@ static auto check_map_contract(factory_type create, Test::TestResult& result)
   EXPECT_EQ(visited, Count(4));
   EXPECT_EQ(key_sum, 15);
   EXPECT_EQ(value_sum, 12);
-  EXPECT_EQ(*values[1], 5);
+  expect_selected(values[1], [&](S32 value) { EXPECT_EQ(value, 5); }, result);
 
   auto copied = values;
   EXPECT(copied.assign(1, 9));
   EXPECT(copied.insert(16, 32));
-  EXPECT_EQ(*values[1], 5);
+  expect_selected(values[1], [&](S32 value) { EXPECT_EQ(value, 5); }, result);
   EXPECT(!values.contains(16));
 
   EXPECT(values.remove(2));
@@ -227,33 +236,58 @@ VALIDATION_TEST(ThreadMap, nonassignable_value_replacement) {
   NonAssignableValue second(8);
 
   EXPECT(values.insert(1, first));
-  EXPECT_EQ((*values.assign(1, second)).get_value(), 8);
+  expect_selected(
+      values.assign(1, second),
+      [&](const NonAssignableValue& value) { EXPECT_EQ(value.get_value(), 8); },
+      result);
 
   auto assigned = values.assign(1, first);
   ASSERT(assigned);
-  EXPECT_EQ((*assigned).get_value(), 4);
+  expect_selected(
+      assigned,
+      [&](const NonAssignableValue& value) { EXPECT_EQ(value.get_value(), 4); },
+      result);
 }
 
 VALIDATION_TEST(ThreadMap, move_only_value_replacement) {
   Thread::Map<S32, MoveOnlyValue<S32>> values;
 
   EXPECT(values.insert(1, MoveOnlyValue<S32>(4)));
-  EXPECT_EQ((*values.assign(1, MoveOnlyValue<S32>(8))).get_value(), 8);
+  expect_selected(
+      values.assign(1, MoveOnlyValue<S32>(8)),
+      [&](const MoveOnlyValue<S32>& value) { EXPECT_EQ(value.get_value(), 8); },
+      result);
 
   auto assigned = values.assign(1, MoveOnlyValue<S32>(16));
   ASSERT(assigned);
-  EXPECT_EQ((*assigned).get_value(), 16);
+  expect_selected(
+      assigned,
+      [&](const MoveOnlyValue<S32>& value) {
+        EXPECT_EQ(value.get_value(), 16);
+      },
+      result);
 }
 
 VALIDATION_TEST(ThreadMap, replacement_materializes_before_retirement) {
   Thread::Map<S32, AliasedReplacementValue> values;
   values.insert(1, "keep"_view);
 
-  View::Bytes alias = (*values[1]).get_view();
+  View::Bytes alias;
+  expect_selected(
+      values[1],
+      [&](const AliasedReplacementValue& value) { alias = value.get_view(); },
+      result);
+
   auto replaced = values.assign(1, alias);
 
   ASSERT(replaced);
-  ASSERT_TEXT((*replaced).get_view(), "keep"_view);
+  expect_selected(
+      replaced,
+      [&](const AliasedReplacementValue& value) {
+        ASSERT_TEXT(value.get_view(), "keep"_view);
+      },
+
+      result);
 }
 
 VALIDATION_TEST(ThreadMap, sentinel_reuse) {
@@ -268,7 +302,9 @@ VALIDATION_TEST(ThreadMap, sentinel_reuse) {
   EXPECT(!values.insert(ProbeKey(Count(-1), 16), 32));
   EXPECT(values.insert(ProbeKey(Count(-1), 24), 24));
   EXPECT_EQ(values.get_capacity(), capacity);
-  EXPECT_EQ(*values[ProbeKey(Count(-1), 24)], Count(24));
+  expect_selected(
+      values[ProbeKey(Count(-1), 24)],
+      [&](Count value) { EXPECT_EQ(value, Count(24)); }, result);
 }
 
 VALIDATION_TEST(ThreadMap, duplicate_empty_keys) {
@@ -281,7 +317,9 @@ VALIDATION_TEST(ThreadMap, duplicate_empty_keys) {
   }
 
   EXPECT_EQ(empty_map.get_size(), 1);
-  EXPECT_EQ(*empty_map[Thread::Bytes()], i);
+  expect_selected(
+      empty_map[Thread::Bytes()], [&](S32 value) { EXPECT_EQ(value, i); },
+      result);
 }
 
 VALIDATION_TEST(ThreadMap, insert_stress_test) {
@@ -292,7 +330,8 @@ VALIDATION_TEST(ThreadMap, insert_stress_test) {
 
   EXPECT_EQ(large_map.get_size(), 1000);
   for (Count i = 0; i < 1000; i++) {
-    ASSERT_EQ(*large_map[i], i + 2);
+    expect_selected(
+        large_map[i], [&](S32 value) { ASSERT_EQ(value, i + 2); }, result);
   }
 }
 
@@ -307,7 +346,9 @@ VALIDATION_TEST(ThreadMap, key_construction) {
 
     EXPECT_EQ(custom_map.get_size(), 100);
     for (Count i = 0; i < 100; i++) {
-      ASSERT_EQ(*custom_map[TrackedValue(i, counts)], i);
+      expect_selected(
+          custom_map[TrackedValue(i, counts)],
+          [&](S32 value) { ASSERT_EQ(value, i); }, result);
     }
   }
 
@@ -325,7 +366,13 @@ VALIDATION_TEST(ThreadMap, value_construction) {
 
     EXPECT_EQ(custom_map.get_size(), 100);
     for (Count i = 0; i < 100; i++) {
-      ASSERT(*custom_map[i] == TrackedValue(i, counts));
+      expect_selected(
+          custom_map[i],
+          [&](const TrackedValue& value) {
+            ASSERT(value == TrackedValue(i, counts));
+          },
+
+          result);
     }
   }
 
@@ -351,19 +398,26 @@ VALIDATION_TEST(ThreadMap, dynamic_keys) {
 
   text_map.insert(longer, 2);
 
-  ASSERT_EQ(*text_map[hello], 0);
-  ASSERT_EQ(*text_map[world], 1);
-  ASSERT_EQ(*text_map[longer], 2);
+  expect_selected(
+      text_map[hello], [&](S32 value) { ASSERT_EQ(value, 0); }, result);
+  expect_selected(
+      text_map[world], [&](S32 value) { ASSERT_EQ(value, 1); }, result);
+  expect_selected(
+      text_map[longer], [&](S32 value) { ASSERT_EQ(value, 2); }, result);
   for (U8 ch = 'A'; ch < 'z'; ch++) {
     text.get_access().get_data()[0] = ch;
-    ASSERT_EQ(*text_map[text], 2 + ch);
+    expect_selected(
+        text_map[text], [&](S32 value) { ASSERT_EQ(value, 2 + ch); }, result);
   }
 
-  ASSERT_EQ(*text_map[longer], 2);
+  expect_selected(
+      text_map[longer], [&](S32 value) { ASSERT_EQ(value, 2); }, result);
 
   auto copied = text_map;
-  ASSERT_EQ(*copied[hello], 0);
-  ASSERT_EQ(*copied[longer], 2);
+  expect_selected(
+      copied[hello], [&](S32 value) { ASSERT_EQ(value, 0); }, result);
+  expect_selected(
+      copied[longer], [&](S32 value) { ASSERT_EQ(value, 2); }, result);
 }
 
 VALIDATION_TEST(ThreadMap, dynamic_value) {
@@ -373,13 +427,43 @@ VALIDATION_TEST(ThreadMap, dynamic_value) {
   text_map.insert(1, Thread::Bytes("World"_view));
   text_map.insert(2, Thread::Bytes("Longer test string"_view));
 
-  ASSERT_TEXT((*text_map[0]).get_view(), "Hello"_view);
-  ASSERT_TEXT((*text_map[1]).get_view(), "World"_view);
-  ASSERT_TEXT((*text_map[2]).get_view(), "Longer test string"_view);
+  expect_selected(
+      text_map[0],
+      [&](const Thread::Bytes& value) {
+        ASSERT_TEXT(value.get_view(), "Hello"_view);
+      },
+
+      result);
+  expect_selected(
+      text_map[1],
+      [&](const Thread::Bytes& value) {
+        ASSERT_TEXT(value.get_view(), "World"_view);
+      },
+
+      result);
+  expect_selected(
+      text_map[2],
+      [&](const Thread::Bytes& value) {
+        ASSERT_TEXT(value.get_view(), "Longer test string"_view);
+      },
+
+      result);
 
   auto copied = text_map;
-  ASSERT_TEXT((*copied[0]).get_view(), "Hello"_view);
-  ASSERT_TEXT((*copied[2]).get_view(), "Longer test string"_view);
+  expect_selected(
+      copied[0],
+      [&](const Thread::Bytes& value) {
+        ASSERT_TEXT(value.get_view(), "Hello"_view);
+      },
+
+      result);
+  expect_selected(
+      copied[2],
+      [&](const Thread::Bytes& value) {
+        ASSERT_TEXT(value.get_view(), "Longer test string"_view);
+      },
+
+      result);
 }
 
 VALIDATION_TEST(ThreadMap, insertion_alias) {
@@ -390,11 +474,26 @@ VALIDATION_TEST(ThreadMap, insertion_alias) {
     values.insert(S32(key), Thread::Bytes("filler"_view));
   }
 
-  const Thread::Bytes& alias = *values[0];
-  values.insert(S32(capacity), alias);
+  const Thread::Bytes* alias = nullptr;
+  expect_selected(
+      values[0], [&](const Thread::Bytes& value) { alias = &value; }, result);
+  ASSERT(alias != nullptr);
+  values.insert(S32(capacity), *alias);
 
-  ASSERT_TEXT((*values[0]).get_view(), "retained"_view);
-  ASSERT_TEXT((*values[S32(capacity)]).get_view(), "retained"_view);
+  expect_selected(
+      values[0],
+      [&](const Thread::Bytes& value) {
+        ASSERT_TEXT(value.get_view(), "retained"_view);
+      },
+
+      result);
+  expect_selected(
+      values[S32(capacity)],
+      [&](const Thread::Bytes& value) {
+        ASSERT_TEXT(value.get_view(), "retained"_view);
+      },
+
+      result);
 }
 
 VALIDATION_TEST(ThreadMap, default_insertion_alias) {
@@ -402,12 +501,23 @@ VALIDATION_TEST(ThreadMap, default_insertion_alias) {
   Thread::Bytes source_key("source key"_view);
   values.insert(source_key, Thread::Bytes("derived key"_view));
 
-  const Thread::Bytes& alias = *values[source_key];
-  Thread::Bytes& inserted = values.find_or_create(alias);
+  const Thread::Bytes* alias = nullptr;
+  expect_selected(
+      values[source_key], [&](const Thread::Bytes& value) { alias = &value; },
+      result);
+  ASSERT(alias != nullptr);
+
+  Thread::Bytes& inserted = values.find_or_create(*alias);
 
   EXPECT(inserted.is_empty());
   EXPECT(values.contains(Thread::Bytes("derived key"_view)));
-  ASSERT_TEXT((*values[source_key]).get_view(), "derived key"_view);
+  expect_selected(
+      values[source_key],
+      [&](const Thread::Bytes& value) {
+        ASSERT_TEXT(value.get_view(), "derived key"_view);
+      },
+
+      result);
 }
 
 VALIDATION_TEST(ThreadMap, rvalue_insert_alias) {
@@ -418,11 +528,22 @@ VALIDATION_TEST(ThreadMap, rvalue_insert_alias) {
     values.insert(S32(key), Thread::Bytes("filler"_view));
   }
 
-  Thread::Bytes& alias = *values[0];
-  values.insert(S32(capacity), Data::take(alias));
+  Thread::Bytes* alias = nullptr;
+  expect_selected(
+      values[0], [&](Thread::Bytes& value) { alias = &value; }, result);
+  ASSERT(alias != nullptr);
+  values.insert(S32(capacity), Data::take(*alias));
 
-  EXPECT((*values[0]).is_empty());
-  ASSERT_TEXT((*values[S32(capacity)]).get_view(), "transferred"_view);
+  expect_selected(
+      values[0], [&](const Thread::Bytes& value) { EXPECT(value.is_empty()); },
+      result);
+  expect_selected(
+      values[S32(capacity)],
+      [&](const Thread::Bytes& value) {
+        ASSERT_TEXT(value.get_view(), "transferred"_view);
+      },
+
+      result);
 }
 
 VALIDATION_TEST(ThreadMap, assignment) {
@@ -435,11 +556,13 @@ VALIDATION_TEST(ThreadMap, assignment) {
 
   destination = source;
 
-  *source[1] = 8;
+  expect_selected(source[1], [](S32& value) { value = 8; }, result);
 
   EXPECT_EQ(destination.get_size(), Count(2));
-  EXPECT_EQ(*destination[1], 2);
-  EXPECT_EQ(*destination[3], 4);
+  expect_selected(
+      destination[1], [&](S32 value) { EXPECT_EQ(value, 2); }, result);
+  expect_selected(
+      destination[3], [&](S32 value) { EXPECT_EQ(value, 4); }, result);
 }
 
 VALIDATION_TEST(ThreadMap, move_assignment) {
@@ -453,7 +576,8 @@ VALIDATION_TEST(ThreadMap, move_assignment) {
   destination = Data::take(source);
 
   EXPECT_EQ(destination.get_size(), Count(2));
-  EXPECT_EQ(*destination[1], 2);
+  expect_selected(
+      destination[1], [&](S32 value) { EXPECT_EQ(value, 2); }, result);
 }
 
 VALIDATION_TEST(ThreadMap, reuse) {
@@ -467,7 +591,8 @@ VALIDATION_TEST(ThreadMap, reuse) {
 
     ASSERT_EQ(reuse_map.get_size(), 100);
     for (Count i = 0; i < 100; i++) {
-      ASSERT_EQ(*reuse_map[i], i);
+      expect_selected(
+          reuse_map[i], [&](S32 value) { ASSERT_EQ(value, i); }, result);
     }
   }
 }
@@ -540,8 +665,14 @@ VALIDATION_TEST(GlobalMap, cross_thread_reallocation) {
   for (U32 key = 0; key < 128; key++) {
     auto found = transferred_map.find(key);
     ASSERT(found);
-    EXPECT_EQ((*found).get_value(), key);
-    EXPECT((*found).has_valid_location());
+    expect_selected(
+        found,
+        [&](const GlobalAllocationValue& value) {
+          EXPECT_EQ(value.get_value(), key);
+          EXPECT(value.has_valid_location());
+        },
+
+        result);
   }
 
   EXPECT(transferred_map.remove(64));
@@ -569,9 +700,13 @@ VALIDATION_TEST(ManagedMap, text_keys) {
   values.insert("Longer test string"_view, 3);
 
   EXPECT(values.contains("Hello"_view));
-  EXPECT_EQ(*values["Hello"_view], 1);
-  EXPECT_EQ(*values["World"_view], 2);
-  EXPECT_EQ(*values["Longer test string"_view], 3);
+  expect_selected(
+      values["Hello"_view], [&](S32 value) { EXPECT_EQ(value, 1); }, result);
+  expect_selected(
+      values["World"_view], [&](S32 value) { EXPECT_EQ(value, 2); }, result);
+  expect_selected(
+      values["Longer test string"_view],
+      [&](S32 value) { EXPECT_EQ(value, 3); }, result);
 }
 
 VALIDATION_TEST(ManagedMap, cross_arena_copy_assignment) {
@@ -586,9 +721,11 @@ VALIDATION_TEST(ManagedMap, cross_arena_copy_assignment) {
 
   EXPECT(&destination.get_arena() == &destination_arena);
   EXPECT_EQ(destination.get_size(), Count(1));
-  EXPECT_EQ(*destination[1], 2);
-  *source[1] = 8;
-  EXPECT_EQ(*destination[1], 2);
+  expect_selected(
+      destination[1], [&](S32 value) { EXPECT_EQ(value, 2); }, result);
+  expect_selected(source[1], [](S32& value) { value = 8; }, result);
+  expect_selected(
+      destination[1], [&](S32 value) { EXPECT_EQ(value, 2); }, result);
 }
 
 VALIDATION_TEST(ManagedMap, rvalue_assignment_copies) {
@@ -670,7 +807,13 @@ VALIDATION_TEST(ManagedMap, replacement_skips_destructor) {
     ArenaRetainedValue second(2, counts);
 
     EXPECT(values.insert(1, first));
-    EXPECT_EQ((*values.assign(1, second)).get_value(), Count(2));
+    expect_selected(
+        values.assign(1, second),
+        [&](const ArenaRetainedValue& value) {
+          EXPECT_EQ(value.get_value(), Count(2));
+        },
+
+        result);
     EXPECT_EQ(counts.destructions, Count(0));
   }
 
@@ -687,7 +830,12 @@ VALIDATION_TEST(ManagedMap, growth_preserves_old_values) {
 
     auto retained = values.find(1);
     ASSERT(retained);
-    const ArenaRetainedValue* retained_location = &*retained;
+    const ArenaRetainedValue* retained_location = nullptr;
+    expect_selected(
+        retained,
+        [&](const ArenaRetainedValue& value) { retained_location = &value; },
+        result);
+    ASSERT(retained_location != nullptr);
 
     for (Count value = 2; value < 64; value++) {
       ArenaRetainedValue inserted(value, counts);

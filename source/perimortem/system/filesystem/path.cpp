@@ -132,10 +132,9 @@ static auto normalize_path(Access::Bytes text, View::Bytes path)
 Path::Path(View::Bytes path) {
   // Stack storage keeps temporary normalization and cache probes allocation
   // free. Callers that retain the result use the Arena overload instead.
-  auto normalized = normalize_path(text, path);
-  if (normalized) {
-    size = *normalized;
-  }
+  normalize_path(text, path)
+      .visit(
+          [this](Count normalized_size) { size = normalized_size; }, []() {});
 }
 
 Path::Path(View::Bytes base_file_path, View::Bytes relative_path) {
@@ -188,8 +187,15 @@ auto Path::normalize(Allocator::Arena& arena, View::Bytes path)
   // reserving max_size for every path and avoids copying a temporary Path into
   // the Arena after normalization.
   Access::Bytes normalized_text = arena.allocate(validated_text.get_size());
-  auto normalized_size = normalize_path(normalized_text, path);
-  if (!normalized_size || *normalized_size != normalized_text.get_size()) {
+  const Bool exact_size =
+      normalize_path(normalized_text, path)
+          .visit(
+              [&normalized_text](Count normalized_size) {
+                return Bool(normalized_size == normalized_text.get_size());
+              },
+
+              []() { return False; });
+  if (!exact_size) {
     return {};
   }
 

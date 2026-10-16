@@ -28,6 +28,14 @@ static Harness ThreadSet = {
   .name = "Thread::Set",
 };
 
+template <typename value_type, typename visitor_type>
+static auto expect_selected(
+    Option<value_type&> selected,
+    visitor_type visitor,
+    Test::TestResult& result) -> void {
+  selected.visit(visitor, [&] { EXPECT(false); });
+}
+
 // Set policies share insertion, lookup, removal, traversal, copy, capacity, and
 // reset behavior. The factory supplies each policy's construction requirements
 // so every wrapper runs the same capability contract.
@@ -51,13 +59,13 @@ static auto check_set_contract(factory_type create, Test::TestResult& result)
 
   auto found = values.find(2);
   ASSERT(found);
-  EXPECT_EQ(*found, 2);
+  expect_selected(found, [&](S32 value) { EXPECT_EQ(value, 2); }, result);
   EXPECT(!values.find(8));
 
   const auto& fixed = values;
   auto fixed_found = fixed.find(4);
   ASSERT(fixed_found);
-  EXPECT_EQ(*fixed_found, 4);
+  expect_selected(fixed_found, [&](S32 value) { EXPECT_EQ(value, 4); }, result);
 
   S32 sum = 0;
   values.visit([&sum](const S32& value) { sum += value; });
@@ -316,8 +324,14 @@ VALIDATION_TEST(ThreadSet, pointer_keys) {
 
   auto found = values.find(&second);
   ASSERT(found);
-  EXPECT((*found).get_object() == &second);
-  EXPECT_EQ((*found).get_object()->get_id(), 2);
+  expect_selected(
+      found,
+      [&](const StableObjectKey& key) {
+        EXPECT(key.get_object() == &second);
+        EXPECT_EQ(key.get_object()->get_id(), 2);
+      },
+
+      result);
 
   EXPECT(values.remove(&second));
   EXPECT(!values.contains(&second));
@@ -547,7 +561,12 @@ VALIDATION_TEST(ManagedSet, growth_preserves_old_values) {
 
     auto retained = values.find(first);
     ASSERT(retained);
-    const ArenaRetainedValue* retained_location = &*retained;
+    const ArenaRetainedValue* retained_location = nullptr;
+    expect_selected(
+        retained,
+        [&](const ArenaRetainedValue& value) { retained_location = &value; },
+        result);
+    ASSERT(retained_location != nullptr);
 
     for (Count value = 2; value < 64; value++) {
       ArenaRetainedValue inserted(value, counts);

@@ -59,6 +59,24 @@ constexpr auto test_replacement = "system_file_test_replacement.json"_view;
 constexpr auto test_contents = "{\"value\":42}"_view;
 constexpr auto replacement_contents = "{\"other\":24}"_view;
 
+template <typename value_type, typename visitor_type>
+static auto expect_selected(
+    Option<value_type>& selected,
+    visitor_type visitor,
+    Test::TestResult& result) -> void {
+  selected.visit(visitor, [&] { EXPECT(false); });
+}
+
+template <typename value_type>
+static auto expect_contents(
+    Option<value_type>& selected,
+    View::Bytes expected,
+    Test::TestResult& result) -> void {
+  expect_selected(
+      selected, [&](const value_type& value) { EXPECT_TEXT(value, expected); },
+      result);
+}
+
 static constexpr const char* test_output_path = "system_file_test_out.json";
 
 #ifdef TOOLCHAIN_LINUX
@@ -144,22 +162,42 @@ static auto traced_child(
       NullTerminated(selected_path, temporary_path_capacity).get_view();
   if (arena_read) {
     Allocator::Arena arena;
-    auto source = root ? (*root).read(arena, requested_path)
-                       : File::read(arena, requested_path);
+    auto source = root.visit(
+        [&](File::Root& selected_root) {
+          return selected_root.read(arena, requested_path);
+        },
+
+        [&] { return File::read(arena, requested_path); });
     if (!expected_present) {
       _exit(source ? 1 : 0);
     }
 
-    _exit(source && *source == expected ? 0 : 1);
+    Bool matches = source.visit(
+        [&](View::Bytes contents) {
+          return contents == expected ? True : False;
+        },
+
+        [] { return False; });
+    _exit(matches ? 0 : 1);
   }
 
-  auto source =
-      root ? (*root).read(requested_path) : File::read(requested_path);
+  auto source = root.visit(
+      [&](File::Root& selected_root) {
+        return selected_root.read(requested_path);
+      },
+
+      [&] { return File::read(requested_path); });
   if (!expected_present) {
     _exit(source ? 1 : 0);
   }
 
-  _exit(source && *source == expected ? 0 : 1);
+  Bool matches = source.visit(
+      [&](const Global::Bytes& contents) {
+        return contents == expected ? True : False;
+      },
+
+      [] { return False; });
+  _exit(matches ? 0 : 1);
 }
 
 static auto mutate_path(
@@ -650,7 +688,7 @@ static Harness SystemFile = {
 VALIDATION_TEST(SystemFile, read) {
   auto source = File::read(test_file);
   ASSERT(source);
-  EXPECT_TEXT(*source, test_contents);
+  expect_contents(source, test_contents, result);
 }
 
 VALIDATION_TEST(SystemFile, arena_read) {
@@ -673,9 +711,11 @@ VALIDATION_TEST(SystemFile, arena_read) {
   auto empty = File::read(arena, test_output);
   ASSERT(empty);
 
-  EXPECT_TEXT(*source, test_contents);
-  EXPECT_TEXT(*replacement, replacement_contents);
-  EXPECT((*empty).is_empty());
+  expect_contents(source, test_contents, result);
+  expect_contents(replacement, replacement_contents, result);
+  expect_selected(
+      empty, [&](View::Bytes contents) { EXPECT(contents.is_empty()); },
+      result);
 }
 
 VALIDATION_TEST(SystemFile, write) {
@@ -684,7 +724,7 @@ VALIDATION_TEST(SystemFile, write) {
 
   auto source = File::read(test_output);
   ASSERT(source);
-  EXPECT_TEXT(*source, test_contents);
+  expect_contents(source, test_contents, result);
 }
 
 VALIDATION_TEST(SystemFile, empty) {
@@ -693,7 +733,10 @@ VALIDATION_TEST(SystemFile, empty) {
 
   auto source = File::read(test_output);
   ASSERT(source);
-  EXPECT((*source).is_empty());
+  expect_selected(
+      source,
+      [&](const Global::Bytes& contents) { EXPECT(contents.is_empty()); },
+      result);
 }
 
 VALIDATION_TEST(SystemFile, missing) {
@@ -912,9 +955,14 @@ VALIDATION_TEST(SystemFileRoot, relative_file) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  auto source = (*root).read("file"_view);
-  ASSERT(source);
-  EXPECT_TEXT(*source, test_contents);
+  root.visit(
+      [&](File::Root& selected_root) {
+        auto source = selected_root.read("file"_view);
+        ASSERT(source);
+        expect_contents(source, test_contents, result);
+      },
+
+      [&] { EXPECT(false); });
 }
 
 VALIDATION_TEST(SystemFileRoot, arena_read) {
@@ -927,25 +975,32 @@ VALIDATION_TEST(SystemFileRoot, arena_read) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  Allocator::Arena arena;
-  auto source = (*root).read(arena, "file"_view);
-  ASSERT(source);
+  root.visit(
+      [&](File::Root& selected_root) {
+        Allocator::Arena arena;
+        auto source = selected_root.read(arena, "file"_view);
+        ASSERT(source);
 
-  Bool replaced = (*root).write(replacement_contents, "file"_view);
-  ASSERT(replaced);
+        Bool replaced = selected_root.write(replacement_contents, "file"_view);
+        ASSERT(replaced);
 
-  auto replacement = (*root).read(arena, "file"_view);
-  ASSERT(replacement);
+        auto replacement = selected_root.read(arena, "file"_view);
+        ASSERT(replacement);
 
-  Bool empty_written = (*root).write(View::Bytes(), "empty"_view);
-  ASSERT(empty_written);
+        Bool empty_written = selected_root.write(View::Bytes(), "empty"_view);
+        ASSERT(empty_written);
 
-  auto empty = (*root).read(arena, "empty"_view);
-  ASSERT(empty);
+        auto empty = selected_root.read(arena, "empty"_view);
+        ASSERT(empty);
 
-  EXPECT_TEXT(*source, test_contents);
-  EXPECT_TEXT(*replacement, replacement_contents);
-  EXPECT((*empty).is_empty());
+        expect_contents(source, test_contents, result);
+        expect_contents(replacement, replacement_contents, result);
+        expect_selected(
+            empty, [&](View::Bytes contents) { EXPECT(contents.is_empty()); },
+            result);
+      },
+
+      [&] { EXPECT(false); });
 }
 
 VALIDATION_TEST(SystemFileRoot, relative_write) {
@@ -958,30 +1013,40 @@ VALIDATION_TEST(SystemFileRoot, relative_write) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  Bool written = (*root).write(test_contents, "written"_view);
-  Bool nested_written = (*root).write(test_contents, "inside/file"_view);
-  ASSERT(written);
-  ASSERT(nested_written);
+  root.visit(
+      [&](File::Root& selected_root) {
+        Bool written = selected_root.write(test_contents, "written"_view);
+        Bool nested_written =
+            selected_root.write(test_contents, "inside/file"_view);
+        ASSERT(written);
+        ASSERT(nested_written);
 
-  auto source = (*root).read("written"_view);
-  auto nested_source = (*root).read("inside/file"_view);
-  ASSERT(source);
-  ASSERT(nested_source);
-  EXPECT_TEXT(*source, test_contents);
-  EXPECT_TEXT(*nested_source, test_contents);
+        auto source = selected_root.read("written"_view);
+        auto nested_source = selected_root.read("inside/file"_view);
+        ASSERT(source);
+        ASSERT(nested_source);
+        expect_contents(source, test_contents, result);
+        expect_contents(nested_source, test_contents, result);
 
-  Bool replaced = (*root).write(replacement_contents, "written"_view);
-  Bool empty_written = (*root).write(View::Bytes(), "empty"_view);
-  ASSERT(replaced);
-  ASSERT(empty_written);
+        Bool replaced =
+            selected_root.write(replacement_contents, "written"_view);
+        Bool empty_written = selected_root.write(View::Bytes(), "empty"_view);
+        ASSERT(replaced);
+        ASSERT(empty_written);
 
-  source = (*root).read("written"_view);
+        source = selected_root.read("written"_view);
 
-  auto empty_source = (*root).read("empty"_view);
-  ASSERT(source);
-  ASSERT(empty_source);
-  EXPECT_TEXT(*source, replacement_contents);
-  EXPECT((*empty_source).is_empty());
+        auto empty_source = selected_root.read("empty"_view);
+        ASSERT(source);
+        ASSERT(empty_source);
+        expect_contents(source, replacement_contents, result);
+        expect_selected(
+            empty_source,
+            [&](const Global::Bytes& contents) { EXPECT(contents.is_empty()); },
+            result);
+      },
+
+      [&] { EXPECT(false); });
 }
 
 VALIDATION_TEST(SystemFileRoot, relative_remove) {
@@ -997,15 +1062,20 @@ VALIDATION_TEST(SystemFileRoot, relative_remove) {
 
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
-  ASSERT((*root).exists("file"_view));
-  ASSERT((*root).exists("inside/file"_view));
+  root.visit(
+      [&](File::Root& selected_root) {
+        ASSERT(selected_root.exists("file"_view));
+        ASSERT(selected_root.exists("inside/file"_view));
 
-  Bool removed = (*root).remove("file"_view);
-  Bool nested_removed = (*root).remove("inside/file"_view);
-  EXPECT(removed);
-  EXPECT(nested_removed);
-  EXPECT_NOT((*root).exists("file"_view));
-  EXPECT_NOT((*root).exists("inside/file"_view));
+        Bool removed = selected_root.remove("file"_view);
+        Bool nested_removed = selected_root.remove("inside/file"_view);
+        EXPECT(removed);
+        EXPECT(nested_removed);
+        EXPECT_NOT(selected_root.exists("file"_view));
+        EXPECT_NOT(selected_root.exists("inside/file"_view));
+      },
+
+      [&] { EXPECT(false); });
 }
 
 VALIDATION_TEST(SystemFileRoot, relative_exists) {
@@ -1020,9 +1090,14 @@ VALIDATION_TEST(SystemFileRoot, relative_exists) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  EXPECT((*root).exists("file"_view));
-  EXPECT_NOT((*root).exists("missing"_view));
-  EXPECT_NOT((*root).exists("directory"_view));
+  root.visit(
+      [&](File::Root& selected_root) {
+        EXPECT(selected_root.exists("file"_view));
+        EXPECT_NOT(selected_root.exists("missing"_view));
+        EXPECT_NOT(selected_root.exists("directory"_view));
+      },
+
+      [&] { EXPECT(false); });
 }
 
 VALIDATION_TEST(SystemFileRoot, empty_file) {
@@ -1035,9 +1110,17 @@ VALIDATION_TEST(SystemFileRoot, empty_file) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  auto source = (*root).read("empty"_view);
-  ASSERT(source);
-  EXPECT((*source).is_empty());
+  root.visit(
+      [&](File::Root& selected_root) {
+        auto source = selected_root.read("empty"_view);
+        ASSERT(source);
+        expect_selected(
+            source,
+            [&](const Global::Bytes& contents) { EXPECT(contents.is_empty()); },
+            result);
+      },
+
+      [&] { EXPECT(false); });
 }
 
 VALIDATION_TEST(SystemFileRoot, missing_member) {
@@ -1049,8 +1132,12 @@ VALIDATION_TEST(SystemFileRoot, missing_member) {
 
   capture_next_file_log();
 
-  auto source = (*root).read("missing"_view);
-  EXPECT_NOT(source);
+  root.visit(
+      [&](File::Root& selected_root) {
+        EXPECT_NOT(selected_root.read("missing"_view));
+      },
+
+      [&] { EXPECT(false); });
   EXPECT_EQ(captured_file_log_size, Count(0));
 }
 
@@ -1064,8 +1151,12 @@ VALIDATION_TEST(SystemFileRoot, directory_member) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  auto source = (*root).read("directory"_view);
-  EXPECT_NOT(source);
+  root.visit(
+      [&](File::Root& selected_root) {
+        EXPECT_NOT(selected_root.read("directory"_view));
+      },
+
+      [&] { EXPECT(false); });
 }
 
 VALIDATION_TEST(SystemFileRoot, absolute_member) {
@@ -1082,9 +1173,15 @@ VALIDATION_TEST(SystemFileRoot, absolute_member) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  auto source = (*root).read(NullTerminated(path, sizeof(path)).get_view());
-  ASSERT(source);
-  EXPECT_TEXT(*source, test_contents);
+  root.visit(
+      [&](File::Root& selected_root) {
+        auto source =
+            selected_root.read(NullTerminated(path, sizeof(path)).get_view());
+        ASSERT(source);
+        expect_contents(source, test_contents, result);
+      },
+
+      [&] { EXPECT(false); });
 }
 
 VALIDATION_TEST(SystemFileRoot, safe_normalization) {
@@ -1099,9 +1196,14 @@ VALIDATION_TEST(SystemFileRoot, safe_normalization) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  auto source = (*root).read("inside/../file"_view);
-  ASSERT(source);
-  EXPECT_TEXT(*source, test_contents);
+  root.visit(
+      [&](File::Root& selected_root) {
+        auto source = selected_root.read("inside/../file"_view);
+        ASSERT(source);
+        expect_contents(source, test_contents, result);
+      },
+
+      [&] { EXPECT(false); });
 }
 
 VALIDATION_TEST(SystemFileRoot, symlink_read) {
@@ -1126,9 +1228,14 @@ VALIDATION_TEST(SystemFileRoot, symlink_read) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  auto source = (*root).read("link"_view);
-  ASSERT(source);
-  EXPECT_TEXT(*source, test_contents);
+  root.visit(
+      [&](File::Root& selected_root) {
+        auto source = selected_root.read("link"_view);
+        ASSERT(source);
+        expect_contents(source, test_contents, result);
+      },
+
+      [&] { EXPECT(false); });
 }
 
 VALIDATION_TEST(SystemFileRoot, symlink_write) {
@@ -1153,14 +1260,18 @@ VALIDATION_TEST(SystemFileRoot, symlink_write) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  Bool written = (*root).write(replacement_contents, "link"_view);
-  EXPECT(written);
+  root.visit(
+      [&](File::Root& selected_root) {
+        EXPECT(selected_root.write(replacement_contents, "link"_view));
+      },
+
+      [&] { EXPECT(false); });
 
   auto outside_source = File::read(
       NullTerminated(temporary.get_outside_path(), temporary_path_capacity)
           .get_view());
   ASSERT(outside_source);
-  EXPECT_TEXT(*outside_source, replacement_contents);
+  expect_contents(outside_source, replacement_contents, result);
 }
 
 VALIDATION_TEST(SystemFileRoot, symlink_remove) {
@@ -1188,8 +1299,12 @@ VALIDATION_TEST(SystemFileRoot, symlink_remove) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  Bool removed = (*root).remove("link/file"_view);
-  EXPECT(removed);
+  root.visit(
+      [&](File::Root& selected_root) {
+        EXPECT(selected_root.remove("link/file"_view));
+      },
+
+      [&] { EXPECT(false); });
 
   EXPECT_NOT(temporary.read_outside_member("file"));
 }
@@ -1215,7 +1330,12 @@ VALIDATION_TEST(SystemFileRoot, symlink_exists) {
 
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
-  EXPECT((*root).exists("link"_view));
+  root.visit(
+      [&](File::Root& selected_root) {
+        EXPECT(selected_root.exists("link"_view));
+      },
+
+      [&] { EXPECT(false); });
 }
 
 #ifdef TOOLCHAIN_LINUX
@@ -1226,8 +1346,12 @@ VALIDATION_TEST(SystemFileRoot, write_close_warning) {
 
   capture_next_file_log();
 
-  Bool written = (*root).write(test_contents, "full"_view);
-  EXPECT_NOT(written);
+  root.visit(
+      [&](File::Root& selected_root) {
+        EXPECT_NOT(selected_root.write(test_contents, "full"_view));
+      },
+
+      [&] { EXPECT(false); });
   EXPECT(file_warning_contains(
       "System::Filesystem::File write failed. path=/dev/full "
       "stage=close errno="_view));
@@ -1253,9 +1377,14 @@ VALIDATION_TEST(SystemFileRoot, directory_replacement) {
   ASSERT(replacement_created);
   ASSERT(replacement_written);
 
-  auto source = (*root).read("file"_view);
-  ASSERT(source);
-  EXPECT_TEXT(*source, replacement_contents);
+  root.visit(
+      [&](File::Root& selected_root) {
+        auto source = selected_root.read("file"_view);
+        ASSERT(source);
+        expect_contents(source, replacement_contents, result);
+      },
+
+      [&] { EXPECT(false); });
 }
 
 #ifdef TOOLCHAIN_LINUX
@@ -1307,14 +1436,24 @@ VALIDATION_TEST(SystemFileRoot, move_ownership) {
     ASSERT(first_source);
     ASSERT(second_source);
 
-    File::Root first(Data::take(*first_source));
-    File::Root moved(Data::take(first));
-    File::Root assigned(Data::take(*second_source));
-    assigned = Data::take(moved);
+    first_source.visit(
+        [&](File::Root& first_value) {
+          second_source.visit(
+              [&](File::Root& second_value) {
+                File::Root first(Data::take(first_value));
+                File::Root moved(Data::take(first));
+                File::Root assigned(Data::take(second_value));
+                assigned = Data::take(moved);
 
-    auto source = assigned.read("file"_view);
-    ASSERT(source);
-    EXPECT_TEXT(*source, test_contents);
+                auto source = assigned.read("file"_view);
+                ASSERT(source);
+                expect_contents(source, test_contents, result);
+              },
+
+              [&] { EXPECT(false); });
+        },
+
+        [&] { EXPECT(false); });
   }
 }
 
@@ -1328,23 +1467,28 @@ VALIDATION_TEST(SystemFileRoot, invalid_routes) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  U8 embedded_null[] = {'f', 'i', 'l', 'e', '\0', 'x'};
-  auto embedded_source =
-      (*root).read(View::Bytes(embedded_null, sizeof(embedded_null)));
-  EXPECT_NOT(embedded_source);
+  root.visit(
+      [&](File::Root& selected_root) {
+        U8 embedded_null[] = {'f', 'i', 'l', 'e', '\0', 'x'};
+        auto embedded_source = selected_root.read(
+            View::Bytes(embedded_null, sizeof(embedded_null)));
+        EXPECT_NOT(embedded_source);
 
-  Static::Bytes<5> terminated_path = {{'f', 'i', 'l', 'e', '\0'}};
-  auto terminated_source = (*root).read(terminated_path);
-  ASSERT(terminated_source);
-  EXPECT_TEXT(*terminated_source, test_contents);
+        Static::Bytes<5> terminated_path = {{'f', 'i', 'l', 'e', '\0'}};
+        auto terminated_source = selected_root.read(terminated_path);
+        ASSERT(terminated_source);
+        expect_contents(terminated_source, test_contents, result);
 
-  Static::Bytes<Path::max_size + 1> overlong;
-  for (Count i = 0; i < overlong.get_size(); i++) {
-    overlong[i] = 'a';
-  }
+        Static::Bytes<Path::max_size + 1> overlong;
+        for (Count i = 0; i < overlong.get_size(); i++) {
+          overlong[i] = 'a';
+        }
 
-  auto overlong_source = (*root).read(overlong);
-  EXPECT_NOT(overlong_source);
+        auto overlong_source = selected_root.read(overlong);
+        EXPECT_NOT(overlong_source);
+      },
+
+      [&] { EXPECT(false); });
 }
 
 // Root is a directory location, so a parent segment can reach a sibling. Keep
@@ -1367,9 +1511,14 @@ VALIDATION_TEST(SystemFileRoot, parent_member) {
   Count size = written;
   ASSERT(size < sizeof(relative));
 
-  auto source = root->read(View::Bytes(relative, size));
-  ASSERT(source);
-  EXPECT_TEXT(*source, test_contents);
+  root.visit(
+      [&](File::Root& selected_root) {
+        auto source = selected_root.read(View::Bytes(relative, size));
+        ASSERT(source);
+        expect_contents(source, test_contents, result);
+      },
+
+      [&] { EXPECT(false); });
 }
 
 // A Snapshot's fingerprint and bytes come from the same open object. A file
@@ -1384,25 +1533,55 @@ VALIDATION_TEST(SystemFileRoot, snapshot_identity) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  auto before = root->read_snapshot("file"_view);
-  ASSERT(before);
+  root.visit(
+      [&](File::Root& selected_root) {
+        auto before = selected_root.read_snapshot("file"_view);
+        ASSERT(before);
 
-  auto fingerprint = root->fingerprint("file"_view);
-  ASSERT(fingerprint);
-  EXPECT(before->get_fingerprint() == *fingerprint);
+        auto fingerprint = selected_root.fingerprint("file"_view);
+        ASSERT(fingerprint);
+        before.visit(
+            [&](const File::Snapshot& snapshot) {
+              fingerprint.visit(
+                  [&](const File::Fingerprint& selected_fingerprint) {
+                    EXPECT(snapshot.get_fingerprint() == selected_fingerprint);
+                  },
 
-  char source[temporary_path_capacity];
-  char destination[temporary_path_capacity];
-  ASSERT(temporary.get_member_path("replacement", source, sizeof(source)));
-  ASSERT(temporary.get_member_path("file", destination, sizeof(destination)));
-  ASSERT(
-      File::replace(
-          NullTerminated(source, sizeof(source)).get_view(),
-          NullTerminated(destination, sizeof(destination)).get_view()));
+                  [&] { EXPECT(false); });
+            },
 
-  auto after = root->read_snapshot("file"_view);
-  ASSERT(after);
-  EXPECT_TEXT(before->get_contents(), test_contents);
-  EXPECT_TEXT(after->get_contents(), replacement_contents);
-  EXPECT(!(before->get_fingerprint() == after->get_fingerprint()));
+            [&] { EXPECT(false); });
+
+        char source[temporary_path_capacity];
+        char destination[temporary_path_capacity];
+        ASSERT(
+            temporary.get_member_path("replacement", source, sizeof(source)));
+        ASSERT(temporary.get_member_path(
+            "file", destination, sizeof(destination)));
+        ASSERT(
+            File::replace(
+                NullTerminated(source, sizeof(source)).get_view(),
+                NullTerminated(destination, sizeof(destination)).get_view()));
+
+        auto after = selected_root.read_snapshot("file"_view);
+        ASSERT(after);
+        before.visit(
+            [&](const File::Snapshot& before_snapshot) {
+              after.visit(
+                  [&](const File::Snapshot& after_snapshot) {
+                    EXPECT_TEXT(before_snapshot.get_contents(), test_contents);
+                    EXPECT_TEXT(
+                        after_snapshot.get_contents(), replacement_contents);
+                    EXPECT(
+                        !(before_snapshot.get_fingerprint() ==
+                          after_snapshot.get_fingerprint()));
+                  },
+
+                  [&] { EXPECT(false); });
+            },
+
+            [&] { EXPECT(false); });
+      },
+
+      [&] { EXPECT(false); });
 }

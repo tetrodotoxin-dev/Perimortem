@@ -48,7 +48,7 @@ static auto check_bytes_contract(
 
   auto bytes = from_view("abc"_view);
   ASSERT(bytes[2]);
-  EXPECT_EQ(*bytes[2], U8('c'));
+  bytes[2].visit([&](U8 value) { EXPECT_EQ(value, U8('c')); }, []() {});
   EXPECT(!bytes[3]);
   EXPECT(!bytes[Count(-1)]);
 

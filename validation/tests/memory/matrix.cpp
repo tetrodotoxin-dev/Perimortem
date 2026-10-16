@@ -41,6 +41,7 @@ VALIDATION_TEST(MemoryMatrix, projects_owned_values) {
         succeeded = True;
         return Matrix<Rgba8>(Data::take(matrix));
       },
+
       [](Matrix<Rgba8>::Failure) { return Matrix<Rgba8>(); });
   ASSERT(succeeded);
   EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), requests);
@@ -50,7 +51,8 @@ VALIDATION_TEST(MemoryMatrix, projects_owned_values) {
   const auto& observed = moved;
   auto selected = observed.get(Point<S64, 2>({{0, 0}}));
   ASSERT(selected);
-  EXPECT_EQ(selected->red, 17);
+  selected.visit(
+      [&](const Rgba8& value) { EXPECT_EQ(value.red, 17); }, []() {});
   EXPECT_NOT(moved.get(Point<S64, 2>({{1, 0}})));
 }
 
@@ -74,7 +76,7 @@ VALIDATION_TEST(MemoryMatrix, mixed_boundary_access) {
       domain, values.get_view());
   auto wrapped = matrix.get(Point<S64, 2>({{-1, 0}}));
   ASSERT(wrapped);
-  EXPECT_EQ(wrapped->red, 3);
+  wrapped.visit([&](const Rgba8& value) { EXPECT_EQ(value.red, 3); }, []() {});
   EXPECT_NOT(matrix.get(Point<S64, 2>({{0, 1}})));
 }
 
@@ -90,7 +92,7 @@ VALIDATION_TEST(MemoryMatrix, uniform_boundary_access) {
       values.get_view());
   auto wrapped = matrix.get(Point<S64, 2>({{-1, -1}}));
   ASSERT(wrapped);
-  EXPECT_EQ(wrapped->red, 4);
+  wrapped.visit([&](const Rgba8& value) { EXPECT_EQ(value.red, 4); }, []() {});
 }
 
 VALIDATION_TEST(MemoryMatrix, swaps_complete_values) {
@@ -122,8 +124,9 @@ VALIDATION_TEST(MemoryMatrix, copies_and_pads) {
   auto first = matrix.get(Point<S64, 2>({{0, 0}}));
   auto padded = matrix.get(Point<S64, 2>({{1, 0}}));
   ASSERT(first && padded);
-  EXPECT_EQ(first->alpha, 255);
-  EXPECT_EQ(padded->alpha, 0);
+  first.visit(
+      [&](const Rgba8& value) { EXPECT_EQ(value.alpha, 255); }, []() {});
+  padded.visit([&](const Rgba8& value) { EXPECT_EQ(value.alpha, 0); }, []() {});
   EXPECT_EQ(matrix.get_values().get_size(), 2);
 }
 
@@ -167,6 +170,7 @@ VALIDATION_TEST(MemoryMatrix, bad_projection_dimensions) {
       [&](Matrix<Rgba8>::Failure failure) {
         rejected = failure == Matrix<Rgba8>::Failure::BadDimensions;
       });
+
   EXPECT(rejected);
   EXPECT_EQ(values.get_data(), data);
   EXPECT_EQ(values.get_size(), 1);

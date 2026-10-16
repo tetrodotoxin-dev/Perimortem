@@ -40,8 +40,12 @@ VALIDATION_TEST(SystemPath, normalize_in_arena) {
   // happened to contain the expected bytes during the call.
   authored.set('x');
 
-  EXPECT_TEXT(*normalized, "unit/folder/file.ttx"_view);
-  EXPECT_TEXT(*rooted, "/usr/local/bin"_view);
+  normalized.visit(
+      [&](View::Bytes path) { EXPECT_TEXT(path, "unit/folder/file.ttx"_view); },
+      []() {});
+  rooted.visit(
+      [&](View::Bytes path) { EXPECT_TEXT(path, "/usr/local/bin"_view); },
+      []() {});
 }
 
 VALIDATION_TEST(SystemPath, normalize_invalid) {

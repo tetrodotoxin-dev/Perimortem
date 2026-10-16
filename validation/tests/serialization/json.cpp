@@ -313,6 +313,7 @@ VALIDATION_TEST(SerializationJson, construct_nested) {
          False,
          "Test"_view,
        }},
+
       {"flag"_view, True},
       {"config"_view,
        {
@@ -328,16 +329,21 @@ VALIDATION_TEST(SerializationJson, construct_nested) {
 VALIDATION_TEST(SerializationJson, round_trip_init_rpc) {
   auto source = File::read("validation/data/json/init_rpc.json"_view);
   ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
+
+  View::Bytes source_view;
+  source.visit(
+      [&](const Global::Bytes& bytes) { source_view = bytes.get_view(); },
+      []() {});
+  ASSERT_NOT(source_view.is_empty());
 
   Allocator::Arena arena;
   Json::Node value;
-  value.parse(arena, *source);
+  value.parse(arena, source_view);
 
   auto formated = value.format(arena);
 
-  ASSERT_EQ(formated.get_size(), (*source).get_size());
-  ASSERT_TEXT(formated, (*source).get_view());
+  ASSERT_EQ(formated.get_size(), source_view.get_size());
+  ASSERT_TEXT(formated, source_view);
 }
 
 VALIDATION_TEST(SerializationJson, format_number_zero) {
@@ -404,11 +410,16 @@ VALIDATION_TEST(SerializationJson, format_null) {
 VALIDATION_TEST(SerializationJson, rpc_from_parsed) {
   auto source = File::read("validation/data/json/init_rpc.json"_view);
   ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
+
+  View::Bytes source_view;
+  source.visit(
+      [&](const Global::Bytes& bytes) { source_view = bytes.get_view(); },
+      []() {});
+  ASSERT_NOT(source_view.is_empty());
 
   Allocator::Arena arena;
   Json::Node parsed;
-  parsed.parse(arena, *source);
+  parsed.parse(arena, source_view);
 
   ASSERT(parsed["jsonrpc"_view].is_string());
   ASSERT(parsed["id"_view].is_number());
@@ -422,6 +433,7 @@ VALIDATION_TEST(SerializationJson, rpc_from_parsed) {
          {"serverInfo"_view, "ttx"_view},
        }},
     }}.construct(arena);
+
   auto formated = response.format(arena);
 
   ASSERT(formated.get_size() > 0);

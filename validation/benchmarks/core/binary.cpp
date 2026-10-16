@@ -35,7 +35,7 @@ VALIDATION_BENCHMARK(BinaryBench, binary_read_32) {
   Reader::Binary<Data::ByteOrder::Little> reader(io_buffer.get_view());
   U32 accumulator = 0;
   while (reader.get_location() < io_buffer.get_size() - 64) {
-    reader.read_u32().visit([] {}, [&](U32 value) { accumulator ^= value; });
+    reader.read_u32().visit([&](U32 value) { accumulator ^= value; }, [] {});
   }
 
   Benchmark::prevent_optimization(accumulator);
@@ -45,7 +45,7 @@ VALIDATION_BENCHMARK(BinaryBench, binary_read_64) {
   Reader::Binary<Data::ByteOrder::Little> reader(io_buffer.get_view());
   U64 accumulator = 0;
   while (reader.get_location() < io_buffer.get_size() - 64) {
-    reader.read_u64().visit([] {}, [&](U64 value) { accumulator ^= value; });
+    reader.read_u64().visit([&](U64 value) { accumulator ^= value; }, [] {});
   }
 
   Benchmark::prevent_optimization(accumulator);
@@ -56,7 +56,7 @@ VALIDATION_BENCHMARK(BinaryBench, binary_read_view) {
   Count accumulator = 0;
   while (reader.get_location() < io_buffer.get_size() - 64) {
     reader.read_bytes(16).visit(
-        [] {}, [&](View::Bytes chunk) { accumulator ^= chunk.get_size(); });
+        [&](View::Bytes chunk) { accumulator ^= chunk.get_size(); }, [] {});
   }
 
   Benchmark::prevent_optimization(accumulator);

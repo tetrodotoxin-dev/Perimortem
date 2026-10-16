@@ -744,15 +744,26 @@ constexpr auto process_data(
   const auto pixel_count = domain.get_element_count();
   const Count bytes_per_pixel = number_of_color_channels(info.get_color_type());
   const Count max_bytes = ~CppSize{};
-  if (!pixel_count || bytes_per_pixel == 0 ||
-      *pixel_count > max_bytes / sizeof(Rgba8) ||
-      *pixel_count > (max_bytes - info.get_height()) / bytes_per_pixel) {
+  Count selected_pixel_count = 0;
+  const Bool valid_extent = pixel_count.visit(
+      [&](Count count) {
+        if (bytes_per_pixel == 0 || count > max_bytes / sizeof(Rgba8) ||
+            count > (max_bytes - info.get_height()) / bytes_per_pixel) {
+          return False;
+        }
+
+        selected_pixel_count = count;
+        return True;
+      },
+
+      []() { return False; });
+  if (!valid_extent) {
     Diagnostics::Log::error("Png: Decoded extent exceeds address space"_view);
     return Option<Matrix<Rgba8>>();
   }
 
   const Count decompressed_capacity =
-      *pixel_count * bytes_per_pixel + info.get_height();
+      selected_pixel_count * bytes_per_pixel + info.get_height();
 
   // Debug validates both the PNG chunk CRC and the zlib Adler32 trailer.
   // Release omits both full payload checksum passes to preserve decode
@@ -777,7 +788,7 @@ constexpr auto process_data(
   // PNG RGBA samples match the four byte Rgba8 layout, so reconstruction can
   // write final pixel storage without an intermediate conversion buffer.
   if (info.get_color_type() == ColorType::Rgba) {
-    pixels.resize(*pixel_count);
+    pixels.resize(selected_pixel_count);
     if (!reconstruct_filter(
             filtered_rows.get_view(), info.get_width(), info.get_height(),
             bytes_per_pixel, pixels.get_access().get_bytes())) [[unlikely]] {
@@ -790,7 +801,7 @@ constexpr auto process_data(
     // Other channel layouts need an intermediate byte buffer before conversion
     // can fill the Rgba8 vector.
     Thread::Bytes raw_pixels{};
-    raw_pixels.forgetful_resize(*pixel_count * bytes_per_pixel);
+    raw_pixels.forgetful_resize(selected_pixel_count * bytes_per_pixel);
     if (!reconstruct_filter(
             filtered_rows.get_view(), info.get_width(), info.get_height(),
             bytes_per_pixel, raw_pixels)) [[unlikely]] {
@@ -876,8 +887,8 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
 
   return process_data(info, binary_data, palette)
       .visit(
-          [] { return Matrix<Rgba8>(); },
-          [](Matrix<Rgba8>& image) { return Data::take(image); });
+          [](Matrix<Rgba8>& image) { return Data::take(image); },
+          [] { return Matrix<Rgba8>(); });
 }
 
 auto Png::encode(const Matrix<Rgba8>& image) -> Thread::Bytes {

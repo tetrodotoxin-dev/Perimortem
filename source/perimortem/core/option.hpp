@@ -10,17 +10,24 @@
 
 namespace Perimortem::Core {
 
-// Option stores either one value directly or None. A function can therefore
-// return a value created on its stack without allocating separate storage.
-// Construction and destruction follow the selected value's lifetime, including
-// for types that can only move or lack default construction.
+// Option stores either one value directly or None without allocating separate
+// storage. The value does not need to support default construction. Copy and
+// move operations exist only when the value supports the corresponding
+// construction. Moving keeps the source selected. Its value has the state
+// produced by `value_type`'s move constructor.
 //
-// A boolean check establishes the selected state before pointer shaped access.
-// Visit handles both outcomes through separate callbacks that return one common
-// value.
+// Presence checks observe the state without exposing the value. `visit` is the
+// only extraction boundary and requires callbacks for both the selected value
+// and None. Both callbacks return one common type.
 template <typename value_type>
 class Option {
  private:
+  static constexpr bool trivial_value = __is_trivially_copyable(value_type);
+  static constexpr bool copy_constructible =
+      __is_constructible(value_type, const value_type&);
+  static constexpr bool move_constructible =
+      __is_constructible(value_type, value_type&&);
+
   constexpr auto construct(const value_type& candidate) -> void {
     Toolchain::Memory::Lifetime::construct<value_type>(
         &value, [&candidate] { return value_type(candidate); });
@@ -59,26 +66,54 @@ class Option {
     requires(__is_constructible(value_type, value_type &&))
       : value(Data::take(selected)), set(true) {}
 
+  constexpr Option(const Option&)
+    requires(trivial_value)
+  = default;
+
   constexpr Option(const Option& source)
-    requires(__is_constructible(value_type, const value_type&))
+    requires(!trivial_value && copy_constructible)
       : set(false) {
     if (source.set) {
       construct(source.value);
     }
   }
+
+  constexpr Option(const Option&)
+    requires(!trivial_value && !copy_constructible)
+  = delete;
+
+  constexpr Option(Option&&)
+    requires(trivial_value)
+  = default;
 
   constexpr Option(Option&& source)
-    requires(__is_constructible(value_type, value_type &&))
+    requires(!trivial_value && move_constructible)
       : set(false) {
     if (source.set) {
       construct(Data::take(source.value));
     }
   }
 
-  constexpr ~Option() { clear(); }
+  constexpr Option(Option&&)
+    requires(!trivial_value && !move_constructible)
+  = delete;
+
+  constexpr ~Option()
+    requires(trivial_value)
+  = default;
+
+  constexpr ~Option()
+    requires(!trivial_value)
+  {
+    clear();
+  }
+
+  constexpr auto operator=(const Option&) -> Option&
+    requires(trivial_value)
+  = default;
 
   constexpr auto operator=(const Option& source) -> Option&
-    requires(__is_constructible(value_type, const value_type&))
+    requires(!trivial_value && copy_constructible)
   {
     if (this == &source) {
       return *this;
@@ -92,8 +127,16 @@ class Option {
     return *this;
   }
 
+  constexpr auto operator=(const Option&) -> Option&
+    requires(!trivial_value && !copy_constructible)
+  = delete;
+
+  constexpr auto operator=(Option&&) -> Option&
+    requires(trivial_value)
+  = default;
+
   constexpr auto operator=(Option&& source) -> Option&
-    requires(__is_constructible(value_type, value_type &&))
+    requires(!trivial_value && move_constructible)
   {
     if (this == &source) {
       return *this;
@@ -106,32 +149,29 @@ class Option {
 
     return *this;
   }
+
+  constexpr auto operator=(Option&&) -> Option&
+    requires(!trivial_value && !move_constructible)
+  = delete;
 
   constexpr explicit operator bool() const { return bool(set); }
   constexpr explicit operator Bool() const { return set; }
 
-  constexpr auto operator*() -> value_type& { return value; }
-  constexpr auto operator*() const -> const value_type& { return value; }
-  constexpr auto operator->() -> value_type* { return &value; }
-  constexpr auto operator->() const -> const value_type* { return &value; }
-
-  template <typename RejectCallback, typename ValueVisitor>
-  constexpr auto visit(
-      RejectCallback reject_callback,
-      ValueVisitor value_visitor) -> decltype(auto) {
+  template <typename ValueVisitor, typename NoneVisitor>
+  constexpr auto visit(ValueVisitor value_visitor, NoneVisitor none_visitor)
+      -> decltype(auto) {
     if (!set) {
-      return reject_callback();
+      return none_visitor();
     }
 
     return value_visitor(value);
   }
 
-  template <typename RejectCallback, typename ValueVisitor>
-  constexpr auto visit(
-      RejectCallback reject_callback,
-      ValueVisitor value_visitor) const -> decltype(auto) {
+  template <typename ValueVisitor, typename NoneVisitor>
+  constexpr auto visit(ValueVisitor value_visitor, NoneVisitor none_visitor)
+      const -> decltype(auto) {
     if (!set) {
-      return reject_callback();
+      return none_visitor();
     }
 
     return value_visitor(value);
@@ -148,22 +188,20 @@ class Option<value_type&> {
   constexpr Option() = default;
   constexpr Option(value_type& value) : value(&value) {}
 
-  // Requiring an lvalue ties the stored address to an object selected by the
-  // caller with a lifetime that can cover every use of the Option.
+  // Rejecting temporaries prevents an address that is guaranteed to expire at
+  // the end of the construction expression. The caller still keeps an accepted
+  // lvalue alive through every use of the Option.
   Option(value_type&&) = delete;
 
   constexpr explicit operator bool() const { return value != nullptr; }
   constexpr explicit operator Bool() const { return value != nullptr; }
 
-  constexpr auto operator*() const -> value_type& { return *value; }
-  constexpr auto operator->() const -> value_type* { return value; }
-
-  template <typename RejectCallback, typename ReferenceVisitor>
+  template <typename ReferenceVisitor, typename NoneVisitor>
   constexpr auto visit(
-      RejectCallback reject_callback,
-      ReferenceVisitor reference_visitor) const -> decltype(auto) {
+      ReferenceVisitor reference_visitor,
+      NoneVisitor none_visitor) const -> decltype(auto) {
     if (value == nullptr) {
-      return reject_callback();
+      return none_visitor();
     }
 
     return reference_visitor(*value);
