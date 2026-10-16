@@ -19,8 +19,6 @@ using namespace Perimortem::System;
 using namespace Perimortem::Tests;
 using namespace Toolchain::Validation;
 
-using Process::Args;
-
 static Harness SystemArgs = {
   .name = "System::Process::Args",
   .setup =
@@ -49,23 +47,24 @@ static auto test_config(Allocator::Arena& arena) -> Configs {
 }
 
 static auto parse(Allocator::Arena& arena, View::Vector<View::Bytes> arguments)
-    -> Args::Values {
-  return Args::parse(arena, test_config(arena), arguments);
+    -> Process::Args::Values {
+  return Process::Args::parse(arena, test_config(arena), arguments);
 }
 
-static auto values_for(const Args::Values& args, View::Bytes name)
+static auto values_for(const Process::Args::Values& args, View::Bytes name)
     -> View::Vector<View::Bytes> {
   return args.find(name).visit(
       [](const auto* values) { return values->get_view(); },
       []() { return View::Vector<View::Bytes>(); });
 }
 
-static auto value_count(const Args::Values& args, View::Bytes name) -> Count {
+static auto value_count(const Process::Args::Values& args, View::Bytes name)
+    -> Count {
   return values_for(args, name).get_size();
 }
 
 static auto value_at(
-    const Args::Values& args,
+    const Process::Args::Values& args,
     View::Bytes name,
     Count index = 0) -> View::Bytes {
   View::Vector<View::Bytes> values = values_for(args, name);
@@ -112,7 +111,7 @@ VALIDATION_TEST(SystemArgs, basic_parse) {
 
   Allocator::Arena arena;
 
-  Args::Values parsed = parse(arena, raw);
+  Process::Args::Values parsed = parse(arena, raw);
   ASSERT_NOT(parsed.is_empty());
   EXPECT(parsed.contains("fast"_view));
   EXPECT_EQ(value_count(parsed, "fast"_view), Count(1));
@@ -130,10 +129,10 @@ VALIDATION_TEST(SystemArgs, help_text) {
   Allocator::Arena arena;
   Configs config = test_config(arena);
 
-  Args::Values parsed = Args::parse(arena, config, raw);
+  Process::Args::Values parsed = Process::Args::parse(arena, config, raw);
   ASSERT(parsed.contains("help"_view));
   EXPECT_TEXT(value_at(parsed, "help"_view), "true"_view);
-  Args::log_help(arena, "Test parser."_view, config, raw);
+  Process::Args::log_help(arena, "Test parser."_view, config, raw);
   EXPECT(matches_help(Log::captured_message()));
 }
 
@@ -144,10 +143,10 @@ VALIDATION_TEST(SystemArgs, double_dash_help) {
   Allocator::Arena arena;
   Configs config = test_config(arena);
 
-  Args::Values parsed = Args::parse(arena, config, raw);
+  Process::Args::Values parsed = Process::Args::parse(arena, config, raw);
   ASSERT(parsed.contains("help"_view));
   EXPECT_TEXT(value_at(parsed, "help"_view), "true"_view);
-  Args::log_help(arena, "Test parser."_view, config, raw);
+  Process::Args::log_help(arena, "Test parser."_view, config, raw);
   EXPECT(matches_help(Log::captured_message()));
 }
 
@@ -157,7 +156,7 @@ VALIDATION_TEST(SystemArgs, help_keeps_parsing) {
 
   Allocator::Arena arena;
 
-  Args::Values parsed = parse(arena, raw);
+  Process::Args::Values parsed = parse(arena, raw);
   ASSERT(parsed.contains("help"_view));
   EXPECT(parsed.contains("fast"_view));
   EXPECT_TEXT(value_at(parsed, "help"_view), "true"_view);
@@ -171,7 +170,7 @@ VALIDATION_TEST(SystemArgs, empty_value) {
 
   Allocator::Arena arena;
 
-  Args::Values parsed = parse(arena, raw);
+  Process::Args::Values parsed = parse(arena, raw);
   ASSERT_NOT(parsed.is_empty());
   EXPECT_TEXT(value_at(parsed, "output"_view), ""_view);
 }
@@ -184,7 +183,7 @@ VALIDATION_TEST(SystemArgs, unknown_arg) {
 
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
 
-  Args::Values parsed = parse(arena, raw);
+  Process::Args::Values parsed = parse(arena, raw);
   ASSERT(parsed.is_empty());
   EXPECT(Log::error_contains("unrecognized arg -other"_view));
 }
@@ -197,7 +196,7 @@ VALIDATION_TEST(SystemArgs, bare_value) {
 
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
 
-  Args::Values parsed = parse(arena, raw);
+  Process::Args::Values parsed = parse(arena, raw);
   ASSERT(parsed.is_empty());
   EXPECT(Log::error_contains("unrecognized arg source.ttx"_view));
 }
@@ -208,7 +207,7 @@ VALIDATION_TEST(SystemArgs, repeated_values) {
 
   Allocator::Arena arena;
 
-  Args::Values parsed = parse(arena, raw);
+  Process::Args::Values parsed = parse(arena, raw);
   ASSERT_NOT(parsed.is_empty());
   ASSERT_EQ(value_count(parsed, "dep"_view), Count(2));
   EXPECT_TEXT(value_at(parsed, "dep"_view, 0), "a.ttx"_view);
@@ -221,7 +220,7 @@ VALIDATION_TEST(SystemArgs, dash_only) {
 
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
 
-  Args::Values parsed = parse(arena, raw);
+  Process::Args::Values parsed = parse(arena, raw);
   ASSERT(parsed.is_empty());
   EXPECT(Log::error_contains("unrecognized arg --"_view));
 }

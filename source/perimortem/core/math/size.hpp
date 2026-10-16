@@ -3,9 +3,10 @@
 
 #pragma once
 
+#include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/storage/vector.hpp"
 
-namespace Perimortem::Math {
+namespace Perimortem::Core::Math {
 
 // Size stores one nonnegative finite extent for each axis. Construction
 // preserves finite values greater than zero and zero. Negative values, NaN and
@@ -40,6 +41,28 @@ class Size {
     return False;
   }
 
+  // Integral extents describe a count only when their product fits in Count.
+  // An empty axis has zero values, while overflow has no representable count.
+  constexpr auto get_element_count() const -> Storage::Option<Count>
+    requires(__is_integral(type))
+  {
+    if (is_empty()) {
+      return Count();
+    }
+
+    Count count = 1;
+    for (Count axis = 0; axis < dimensions; axis++) {
+      const Count extent = Count(components[axis]);
+      if (count > Count(-1) / extent) {
+        return {};
+      }
+
+      count *= extent;
+    }
+
+    return count;
+  }
+
  private:
   static constexpr auto finite(type value) -> Bool {
     if constexpr (__is_same(type, R32) || __is_same(type, R64)) {
@@ -60,4 +83,4 @@ class Size {
   Core::Storage::Vector<type, dimensions> components;
 };
 
-}  // namespace Perimortem::Math
+}  // namespace Perimortem::Core::Math

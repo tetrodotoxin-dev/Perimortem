@@ -18,8 +18,6 @@ using namespace Perimortem::System;
 
 using namespace Toolchain::Validation;
 
-using Filesystem::File;
-
 static Harness SerializationBase64 = {
   .name = "Serialization::Base64",
 };
@@ -98,9 +96,10 @@ VALIDATION_TEST(SerializationBase64, padded_vector_tail) {
 }
 
 VALIDATION_TEST(SerializationBase64, decode_image) {
-  auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
-  auto base64 =
-      File::read("validation/data/base64/perimortem_icon.base64"_view);
+  auto source =
+      Filesystem::File::read("validation/data/pngs/perimortem_icon.png"_view);
+  auto base64 = Filesystem::File::read(
+      "validation/data/base64/perimortem_icon.base64"_view);
   ASSERT(source);
   ASSERT(base64);
   source.visit(
@@ -144,9 +143,10 @@ VALIDATION_TEST(SerializationBase64, encode_simple) {
 }
 
 VALIDATION_TEST(SerializationBase64, encode_image) {
-  auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
-  auto base64 =
-      File::read("validation/data/base64/perimortem_icon.base64"_view);
+  auto source =
+      Filesystem::File::read("validation/data/pngs/perimortem_icon.png"_view);
+  auto base64 = Filesystem::File::read(
+      "validation/data/base64/perimortem_icon.base64"_view);
   ASSERT(source);
   ASSERT(base64);
   source.visit(

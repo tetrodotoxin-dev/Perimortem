@@ -12,14 +12,11 @@
 #include "validation/tests/log.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Math;
 using namespace Perimortem::Serialization;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Tests;
 using namespace Toolchain::Validation;
-
-using Filesystem::File;
 
 static Harness SerializationPng = {
   .name = "Serialization::Png",
@@ -28,7 +25,7 @@ static Harness SerializationPng = {
 };
 
 static auto read_fixture(View::Bytes path) -> Global::Bytes {
-  auto result = File::read(path);
+  auto result = Filesystem::File::read(path);
   Global::Bytes bytes;
   result.visit(
       [&](Global::Bytes& source) { bytes = Data::take(source); }, []() {});
@@ -45,7 +42,7 @@ VALIDATION_TEST(SerializationPng, red_1x1_dimensions) {
   EXPECT_EQ(image.get_row_count(), U32(1));
   EXPECT_EQ(Rgba8::get_bit_depth(), U8(8));
 
-  auto pixels = image.get_values();
+  auto pixels = image.get_view().get_values();
   ASSERT_EQ(pixels.get_size(), Count(1));
   EXPECT_EQ(pixels.get_data()[0].red, U8(0xFF));
   EXPECT_EQ(pixels.get_data()[0].green, U8(0x00));
@@ -58,7 +55,7 @@ VALIDATION_TEST(SerializationPng, checkerboard_2x2) {
   ASSERT_NOT(source.is_empty());
 
   auto image = Png::decode(source);
-  auto pixels = image.get_values();
+  auto pixels = image.get_view().get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(4));
   EXPECT_EQ(pixels.get_data()[0].red, U8(0xFF));
@@ -93,7 +90,7 @@ VALIDATION_TEST(SerializationPng, unaligned_input) {
 
   const View::Bytes shifted(storage.get_data() + 1, source.get_size());
   auto image = Png::decode(shifted);
-  const auto pixels = image.get_values();
+  const auto pixels = image.get_view().get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(1));
   EXPECT_EQ(pixels[0].red, U8(0xFF));
@@ -107,7 +104,7 @@ VALIDATION_TEST(SerializationPng, decode_rgb_to_rgba) {
   ASSERT_NOT(source.is_empty());
 
   auto image = Png::decode(source);
-  auto pixels = image.get_values();
+  auto pixels = image.get_view().get_values();
 
   // RGB source: alpha must be synthesized as fully opaque.
   ASSERT_EQ(pixels.get_size(), Count(3));
@@ -124,7 +121,7 @@ VALIDATION_TEST(SerializationPng, gray_to_rgba) {
   ASSERT_NOT(source.is_empty());
 
   auto image = Png::decode(source);
-  auto pixels = image.get_values();
+  auto pixels = image.get_view().get_values();
 
   // Greyscale source: gray value replicates to all three color channels.
   ASSERT_EQ(pixels.get_size(), Count(4));
@@ -154,7 +151,7 @@ VALIDATION_TEST(SerializationPng, decode_gradient_4x4) {
   ASSERT_NOT(source.is_empty());
 
   auto image = Png::decode(source);
-  auto pixels = image.get_values();
+  auto pixels = image.get_view().get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(16));
   EXPECT_EQ(pixels.get_data()[0].red, U8(0));
@@ -170,7 +167,7 @@ VALIDATION_TEST(SerializationPng, decode_pattern_8x1) {
   ASSERT_NOT(source.is_empty());
 
   auto image = Png::decode(source);
-  auto pixels = image.get_values();
+  auto pixels = image.get_view().get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(8));
   EXPECT_EQ(pixels.get_data()[0].red, U8(100));
@@ -217,8 +214,7 @@ VALIDATION_TEST(SerializationPng, roundtrip_1x1) {
   source_pixels.insert(Rgba8::from_rgba(0x12, 0x34, 0x56, 0x78));
 
   auto source_image = Matrix<Rgba8>::create(
-      Domain<2, Boundary::Clip, Boundary::Clip>(Size<U32, 2>({{1, 1}})),
-      source_pixels.get_view());
+      Math::Domain<2>(Math::Size<U32, 2>({{1, 1}})), source_pixels.get_view());
 
   auto encoded = Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
@@ -227,12 +223,33 @@ VALIDATION_TEST(SerializationPng, roundtrip_1x1) {
   EXPECT_EQ(decoded.get_column_count(), U32(1));
   EXPECT_EQ(decoded.get_row_count(), U32(1));
 
-  auto decoded_pixels = decoded.get_values();
+  auto decoded_pixels = decoded.get_view().get_values();
   ASSERT_EQ(decoded_pixels.get_size(), Count(1));
   EXPECT_EQ(decoded_pixels.get_data()[0].red, U8(0x12));
   EXPECT_EQ(decoded_pixels.get_data()[0].green, U8(0x34));
   EXPECT_EQ(decoded_pixels.get_data()[0].blue, U8(0x56));
   EXPECT_EQ(decoded_pixels.get_data()[0].alpha, U8(0x78));
+}
+
+VALIDATION_TEST(SerializationPng, encode_borrowed_matrix) {
+  const Rgba8 pixels[] = {
+    Rgba8::from_rgba(1, 2, 3, 4),
+    Rgba8::from_rgba(5, 6, 7, 8),
+  };
+
+  View::Matrix<Rgba8, 2> image(
+      Math::Size<U32, 2>({{2, 1}}), View::Vector<Rgba8>(pixels));
+
+  auto encoded = Png::encode(image);
+  ASSERT_NOT(encoded.is_empty());
+
+  auto decoded = Png::decode(encoded);
+  auto decoded_pixels = decoded.get_view().get_values();
+  ASSERT_EQ(decoded_pixels.get_size(), Count(2));
+  EXPECT_EQ(decoded_pixels[0].red, U8(1));
+  EXPECT_EQ(decoded_pixels[0].alpha, U8(4));
+  EXPECT_EQ(decoded_pixels[1].red, U8(5));
+  EXPECT_EQ(decoded_pixels[1].alpha, U8(8));
 }
 
 VALIDATION_TEST(SerializationPng, roundtrip_checker) {
@@ -243,8 +260,7 @@ VALIDATION_TEST(SerializationPng, roundtrip_checker) {
   source_pixels.insert(Rgba8::from_rgba(0xFF, 0xFF, 0xFF, 0xFF));
 
   auto source_image = Matrix<Rgba8>::create(
-      Domain<2, Boundary::Clip, Boundary::Clip>(Size<U32, 2>({{2, 2}})),
-      source_pixels.get_view());
+      Math::Domain<2>(Math::Size<U32, 2>({{2, 2}})), source_pixels.get_view());
 
   auto encoded = Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
@@ -253,7 +269,7 @@ VALIDATION_TEST(SerializationPng, roundtrip_checker) {
   EXPECT_EQ(decoded.get_column_count(), U32(2));
   EXPECT_EQ(decoded.get_row_count(), U32(2));
 
-  auto decoded_pixels = decoded.get_values();
+  auto decoded_pixels = decoded.get_view().get_values();
   ASSERT_EQ(decoded_pixels.get_size(), Count(4));
   EXPECT_EQ(decoded_pixels.get_data()[0].red, U8(0xFF));
   EXPECT_EQ(decoded_pixels.get_data()[1].green, U8(0xFF));
@@ -274,16 +290,15 @@ VALIDATION_TEST(SerializationPng, roundtrip_64x64) {
   }
 
   auto source_image = Matrix<Rgba8>::create(
-      Domain<2, Boundary::Clip, Boundary::Clip>(
-          Size<U32, 2>({{width, height}})),
+      Math::Domain<2>(Math::Size<U32, 2>({{width, height}})),
       source_pixels.get_view());
 
   auto encoded = Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
 
   auto decoded = Png::decode(encoded.get_view());
-  auto source_view = source_image.get_values();
-  auto decoded_pixels = decoded.get_values();
+  auto source_view = source_image.get_view().get_values();
+  auto decoded_pixels = decoded.get_view().get_values();
   const auto* source_data = source_view.get_data();
   const auto* decoded_data = decoded_pixels.get_data();
   ASSERT_EQ(decoded_pixels.get_size(), Count(width * height));
@@ -336,7 +351,7 @@ VALIDATION_TEST(SerializationPng, roundtrip_icon) {
   ASSERT_EQ(original.get_column_count(), 128);
   ASSERT_EQ(original.get_row_count(), 128);
 
-  auto original_pixels = original.get_values();
+  auto original_pixels = original.get_view().get_values();
   ASSERT_EQ(original_pixels.get_size(), Count(128 * 128));
 
   auto encoded = Png::encode(original);
@@ -346,7 +361,7 @@ VALIDATION_TEST(SerializationPng, roundtrip_icon) {
   ASSERT_EQ(decoded.get_column_count(), 128);
   ASSERT_EQ(decoded.get_row_count(), 128);
 
-  auto decoded_pixels = decoded.get_values();
+  auto decoded_pixels = decoded.get_view().get_values();
   const auto* decoded_data = decoded_pixels.get_data();
   const auto* original_data = original_pixels.get_data();
   ASSERT_EQ(decoded_pixels.get_size(), Count(128 * 128));

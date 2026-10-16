@@ -16,8 +16,6 @@ using namespace Perimortem::System;
 
 using namespace Toolchain::Validation;
 
-using Filesystem::File;
-
 static Harness SerializationJson = {
   .name = "Serialization::Json",
 };
@@ -342,7 +340,8 @@ VALIDATION_TEST(SerializationJson, construct_nested) {
 }
 
 VALIDATION_TEST(SerializationJson, round_trip_init_rpc) {
-  auto source = File::read("validation/data/json/init_rpc.json"_view);
+  auto source =
+      Filesystem::File::read("validation/data/json/init_rpc.json"_view);
   ASSERT(source);
 
   View::Bytes source_view;
@@ -423,7 +422,8 @@ VALIDATION_TEST(SerializationJson, format_null) {
 }
 
 VALIDATION_TEST(SerializationJson, rpc_from_parsed) {
-  auto source = File::read("validation/data/json/init_rpc.json"_view);
+  auto source =
+      Filesystem::File::read("validation/data/json/init_rpc.json"_view);
   ASSERT(source);
 
   View::Bytes source_view;

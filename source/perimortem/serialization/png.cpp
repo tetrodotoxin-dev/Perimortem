@@ -16,7 +16,6 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Compression;
 using namespace Perimortem::Memory;
-using namespace Perimortem::Math;
 using namespace Perimortem::Serialization;
 
 // Values are the wire codes stored in IHDR. Unknown codes map to zero channels
@@ -47,9 +46,9 @@ enum class FilterType : U8 {
 struct ImageInfo {
  public:
   constexpr ImageInfo() = default;
-  constexpr ImageInfo(const Matrix<Rgba8>& image) {
-    Data::write<Data::ByteOrder::Big>(&width, image.get_column_count());
-    Data::write<Data::ByteOrder::Big>(&height, image.get_row_count());
+  constexpr ImageInfo(View::Matrix<Rgba8, 2> image) {
+    Data::write<Data::ByteOrder::Big>(&width, image.get_extent(0));
+    Data::write<Data::ByteOrder::Big>(&height, image.get_extent(1));
     bit_depth = 8;
     color_type = ColorType::Rgba;
   }
@@ -425,11 +424,10 @@ constexpr auto apply_row_filter(
 
 // Applies adaptive PNG filtering to the source pixels, scoring all five filter
 // types per row and selecting the option with the lowest residual.
-constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
+constexpr auto apply_adaptive_filtering(View::Matrix<Rgba8, 2> image)
     -> Thread::Bytes {
-  const auto row_stride =
-      Count(image.get_column_count()) * Rgba8::get_byte_count();
-  const auto output_size = Count(image.get_row_count()) * (1 + row_stride);
+  const auto row_stride = Count(image.get_extent(0)) * Rgba8::get_byte_count();
+  const auto output_size = Count(image.get_extent(1)) * (1 + row_stride);
   const auto raw_bytes = Data::cast<U8>(image.get_values().get_data());
 
   Thread::Bytes output(output_size);
@@ -449,7 +447,7 @@ constexpr auto apply_adaptive_filtering(const Matrix<Rgba8>& image)
 
   output_data[0] = U8(best_filter);
 
-  for (Count row = 1; row < image.get_row_count(); row++) {
+  for (Count row = 1; row < image.get_extent(1); row++) {
     View::Bytes previous_row = current_row;
     current_row = View::Bytes(raw_bytes + row * row_stride, row_stride);
 
@@ -736,11 +734,11 @@ constexpr auto process_data(
     const ImageInfo info,
     View::Bytes source,
     View::Bytes palette) -> Storage::Option<Matrix<Rgba8>> {
-  // Domain checks the pixel count before either decode path allocates. The
-  // filtered stream also carries one control byte per row, so its byte extent
-  // needs a separate check before the inflater reserves that storage.
-  const Domain<2, Boundary::Clip, Boundary::Clip> domain(
-      Size<U32, 2>({{info.get_width(), info.get_height()}}));
+  // Math::Domain checks the pixel count before either decode path allocates.
+  // The filtered stream also carries one control byte per row, so its byte
+  // extent needs a separate check before the inflater reserves that storage.
+  const Math::Domain<2> domain(
+      Math::Size<U32, 2>({{info.get_width(), info.get_height()}}));
   const auto pixel_count = domain.get_element_count();
   const Count bytes_per_pixel = number_of_color_channels(info.get_color_type());
   const Count max_bytes = ~CppSize{};
@@ -894,21 +892,22 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
           [] { return Matrix<Rgba8>(); });
 }
 
-auto Png::encode(const Matrix<Rgba8>& image) -> Thread::Bytes {
+auto Png::encode(View::Matrix<Rgba8, 2> image) -> Thread::Bytes {
   View::Vector<Rgba8> pixels = image.get_values();
 
   // PNG requires at least one scanline, and adaptive filtering reads row zero.
-  // An empty Matrix therefore has no encodable representation here.
+  // An empty View therefore has no encodable representation here.
   if (pixels.is_empty()) [[unlikely]] {
     return Thread::Bytes();
   }
 
-  // Filtering adds one byte per row. Matrix's pixel allocation bound does not
-  // cover that extra storage, so check it before creating the filtered rows.
-  const Count row_stride = Count(image.get_column_count()) * sizeof(Rgba8);
+  // Each filtered row contains `row_stride` sample bytes plus one control byte.
+  // Reject dimensions whose expanded row count exceeds the address range before
+  // allocating that output.
+  const Count row_stride = Count(image.get_extent(0)) * sizeof(Rgba8);
   const Count max_bytes = ~CppSize{};
   if (row_stride >= max_bytes ||
-      image.get_row_count() > max_bytes / (row_stride + 1)) {
+      image.get_extent(1) > max_bytes / (row_stride + 1)) {
     return Thread::Bytes();
   }
 

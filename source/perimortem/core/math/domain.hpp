@@ -3,15 +3,15 @@
 
 #pragma once
 
+#include "perimortem/core/math/boundary.hpp"
+#include "perimortem/core/math/point.hpp"
+#include "perimortem/core/math/size.hpp"
+#include "perimortem/core/math/volume.hpp"
 #include "perimortem/core/scalar.hpp"
 #include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/storage/vector.hpp"
-#include "perimortem/math/boundary.hpp"
-#include "perimortem/math/point.hpp"
-#include "perimortem/math/size.hpp"
-#include "perimortem/math/volume.hpp"
 
-namespace Perimortem::Math {
+namespace Perimortem::Core::Math {
 
 // Domain maps signed coordinates into discrete index limits starting at zero.
 // Size stores each upper limit while Boundary selects the behavior outside it.
@@ -107,20 +107,7 @@ class Domain {
   // Every axis is at most 32 bits, but several axes can still overflow Count.
   // Returning None lets the caller reject allocation before fitting its buffer.
   constexpr auto get_element_count() const -> Core::Storage::Option<Count> {
-    if (is_empty()) {
-      return Count{};
-    }
-
-    Count count = 1;
-    for (Count axis = 0; axis < dimensions; axis++) {
-      if (count > ~Count{} / extent[axis]) {
-        return Core::Storage::Option<Count>();
-      }
-
-      count *= extent[axis];
-    }
-
-    return count;
+    return extent.get_element_count();
   }
 
  private:
@@ -179,4 +166,4 @@ class Domain {
   Size<U32, dimensions> extent;
 };
 
-}  // namespace Perimortem::Math
+}  // namespace Perimortem::Core::Math

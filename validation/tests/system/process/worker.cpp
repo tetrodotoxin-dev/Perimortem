@@ -21,8 +21,6 @@ using namespace Perimortem::Core;
 using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 
-using Process::Worker;
-
 static Harness SystemProcessWorker = {
   .name = "System::Process::Worker",
 };

@@ -22,11 +22,9 @@ the runtime grows.
 
 - [Core](source/perimortem/core) supplies fundamental data operations, embedded
   storage abstractions, algorithms, readers, writers, diagnostics, time, hashes
-  and identifiers.
+  identifiers, coordinates, dimensions, volumes and boundary behavior.
 - [Utility](source/perimortem/utility) supplies ranges, versions and tables
   built on Core.
-- [Math](source/perimortem/math) describes coordinates, dimensions, volumes and
-  boundary behavior.
 - [Memory](source/perimortem/memory) supplies the runtime allocator, arenas,
   containers and matrices for fixed, dynamic and transaction lifetimes.
 - [Compression](source/perimortem/compression) implements Deflate with Huffman

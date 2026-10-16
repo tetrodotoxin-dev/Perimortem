@@ -8,12 +8,8 @@ package(default_visibility = ["//visibility:public"])
 _COMPONENTS = {
     "core": [],
     "utility": ["core"],
-    "math": [
-        "core",
-    ],
     "memory": [
         "core",
-        "math",
     ],
     "compression": [
         "core",

@@ -3,10 +3,11 @@
 
 #pragma once
 
+#include "perimortem/core/access/matrix.hpp"
+#include "perimortem/core/math/domain.hpp"
 #include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/storage/result.hpp"
-#include "perimortem/core/view/vector.hpp"
-#include "perimortem/math/domain.hpp"
+#include "perimortem/core/view/matrix.hpp"
 #include "perimortem/memory/thread/vector.hpp"
 
 namespace Perimortem::Memory {
@@ -20,15 +21,14 @@ namespace Perimortem::Memory {
 //
 // Each axis extent is U32, so the product of the two extents fits in Count. A
 // Matrix has exactly that many live values. An empty axis leaves no addressable
-// values. `get_values()` exposes row major storage through a View that remains
-// valid until Matrix storage changes.
+// values. `get_view()` and `get_access()` expose the shape together with its
+// row major storage but do not carry the Domain's boundary policies. They
+// remain valid until Matrix storage changes. Use Matrix `get` when access needs
+// those policies.
 //
-// Clip is the default for both axes. The template can select different column
-// and row boundary rules when their coordinates require different behavior.
-template <
-    typename type,
-    Math::Boundary column_boundary = Math::Boundary::Clip,
-    Math::Boundary row_boundary = column_boundary>
+// Its Boundary arguments follow Domain directly. No arguments select Clip, one
+// selects the same rule for both axes, and two select column then row behavior.
+template <typename type, Core::Math::Boundary... boundaries>
 class Matrix {
  public:
   enum class Failure : U8 {
@@ -56,7 +56,7 @@ class Matrix {
   // are ignored, and missing positions receive the type's default value. The
   // resulting Matrix has one value for every coordinate.
   static auto create(
-      Math::Domain<2, column_boundary, row_boundary> source_domain,
+      Core::Math::Domain<2, boundaries...> source_domain,
       Core::View::Vector<type> source) -> Matrix
     requires(__is_constructible(type, const type&) && __is_constructible(type))
   {
@@ -86,7 +86,7 @@ class Matrix {
   // Its length must equal the Domain's area, so every coordinate has one
   // existing value. A mismatch leaves the supplied vector with its values.
   static auto project(
-      Math::Domain<2, column_boundary, row_boundary> source_domain,
+      Core::Math::Domain<2, boundaries...> source_domain,
       Thread::Vector<type>&& source) -> Core::Storage::Result<Matrix, Failure> {
     Count count = source_domain.get_extent(0);
     count *= source_domain.get_extent(1);
@@ -100,8 +100,7 @@ class Matrix {
     return matrix;
   }
 
-  constexpr auto get_domain() const
-      -> Math::Domain<2, column_boundary, row_boundary> {
+  constexpr auto get_domain() const -> Core::Math::Domain<2, boundaries...> {
     return domain;
   }
 
@@ -111,12 +110,15 @@ class Matrix {
 
   constexpr auto get_row_count() const -> U32 { return domain.get_extent(1); }
 
-  constexpr auto get_values() const -> Core::View::Vector<type> {
-    return values.get_view();
+  constexpr operator Core::View::Matrix<type, 2>() const { return get_view(); }
+
+  constexpr auto get_view() const -> Core::View::Matrix<type, 2> {
+    return Core::View::Matrix<type, 2>(domain.get_size(), values.get_view());
   }
 
-  constexpr auto get_access() -> Core::Access::Vector<type> {
-    return values.get_access();
+  constexpr auto get_access() -> Core::Access::Matrix<type, 2> {
+    return Core::Access::Matrix<type, 2>(
+        domain.get_size(), values.get_access());
   }
 
   constexpr auto is_empty() const -> Bool { return domain.is_empty(); }
@@ -124,21 +126,22 @@ class Matrix {
   // Clip can reject a coordinate, and no policy can select a value from an
   // empty axis. A successful lookup returns a reference that remains valid
   // until Matrix storage changes.
-  constexpr auto get(Math::Point<S64, 2> point) const
+  constexpr auto get(Core::Math::Point<S64, 2> point) const
       -> Core::Storage::Option<const type&> {
     return domain.resolve(point).visit(
-        [this](
-            Math::Point<U32, 2> mapped) -> Core::Storage::Option<const type&> {
+        [this](Core::Math::Point<U32, 2> mapped)
+            -> Core::Storage::Option<const type&> {
           return values[get_index(mapped)];
         },
 
         []() -> Core::Storage::Option<const type&> { return {}; });
   }
 
-  constexpr auto get(Math::Point<S64, 2> point)
+  constexpr auto get(Core::Math::Point<S64, 2> point)
       -> Core::Storage::Option<type&> {
     return domain.resolve(point).visit(
-        [this](Math::Point<U32, 2> mapped) -> Core::Storage::Option<type&> {
+        [this](
+            Core::Math::Point<U32, 2> mapped) -> Core::Storage::Option<type&> {
           return values[get_index(mapped)];
         },
 
@@ -146,7 +149,7 @@ class Matrix {
   }
 
  private:
-  constexpr auto get_index(Math::Point<U32, 2> point) const -> Count {
+  constexpr auto get_index(Core::Math::Point<U32, 2> point) const -> Count {
     Count index = point[1];
     index *= get_column_count();
     index += point[0];
@@ -154,7 +157,7 @@ class Matrix {
   }
 
   Thread::Vector<type> values;
-  Math::Domain<2, column_boundary, row_boundary> domain;
+  Core::Math::Domain<2, boundaries...> domain;
 };
 
 }  // namespace Perimortem::Memory

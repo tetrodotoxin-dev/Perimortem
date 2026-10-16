@@ -18,14 +18,12 @@ using namespace Perimortem::System;
 using namespace Perimortem::Serialization;
 using namespace Toolchain::Validation;
 
-using Filesystem::File;
-
 static Storage::Bytes<1 << 15> json_data;
 static Writer::Textual json_text(json_data);
 static constexpr Count json_batch = 1024;
 
 static auto load_json(View::Bytes source_path) -> void {
-  auto source = File::read(source_path);
+  auto source = Filesystem::File::read(source_path);
   source.visit(
       [](const Global::Bytes& contents) {
         json_text.set_pointer(0);

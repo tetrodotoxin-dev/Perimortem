@@ -21,8 +21,6 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 
-using Process::Library;
-
 #ifdef TOOLCHAIN_WINDOWS
 
 static auto library_error(Allocator::Arena& errors) -> View::Bytes {
@@ -41,11 +39,11 @@ constexpr Count max_loader_message_size = 4096;
 
 #endif
 
-Library::Library(Library&& source) : handle(source.handle) {
+Process::Library::Library(Library&& source) : handle(source.handle) {
   source.handle = nullptr;
 }
 
-Library::~Library() {
+Process::Library::~Library() {
 
 #ifdef TOOLCHAIN_WINDOWS
 
@@ -63,7 +61,7 @@ Library::~Library() {
 #endif
 }
 
-auto Library::open(View::Bytes path, Allocator::Arena& errors)
+auto Process::Library::open(View::Bytes path, Allocator::Arena& errors)
     -> Storage::Result<Library, View::Bytes> {
   Thread::Bytes name(path);
   name.append(0);
@@ -108,7 +106,7 @@ auto Library::open(View::Bytes path, Allocator::Arena& errors)
   return Library(handle);
 }
 
-auto Library::symbol(View::Bytes name, Allocator::Arena& errors) const
+auto Process::Library::symbol(View::Bytes name, Allocator::Arena& errors) const
     -> Storage::Result<void*, View::Bytes> {
   Thread::Bytes terminated(name);
   terminated.append(0);

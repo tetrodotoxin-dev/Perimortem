@@ -9,8 +9,6 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 
-using Filesystem::Path;
-
 // A Path is bounded to a small fixed size, so rescanning the normalized prefix
 // costs less state than retaining a second stack of segment offsets. The root
 // marker is the only prefix that a parent segment may not remove.
@@ -129,7 +127,7 @@ static auto normalize_path(Access::Bytes text, View::Bytes path)
   return size;
 }
 
-Path::Path(View::Bytes path) {
+Filesystem::Path::Path(View::Bytes path) {
   // Stack storage keeps temporary normalization and cache probes allocation
   // free. Callers that retain the result use the Arena overload instead.
   normalize_path(text, path)
@@ -137,7 +135,7 @@ Path::Path(View::Bytes path) {
           [this](Count normalized_size) { size = normalized_size; }, []() {});
 }
 
-Path::Path(View::Bytes base_file_path, View::Bytes relative_path) {
+Filesystem::Path::Path(View::Bytes base_file_path, View::Bytes relative_path) {
   // A rooted second path replaces the base origin, so joining it to the base
   // would produce a spelling with two conflicting roots.
   const Bool rooted = !relative_path.is_empty() &&
@@ -173,7 +171,7 @@ Path::Path(View::Bytes base_file_path, View::Bytes relative_path) {
   }
 }
 
-auto Path::normalize(Allocator::Arena& arena, View::Bytes path)
+auto Filesystem::Path::normalize(Allocator::Arena& arena, View::Bytes path)
     -> Storage::Option<View::Bytes> {
   // Arena cannot roll back one bump allocation. The fixed Path pass rejects
   // invalid input and measures the exact allocation before Arena state changes.

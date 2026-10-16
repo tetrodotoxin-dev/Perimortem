@@ -48,12 +48,8 @@ package(
             "memory",
         ],
         "core": [],
-        "math": [
-            "core",
-        ],
         "memory": [
             "core",
-            "math",
         ],
         "serialization": [
             "core",

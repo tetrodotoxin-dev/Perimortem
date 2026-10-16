@@ -24,8 +24,6 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 
-using Filesystem::File;
-
 // Paths and diagnostics stay bounded without allocating a temporary string
 // for every transaction. Windows converts this same UTF8 spelling at the host
 // boundary, while Linux consumes its bytes directly.
@@ -169,7 +167,8 @@ static auto inspect_path(const char* path) -> FileKind {
 // Metadata comes from the open stream, not a second lookup of its pathname.
 // Windows supplies a volume and file index instead of device and inode, and
 // its timestamp units are converted to the same seconds and nanoseconds form.
-static auto inspect_stream(FILE* file) -> Storage::Option<File::Fingerprint> {
+static auto inspect_stream(FILE* file)
+    -> Storage::Option<Filesystem::File::Fingerprint> {
 
 #ifdef TOOLCHAIN_LINUX
 
@@ -183,7 +182,7 @@ static auto inspect_stream(FILE* file) -> Storage::Option<File::Fingerprint> {
     return {};
   }
 
-  return File::Fingerprint(
+  return Filesystem::File::Fingerprint(
       U64(status.st_dev), U64(status.st_ino), U64(status.st_size),
       S64(status.st_mtim.tv_sec), S64(status.st_mtim.tv_nsec),
       S64(status.st_ctim.tv_sec), S64(status.st_ctim.tv_nsec));
@@ -211,7 +210,7 @@ static auto inspect_stream(FILE* file) -> Storage::Option<File::Fingerprint> {
   constexpr S64 epoch_seconds = 11'644'473'600;
   const S64 modified = times.LastWriteTime.QuadPart;
   const S64 changed = times.ChangeTime.QuadPart;
-  return File::Fingerprint(
+  return Filesystem::File::Fingerprint(
       identity.dwVolumeSerialNumber,
       (U64(identity.nFileIndexHigh) << 32) | identity.nFileIndexLow,
       (U64(identity.nFileSizeHigh) << 32) | identity.nFileSizeLow,
@@ -290,10 +289,11 @@ static auto get_file_fingerprint(
     FILE* file,
     View::Bytes operation,
     View::Bytes path,
-    FailureReporting reporting) -> Storage::Option<File::Fingerprint> {
+    FailureReporting reporting)
+    -> Storage::Option<Filesystem::File::Fingerprint> {
   return inspect_stream(file).visit(
-      [&](const File::Fingerprint& fingerprint)
-          -> Storage::Option<File::Fingerprint> {
+      [&](const Filesystem::File::Fingerprint& fingerprint)
+          -> Storage::Option<Filesystem::File::Fingerprint> {
         if (fingerprint.get_size() > max_read_size) {
           report_file_warning(
               reporting, operation, path, "size"_view, "value"_view,
@@ -304,7 +304,7 @@ static auto get_file_fingerprint(
         return fingerprint;
       },
 
-      [&]() -> Storage::Option<File::Fingerprint> {
+      [&]() -> Storage::Option<Filesystem::File::Fingerprint> {
         report_file_warning(
             reporting, operation, path, "metadata"_view, "errno"_view, errno);
         return {};
@@ -318,13 +318,13 @@ template <typename bytes_type>
 static auto read_file(
     FILE* file,
     bytes_type& data,
-    File::Fingerprint& fingerprint,
+    Filesystem::File::Fingerprint& fingerprint,
     View::Bytes operation,
     View::Bytes path,
     FailureReporting reporting) -> Bool {
   return get_file_fingerprint(file, operation, path, reporting)
       .visit(
-          [&](const File::Fingerprint& selected) {
+          [&](const Filesystem::File::Fingerprint& selected) {
             fingerprint = selected;
 
             const Count size = selected.get_size();
@@ -469,7 +469,7 @@ template <typename bytes_type>
 static auto read_file(
     View::Bytes location,
     bytes_type& data,
-    File::Fingerprint& fingerprint,
+    Filesystem::File::Fingerprint& fingerprint,
     FailureReporting reporting = FailureReporting::Warning) -> Bool {
   // Serialize the caller path into bounded native storage before any
   // filesystem operation begins.
@@ -507,7 +507,8 @@ static auto read_file(
           });
 }
 
-auto File::Root::open(View::Bytes location) -> Storage::Option<Root> {
+auto Filesystem::File::Root::open(View::Bytes location)
+    -> Storage::Option<Root> {
   Storage::Bytes<max_path_size> buffer;
   return create_path(buffer, location)
       .visit(
@@ -524,7 +525,7 @@ auto File::Root::open(View::Bytes location) -> Storage::Option<Root> {
           []() -> Storage::Option<Root> { return {}; });
 }
 
-auto File::Root::read(View::Bytes relative_path) const
+auto Filesystem::File::Root::read(View::Bytes relative_path) const
     -> Storage::Option<Global::Bytes> {
   return read_snapshot(relative_path)
       .visit(
@@ -535,30 +536,31 @@ auto File::Root::read(View::Bytes relative_path) const
           []() -> Storage::Option<Global::Bytes> { return {}; });
 }
 
-auto File::Root::read_snapshot(View::Bytes relative_path) const
-    -> Storage::Option<File::Snapshot> {
+auto Filesystem::File::Root::read_snapshot(View::Bytes relative_path) const
+    -> Storage::Option<Filesystem::File::Snapshot> {
   Storage::Bytes<max_path_size> buffer;
   return member_path(buffer, location, relative_path)
       .visit(
-          [&](View::Bytes path) -> Storage::Option<File::Snapshot> {
+          [&](View::Bytes path) -> Storage::Option<Filesystem::File::Snapshot> {
             Global::Bytes data{};
-            File::Fingerprint fingerprint;
+            Filesystem::File::Fingerprint fingerprint;
             if (!read_file(path, data, fingerprint, FailureReporting::Silent)) {
               return {};
             }
 
-            return File::Snapshot(Data::take(data), fingerprint);
+            return Filesystem::File::Snapshot(Data::take(data), fingerprint);
           },
 
-          []() -> Storage::Option<File::Snapshot> { return {}; });
+          []() -> Storage::Option<Filesystem::File::Snapshot> { return {}; });
 }
 
-auto File::Root::fingerprint(View::Bytes relative_path) const
-    -> Storage::Option<File::Fingerprint> {
+auto Filesystem::File::Root::fingerprint(View::Bytes relative_path) const
+    -> Storage::Option<Filesystem::File::Fingerprint> {
   Storage::Bytes<max_path_size> buffer;
   return member_path(buffer, location, relative_path)
       .visit(
-          [](View::Bytes path) -> Storage::Option<File::Fingerprint> {
+          [](View::Bytes path)
+              -> Storage::Option<Filesystem::File::Fingerprint> {
             FILE* file =
                 open_stream(Data::cast<const char>(path.get_data()), "rb");
             if (!file) {
@@ -569,20 +571,24 @@ auto File::Root::fingerprint(View::Bytes relative_path) const
                 get_file_fingerprint(file, {}, path, FailureReporting::Silent);
             Bool closed =
                 close_stream(file, {}, path, FailureReporting::Silent);
-            return closed ? fingerprint : Storage::Option<File::Fingerprint>();
+            return closed ? fingerprint
+                          : Storage::Option<Filesystem::File::Fingerprint>();
           },
 
-          []() -> Storage::Option<File::Fingerprint> { return {}; });
+          []() -> Storage::Option<Filesystem::File::Fingerprint> {
+            return {};
+          });
 }
 
-auto File::Root::read(Allocator::Arena& arena, View::Bytes relative_path) const
-    -> Storage::Option<View::Bytes> {
+auto Filesystem::File::Root::read(
+    Allocator::Arena& arena,
+    View::Bytes relative_path) const -> Storage::Option<View::Bytes> {
   Storage::Bytes<max_path_size> buffer;
   return member_path(buffer, location, relative_path)
       .visit(
           [&](View::Bytes path) -> Storage::Option<View::Bytes> {
             Managed::Bytes data{arena};
-            File::Fingerprint fingerprint;
+            Filesystem::File::Fingerprint fingerprint;
             if (!read_file(path, data, fingerprint, FailureReporting::Silent)) {
               return {};
             }
@@ -593,34 +599,35 @@ auto File::Root::read(Allocator::Arena& arena, View::Bytes relative_path) const
           []() -> Storage::Option<View::Bytes> { return {}; });
 }
 
-auto File::Root::write(View::Bytes data, View::Bytes relative_path) const
-    -> Bool {
+auto Filesystem::File::Root::write(View::Bytes data, View::Bytes relative_path)
+    const -> Bool {
   Storage::Bytes<max_path_size> buffer;
   return member_path(buffer, location, relative_path)
       .visit(
-          [&](View::Bytes path) { return File::write(data, path); },
+          [&](View::Bytes path) { return Filesystem::File::write(data, path); },
           []() { return False; });
 }
 
-auto File::Root::remove(View::Bytes relative_path) const -> Bool {
+auto Filesystem::File::Root::remove(View::Bytes relative_path) const -> Bool {
   Storage::Bytes<max_path_size> buffer;
   return member_path(buffer, location, relative_path)
       .visit(
-          [](View::Bytes path) { return File::remove(path); },
+          [](View::Bytes path) { return Filesystem::File::remove(path); },
           []() { return False; });
 }
 
-auto File::Root::exists(View::Bytes relative_path) const -> Bool {
+auto Filesystem::File::Root::exists(View::Bytes relative_path) const -> Bool {
   Storage::Bytes<max_path_size> buffer;
   return member_path(buffer, location, relative_path)
       .visit(
-          [](View::Bytes path) { return File::exists(path); },
+          [](View::Bytes path) { return Filesystem::File::exists(path); },
           []() { return False; });
 }
 
-auto File::read(View::Bytes location) -> Storage::Option<Global::Bytes> {
+auto Filesystem::File::read(View::Bytes location)
+    -> Storage::Option<Global::Bytes> {
   Global::Bytes data{};
-  File::Fingerprint fingerprint;
+  Filesystem::File::Fingerprint fingerprint;
   Bool read = read_file(location, data, fingerprint);
   if (!read) {
     return {};
@@ -629,13 +636,13 @@ auto File::read(View::Bytes location) -> Storage::Option<Global::Bytes> {
   return Storage::Option<Global::Bytes>(Data::take(data));
 }
 
-auto File::read(Allocator::Arena& arena, View::Bytes location)
+auto Filesystem::File::read(Allocator::Arena& arena, View::Bytes location)
     -> Storage::Option<View::Bytes> {
   // The caller selects Arena storage when the file values join an existing
   // transaction lifetime. Reading directly into that Arena avoids a second
   // process heap allocation.
   Managed::Bytes data{arena};
-  File::Fingerprint fingerprint;
+  Filesystem::File::Fingerprint fingerprint;
   Bool read = read_file(location, data, fingerprint);
   if (!read) {
     return {};
@@ -644,7 +651,7 @@ auto File::read(Allocator::Arena& arena, View::Bytes location)
   return Storage::Option<View::Bytes>(data.get_view());
 }
 
-auto File::write(View::Bytes data, View::Bytes location) -> Bool {
+auto Filesystem::File::write(View::Bytes data, View::Bytes location) -> Bool {
   Storage::Bytes<max_path_size> path_buffer;
   return create_path(path_buffer, location)
       .visit(
@@ -678,7 +685,8 @@ auto File::write(View::Bytes data, View::Bytes location) -> Bool {
           });
 }
 
-auto File::replace(View::Bytes source, View::Bytes destination) -> Bool {
+auto Filesystem::File::replace(View::Bytes source, View::Bytes destination)
+    -> Bool {
   Storage::Bytes<max_path_size> source_buffer;
   Storage::Bytes<max_path_size> destination_buffer;
   auto source_path = create_path(source_buffer, source);
@@ -719,7 +727,7 @@ auto File::replace(View::Bytes source, View::Bytes destination) -> Bool {
       });
 }
 
-auto File::remove(View::Bytes location) -> Bool {
+auto Filesystem::File::remove(View::Bytes location) -> Bool {
   Storage::Bytes<max_path_size> path_buffer;
   return create_path(path_buffer, location)
       .visit(
@@ -731,7 +739,7 @@ auto File::remove(View::Bytes location) -> Bool {
           []() { return False; });
 }
 
-auto File::exists(View::Bytes location) -> Bool {
+auto Filesystem::File::exists(View::Bytes location) -> Bool {
   Storage::Bytes<max_path_size> path_buffer;
   return create_path(path_buffer, location)
       .visit(

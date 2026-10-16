@@ -5,7 +5,7 @@
 
 #include "toolchain/toolchain.hpp"
 
-namespace Perimortem::Math {
+namespace Perimortem::Core::Math {
 
 // Boundary chooses what one finite axis does with a coordinate outside its
 // limits. Clip refuses it, Saturate selects the nearest endpoint, Mirror
@@ -17,4 +17,4 @@ enum class Boundary : U8 {
   Wrap,
 };
 
-}  // namespace Perimortem::Math
+}  // namespace Perimortem::Core::Math

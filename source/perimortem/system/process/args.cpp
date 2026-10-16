@@ -20,8 +20,6 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 
-using Process::Args;
-
 static auto basename(View::Bytes path) -> View::Bytes {
   for (Count i = path.get_size(); i > 0; i--) {
     if (path[i - 1] == '/' || path[i - 1] == '\\') {
@@ -107,7 +105,7 @@ static auto format_help(
   return output;
 }
 
-auto Args::parse(
+auto Process::Args::parse(
     Allocator::Arena& arena,
     const Managed::Map<View::Bytes, View::Bytes>& variables,
     View::Vector<View::Bytes> arguments) -> Values {
@@ -135,7 +133,7 @@ auto Args::parse(
   return values;
 }
 
-auto Args::log_help(
+auto Process::Args::log_help(
     Allocator::Arena& arena,
     View::Bytes summary,
     const Managed::Map<View::Bytes, View::Bytes>& variables,

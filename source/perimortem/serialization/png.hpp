@@ -3,17 +3,18 @@
 
 #pragma once
 
+#include "perimortem/core/view/matrix.hpp"
 #include "perimortem/memory/matrix.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
 #include "perimortem/serialization/rgba8.hpp"
 
 namespace Perimortem::Serialization {
 
-// Png maps encoded chunks to and from a Matrix of four byte Rgba8 samples. The
-// Matrix stores row values and Domain extents. The codec expands source
-// channels and reverses filters on decode, then selects filters and compresses
-// on encode. Sample bytes retain their decoded values, and absent alpha becomes
-// opaque. No transfer conversion occurs here.
+// Png decodes chunks into an owning Matrix of four byte Rgba8 samples and
+// encodes any exact two dimensional View of those samples. The codec expands
+// source channels and reverses filters on decode, then selects filters and
+// compresses on encode. Sample bytes retain their decoded values, and absent
+// alpha becomes opaque. No transfer conversion occurs here.
 class Png {
  public:
   // Decodes a PNG byte stream into a row major matrix of Rgba8 samples. Other
@@ -38,10 +39,12 @@ class Png {
   static EXPORTED(PERIMORTEM) auto decode(Core::View::Bytes source)
       -> Memory::Matrix<Rgba8>;
 
-  // Encodes an Rgba8 matrix to a PNG byte stream. Adaptive filtering scores
-  // each row under all five filter types and writes the lowest scoring choice.
+  // Encodes a two dimensional Rgba8 View to a PNG byte stream. Adaptive
+  // filtering scores each row under all five filter types and writes the lowest
+  // scoring choice. The caller keeps the borrowed samples accessible until the
+  // synchronous call returns.
   //
-  // Returns empty bytes for bad inputs and empty matrices.
+  // Returns empty bytes for an invalid or empty View.
   //
   // For compression Level::Default is used for all PNGs as it produces the most
   // well rounded results.
@@ -57,7 +60,7 @@ class Png {
   //   mandelbrot       16 MB/s          3 MB/s       1.04 (much bigger)
   //   zoneplate        33 MB/s          7 MB/s       1.40 (much bigger)
   //
-  static EXPORTED(PERIMORTEM) auto encode(const Memory::Matrix<Rgba8>& image)
+  static EXPORTED(PERIMORTEM) auto encode(Core::View::Matrix<Rgba8, 2> image)
       -> Memory::Thread::Bytes;
 };
 

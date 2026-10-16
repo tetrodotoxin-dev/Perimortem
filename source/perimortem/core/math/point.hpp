@@ -5,7 +5,7 @@
 
 #include "perimortem/core/storage/vector.hpp"
 
-namespace Perimortem::Math {
+namespace Perimortem::Core::Math {
 
 // Point gives coordinates a spatial role without choosing a unit or a fixed
 // number of axes. It aggregates Storage::Vector because coordinates have no
@@ -24,4 +24,4 @@ class Point {
   constexpr auto operator[](Count axis) -> type& { return coordinates[axis]; }
 };
 
-}  // namespace Perimortem::Math
+}  // namespace Perimortem::Core::Math

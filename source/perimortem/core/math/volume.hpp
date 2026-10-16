@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "perimortem/math/point.hpp"
-#include "perimortem/math/size.hpp"
+#include "perimortem/core/math/point.hpp"
+#include "perimortem/core/math/size.hpp"
 
-namespace Perimortem::Math {
+namespace Perimortem::Core::Math {
 
 // Volume bounds an axis aligned region in Point's coordinate space. The
 // origin is included and every upper edge is excluded, so adjacent regions
@@ -76,4 +76,4 @@ class Volume {
   Size<type, dimensions> size;
 };
 
-}  // namespace Perimortem::Math
+}  // namespace Perimortem::Core::Math

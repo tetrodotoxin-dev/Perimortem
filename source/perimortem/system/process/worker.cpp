@@ -32,8 +32,6 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 
-using Process::Worker;
-
 // Perimortem workers publish their reserved identity and copied name here. A
 // native thread created elsewhere retains the all bits set identity and an
 // empty name, which worker queries treat as the main thread state.
