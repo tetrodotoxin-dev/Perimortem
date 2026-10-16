@@ -162,7 +162,11 @@ class ThreadInitializer {
     __atomic_store_n(&initialized.value, True.value, __ATOMIC_RELEASE);
   }
 
-  // Reserves a thread slot for a worker thread.
+  // A zero in `thread_occupancy` marks a free worker identity. Selection and
+  // reservation require a lock on `worker_mutex`, so concurrent worker creation
+  // cannot claim the same identity. `Search::min` returns the lowest zero index
+  // when one exists. If `thread_occupancy[worker_index]` is one, every worker
+  // identity is reserved and the process aborts.
   static auto reserve_thread() -> Count {
     lock_workers();
 
@@ -187,8 +191,10 @@ class ThreadInitializer {
     unlock_workers();
   }
 
+  // Copies startup bytes into the worker thread's Bibliotheca. The returned
+  // View remains valid through the job. Thread local teardown releases its
+  // storage when the native thread exits. Empty input requires no allocation.
   static auto copy_thread_bytes(View::Bytes source_bytes) -> View::Bytes {
-    // An empty view has stable representation and requires no reservation.
     if (source_bytes.is_empty()) {
       return View::Bytes();
     }
@@ -202,7 +208,6 @@ class ThreadInitializer {
   }
 
   static auto set_system_thread_name(View::Bytes thread_name) -> void {
-    // An unnamed worker retains the platform supplied thread name.
     if (thread_name.is_empty()) {
       return;
     }
@@ -238,7 +243,10 @@ class ThreadInitializer {
   }
 
   static auto dispatch(void* initializer_address) -> void* {
-    // The spawning thread reserves this identity before native dispatch.
+    // The logical identity is reserved under `worker_mutex` before native
+    // dispatch. Only the new thread can publish it to this thread local slot,
+    // so the assignment needs no additional synchronization. Jobs, diagnostics
+    // and current thread queries then share the same worker identity.
     auto& initializer = *Data::cast<ThreadInitializer>(initializer_address);
     this_thread_id = initializer.thread_id;
 

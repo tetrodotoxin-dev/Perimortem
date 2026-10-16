@@ -26,22 +26,18 @@ class Time {
    public:
     constexpr Duration(U64 nanoseconds) : nanosecond_delta(nanoseconds) {};
 
-    // Returns the complete duration as nanoseconds.
     constexpr auto convert_to_nanoseconds() const -> U64 {
       return nanosecond_delta;
     }
 
-    // Returns the duration as fractional microseconds.
     constexpr auto convert_to_microseconds() const -> R64 {
       return nanosecond_delta / R64(1'000.0);
     }
 
-    // Returns the duration as fractional milliseconds.
     constexpr auto convert_to_milliseconds() const -> R64 {
       return nanosecond_delta / R64(1'000'000.0);
     }
 
-    // Returns the duration as fractional seconds.
     constexpr auto convert_to_seconds() const -> R64 {
       return (nanosecond_delta / 1'000'000.0) / R64(1'000.0);
     }
@@ -63,11 +59,11 @@ class Time {
   // clock is adjusted and must not be used to measure elapsed intervals.
   static EXPORTED(PERIMORTEM) auto clock() -> Time;
 
-  // Returns the monotonic stamp captured during Perimortem initialization.
+  // Returns the monotonic stamp captured during Perimortem dynamic
+  // initialization. Measuring from it approximates time since the module was
+  // loaded. Static initialization order and the host clock resolution can shift
+  // that approximation by a few milliseconds.
   static EXPORTED(PERIMORTEM) auto boot() -> Time;
-
-  // Returns the all bits set sentinel, which no supported clock produces.
-  static auto never() -> Time { return -1; };
 
   // Compares the numeric stamps. The caller must supply values obtained from
   // the same clock source.

@@ -8,6 +8,7 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/memory/global/map.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/map.hpp"
@@ -39,12 +40,22 @@ static auto expect_selected(
 // Map policies share insertion, lookup, replacement, removal, traversal, copy,
 // capacity, and reset behavior. The factory supplies each policy's construction
 // requirements so every wrapper runs the same capability contract.
-template <typename factory_type>
-static auto check_map_contract(factory_type create, Test::TestResult& result)
-    -> void {
+template <typename factory_type, typename move_factory_type>
+static auto check_map_contract(
+    factory_type create,
+    move_factory_type create_move_values,
+    Test::TestResult& result) -> void {
   auto empty = create(0);
   EXPECT(empty.is_empty());
   EXPECT_EQ(empty.get_capacity(), Count(0));
+
+  auto initial = create(0);
+  initial.ensure_capacity(1);
+  EXPECT_EQ(initial.get_capacity(), Count(14));
+
+  const Count initial_capacity = initial.get_capacity();
+  initial.ensure_capacity(initial_capacity);
+  EXPECT_EQ(initial.get_capacity(), initial_capacity);
 
   auto values = create(32);
   static_assert(__is_same(decltype(values.find(1)), Option<S32&>));
@@ -72,6 +83,8 @@ static auto check_map_contract(factory_type create, Test::TestResult& result)
   expect_selected(
       values.assign(1, 4), [&](S32 value) { EXPECT_EQ(value, 4); }, result);
   EXPECT(!values.assign(8, 4));
+  EXPECT_EQ(values.find_or_create(1), 4);
+  EXPECT_EQ(values.get_size(), Count(3));
   EXPECT_EQ(values.find_or_create(8), 0);
 
   Count visited = 0;
@@ -89,11 +102,29 @@ static auto check_map_contract(factory_type create, Test::TestResult& result)
   EXPECT_EQ(value_sum, 12);
   expect_selected(values[1], [&](S32 value) { EXPECT_EQ(value, 5); }, result);
 
+  Count fixed_visited = 0;
+  S32 fixed_value_sum = 0;
+  fixed.visit([&](const S32&, const S32& value) {
+    fixed_visited++;
+    fixed_value_sum += value;
+  });
+
+  EXPECT_EQ(fixed_visited, Count(4));
+  EXPECT_EQ(fixed_value_sum, 16);
+
   auto copied = values;
   EXPECT(copied.assign(1, 9));
   EXPECT(copied.insert(16, 32));
   expect_selected(values[1], [&](S32 value) { EXPECT_EQ(value, 5); }, result);
   EXPECT(!values.contains(16));
+
+  auto assigned = create(0);
+  assigned = values;
+  EXPECT_EQ(assigned.get_size(), values.get_size());
+  EXPECT(assigned.assign(1, 64));
+  expect_selected(values[1], [&](S32 value) { EXPECT_EQ(value, 5); }, result);
+  expect_selected(
+      assigned[1], [&](S32 value) { EXPECT_EQ(value, 64); }, result);
 
   EXPECT(values.remove(2));
   EXPECT(!values.remove(2));
@@ -103,6 +134,8 @@ static auto check_map_contract(factory_type create, Test::TestResult& result)
   values.clear();
   EXPECT(values.is_empty());
   EXPECT_EQ(values.get_capacity(), retained_capacity);
+  EXPECT(values.insert(32, 64));
+  expect_selected(values[32], [&](S32 value) { EXPECT_EQ(value, 64); }, result);
 
   values.reset();
   values.reset();
@@ -131,6 +164,84 @@ static auto check_map_contract(factory_type create, Test::TestResult& result)
   EXPECT_EQ(capacity_values.get_capacity(), capacity);
   EXPECT(capacity_values.insert(capacity, capacity));
   EXPECT(capacity_values.get_capacity() > capacity);
+
+  auto move_values = create_move_values(0);
+  MoveOnlyValue<S32> inserted_value(4);
+  EXPECT(move_values.insert(1, Data::take(inserted_value)));
+  EXPECT_EQ(inserted_value.get_value(), 0);
+
+  MoveOnlyValue<S32> duplicate_value(8);
+  EXPECT(!move_values.insert(1, Data::take(duplicate_value)));
+  EXPECT_EQ(duplicate_value.get_value(), 8);
+
+  MoveOnlyValue<S32> missing_replacement(16);
+  EXPECT(!move_values.assign(2, Data::take(missing_replacement)));
+  EXPECT_EQ(missing_replacement.get_value(), 16);
+
+  MoveOnlyValue<S32> replacement(32);
+  auto replaced = move_values.assign(1, Data::take(replacement));
+  ASSERT(replaced);
+  EXPECT_EQ(replacement.get_value(), 0);
+  expect_selected(
+      replaced,
+      [&](const MoveOnlyValue<S32>& value) {
+        EXPECT_EQ(value.get_value(), 32);
+      },
+
+      result);
+
+  // Repeated cycles combine sentinel creation, replacement, reuse, clear and
+  // reset. Fixed arrays provide an independent model for every stored value
+  // while the table repeatedly crosses its growth boundaries.
+  constexpr Count model_size = 127;
+  S32 expected[model_size] = {};
+  auto sequenced = create(0);
+  for (Count cycle = 0; cycle < 8; cycle++) {
+    for (Count key = 0; key < model_size; key++) {
+      expected[key] = S32(cycle * model_size + key + 1);
+      EXPECT(sequenced.insert(S32(key), expected[key]));
+    }
+
+    for (Count key = 0; key < model_size; key += 3) {
+      EXPECT(sequenced.remove(S32(key)));
+      expected[key] = 0;
+    }
+
+    for (Count key = 0; key < model_size; key += 5) {
+      const S32 replacement_value = S32(cycle + key + 4096);
+      auto assigned_value = sequenced.assign(S32(key), replacement_value);
+      if (key % 3 == 0) {
+        EXPECT(!assigned_value);
+      } else {
+        ASSERT(assigned_value);
+        expected[key] = replacement_value;
+      }
+    }
+
+    for (Count key = 0; key < model_size; key += 3) {
+      S32& created = sequenced.find_or_create(S32(key));
+      EXPECT_EQ(created, 0);
+      created = S32(cycle + key + 8192);
+      expected[key] = created;
+    }
+
+    EXPECT_EQ(sequenced.get_size(), model_size);
+    for (Count key = 0; key < model_size; key++) {
+      auto current = sequenced.find(S32(key));
+      ASSERT(current);
+      expect_selected(
+          current, [&](S32 value) { EXPECT_EQ(value, expected[key]); }, result);
+    }
+
+    if (cycle % 2 == 0) {
+      const Count retained_capacity = sequenced.get_capacity();
+      sequenced.clear();
+      EXPECT_EQ(sequenced.get_capacity(), retained_capacity);
+    } else {
+      sequenced.reset();
+      EXPECT_EQ(sequenced.get_capacity(), Count(0));
+    }
+  }
 }
 
 class NonAssignableValue {
@@ -226,8 +337,18 @@ VALIDATION_TEST(ThreadMap, visit_structural_mutation) {
 }
 
 VALIDATION_TEST(ThreadMap, capability_contract) {
+  const Count requests = Allocator::Bibliotheca::check_out_requests();
+  Thread::Map<S32, S32> empty;
+  EXPECT(empty.is_empty());
+  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), requests);
+
   check_map_contract(
-      [](Count capacity) { return Thread::Map<S32, S32>(capacity); }, result);
+      [](Count capacity) { return Thread::Map<S32, S32>(capacity); },
+      [](Count capacity) {
+        return Thread::Map<S32, MoveOnlyValue<S32>>(capacity);
+      },
+
+      result);
 }
 
 VALIDATION_TEST(ThreadMap, nonassignable_value_replacement) {
@@ -246,25 +367,6 @@ VALIDATION_TEST(ThreadMap, nonassignable_value_replacement) {
   expect_selected(
       assigned,
       [&](const NonAssignableValue& value) { EXPECT_EQ(value.get_value(), 4); },
-      result);
-}
-
-VALIDATION_TEST(ThreadMap, move_only_value_replacement) {
-  Thread::Map<S32, MoveOnlyValue<S32>> values;
-
-  EXPECT(values.insert(1, MoveOnlyValue<S32>(4)));
-  expect_selected(
-      values.assign(1, MoveOnlyValue<S32>(8)),
-      [&](const MoveOnlyValue<S32>& value) { EXPECT_EQ(value.get_value(), 8); },
-      result);
-
-  auto assigned = values.assign(1, MoveOnlyValue<S32>(16));
-  ASSERT(assigned);
-  expect_selected(
-      assigned,
-      [&](const MoveOnlyValue<S32>& value) {
-        EXPECT_EQ(value.get_value(), 16);
-      },
       result);
 }
 
@@ -320,19 +422,6 @@ VALIDATION_TEST(ThreadMap, duplicate_empty_keys) {
   expect_selected(
       empty_map[Thread::Bytes()], [&](S32 value) { EXPECT_EQ(value, i); },
       result);
-}
-
-VALIDATION_TEST(ThreadMap, insert_stress_test) {
-  Thread::Map<S32, S32> large_map;
-  for (Count i = 0; i < 1000; i++) {
-    large_map.insert(i, i + 2);
-  }
-
-  EXPECT_EQ(large_map.get_size(), 1000);
-  for (Count i = 0; i < 1000; i++) {
-    expect_selected(
-        large_map[i], [&](S32 value) { ASSERT_EQ(value, i + 2); }, result);
-  }
 }
 
 VALIDATION_TEST(ThreadMap, key_construction) {
@@ -580,23 +669,6 @@ VALIDATION_TEST(ThreadMap, move_assignment) {
       destination[1], [&](S32 value) { EXPECT_EQ(value, 2); }, result);
 }
 
-VALIDATION_TEST(ThreadMap, reuse) {
-  Thread::Map<S32, S32> reuse_map;
-  for (S32 loops = 0; loops < 5; loops++) {
-    reuse_map.clear();
-    ASSERT_EQ(reuse_map.get_size(), 0);
-    for (Count i = 0; i < 100; i++) {
-      reuse_map.find_or_create(i) = i;
-    }
-
-    ASSERT_EQ(reuse_map.get_size(), 100);
-    for (Count i = 0; i < 100; i++) {
-      expect_selected(
-          reuse_map[i], [&](S32 value) { ASSERT_EQ(value, i); }, result);
-    }
-  }
-}
-
 VALIDATION_TEST(ThreadMap, leak_test) {
   auto pre_test_memory = Allocator::Bibliotheca::allocated_memory();
 
@@ -646,7 +718,12 @@ static auto create_global_map(View::Bytes) -> void {
 
 VALIDATION_TEST(GlobalMap, capability_contract) {
   check_map_contract(
-      [](Count capacity) { return Global::Map<S32, S32>(capacity); }, result);
+      [](Count capacity) { return Global::Map<S32, S32>(capacity); },
+      [](Count capacity) {
+        return Global::Map<S32, MoveOnlyValue<S32>>(capacity);
+      },
+
+      result);
 }
 
 // Rehashing consumes former keys and values in worker allocated process
@@ -790,12 +867,44 @@ VALIDATION_TEST(ManagedMap, nested_insert_uses_destination_arena) {
 
 VALIDATION_TEST(ManagedMap, capability_contract) {
   Allocator::Arena arena;
+  const Count requests = Allocator::Bibliotheca::check_out_requests();
+  Managed::Map<S32, S32> empty(arena);
+  EXPECT(empty.is_empty());
+  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), requests);
+
   check_map_contract(
       [&](Count capacity) { return Managed::Map<S32, S32>(arena, capacity); },
+      [&](Count capacity) {
+        return Managed::Map<S32, MoveOnlyValue<S32>>(arena, capacity);
+      },
+
       result);
 
   Managed::Map<S32, S32> values(arena);
   EXPECT(&values.get_arena() == &arena);
+  values.insert(1, 2);
+
+  auto copied = values;
+  EXPECT(&copied.get_arena() == &arena);
+
+  auto retained = values.find(1);
+  ASSERT(retained);
+
+  S32* retained_value = nullptr;
+  expect_selected(
+      retained, [&](S32& value) { retained_value = &value; }, result);
+  ASSERT(retained_value != nullptr);
+
+  Managed::Map<S32, S32> moved(Data::take(values));
+  EXPECT(values.is_empty());
+  EXPECT_EQ(values.get_capacity(), Count(0));
+  EXPECT(&moved.get_arena() == &arena);
+
+  auto moved_value = moved.find(1);
+  ASSERT(moved_value);
+  expect_selected(
+      moved_value, [&](S32& value) { EXPECT(&value == retained_value); },
+      result);
 }
 
 VALIDATION_TEST(ManagedMap, replacement_skips_destructor) {

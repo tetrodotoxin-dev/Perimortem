@@ -116,6 +116,7 @@ static constexpr Static::Vector<View::Bytes, 24> keyword_seeds = {{
   "while"_view,   "entity"_view,  "object"_view,  "return"_view,  "struct"_view,
   "library"_view, "on_load"_view, "package"_view, "warning"_view,
 }};
+
 static constexpr Count permute_count = 16;
 static constexpr Count word_width = 12;
 

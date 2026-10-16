@@ -644,7 +644,6 @@ auto File::read(Allocator::Arena& arena, View::Bytes location)
 }
 
 auto File::write(View::Bytes data, View::Bytes location) -> Bool {
-  // Serialize the caller path into bounded native storage.
   Static::Bytes<max_path_size> path_buffer;
   return create_path(path_buffer, location)
       .visit(

@@ -265,7 +265,6 @@ constexpr auto inflate_symbols(
       return False;
     }
 
-    // Append regular symbols to the output
     if (symbol < end_of_block_symbol) {
       output.append(U8(symbol));
       continue;
@@ -275,8 +274,6 @@ constexpr auto inflate_symbols(
       return True;
     }
 
-    // If the symbol is greater than end of block then it must be an extended
-    // length code.
     Count length_code = symbol - length_code_start;
     if (length_code >= BackReferenceEncoding::length_base.get_size())
         [[unlikely]] {

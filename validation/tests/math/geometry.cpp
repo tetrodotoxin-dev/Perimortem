@@ -17,44 +17,18 @@ VALIDATION_TEST(MathGeometry, clipped_size) {
   EXPECT_EQ(size[0], 0.0f);
   EXPECT_EQ(size[1], 4.0f);
   EXPECT(size.is_empty());
-
-  auto checked = Size<R32, 2>::create({{-3.0f, 4.0f}});
-  Bool clipped = False;
-  checked.visit(
-      [](const Size<R32, 2>&) {},
-      [&](Size<R32, 2>::Failure failure) {
-        clipped = failure == Size<R32, 2>::Failure::Clipped;
-      });
-
-  EXPECT(clipped);
 }
 
 VALIDATION_TEST(MathGeometry, nonfinite_size) {
   R32 invalid = __builtin_nanf("");
   Size<R32, 2> size({{invalid, 2.0f}});
   EXPECT_EQ(size[0], 0.0f);
-
-  auto checked = Size<R32, 2>::create({{invalid, 2.0f}});
-  Bool nonfinite = False;
-  checked.visit(
-      [](const Size<R32, 2>&) {},
-      [&](Size<R32, 2>::Failure failure) {
-        nonfinite = failure == Size<R32, 2>::Failure::NonFinite;
-      });
-
-  EXPECT(nonfinite);
 }
 
 VALIDATION_TEST(MathGeometry, exact_size) {
-  auto checked = Size<R32, 2>::create({{3.0f, 4.0f}});
-  Bool exact = False;
-  checked.visit(
-      [&](const Size<R32, 2>& size) {
-        exact = size[0] == 3.0f && size[1] == 4.0f;
-      },
-
-      [](Size<R32, 2>::Failure) {});
-  EXPECT(exact);
+  Size<R32, 2> size({{3.0f, 4.0f}});
+  EXPECT_EQ(size[0], 3.0f);
+  EXPECT_EQ(size[1], 4.0f);
 }
 
 VALIDATION_TEST(MathGeometry, domain_extent) {

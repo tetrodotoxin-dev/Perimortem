@@ -171,7 +171,9 @@ class Sort {
       }
     };
 
-    // 2 times the log2 depth gives us the cutoff point for heap sorting.
+    // Twice `log2(size)` bounds the number of nested quicksort partitions.
+    // Exhausting that budget switches the remaining partition to heap sort,
+    // preserving the worst case O(n log n) bound.
     introsort(data, size, 2 * Core::Scalar::log2(size));
 
     insertion_sort(data, size);

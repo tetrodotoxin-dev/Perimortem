@@ -79,7 +79,6 @@ auto Time::boot() -> Time {
 }
 
 auto Time::calculate_clock() const -> Static::Bytes<12> {
-  // Calculate time components.
   U64 seconds_today = (get_stamp() / nano_to_seconds) % 86400;
   auto hours = seconds_today / 3600;
   auto minutes = (seconds_today % 3600) / 60;

@@ -47,10 +47,35 @@ static auto check_bytes_contract(
   EXPECT(!empty.get_data());
 
   auto bytes = from_view("abc"_view);
+  const auto& fixed_bytes = bytes;
+  static_assert(__is_same(decltype(bytes[0]), Option<U8&>));
+  static_assert(__is_same(decltype(fixed_bytes[0]), Option<const U8&>));
   ASSERT(bytes[2]);
   bytes[2].visit([&](U8 value) { EXPECT_EQ(value, U8('c')); }, []() {});
+  fixed_bytes[1].visit([&](U8 value) { EXPECT_EQ(value, U8('b')); }, []() {});
   EXPECT(!bytes[3]);
   EXPECT(!bytes[Count(-1)]);
+
+  bytes[1].visit([](U8& value) { value = U8('B'); }, []() {});
+  EXPECT_EQ(bytes.get_view(), "aBc"_view);
+  bytes.set(U8('x'));
+  EXPECT_EQ(bytes.get_view(), "xxx"_view);
+  EXPECT(bytes == "xxx"_view);
+  EXPECT_EQ(bytes.hash(), Hash(bytes.get_view()).get_value());
+
+  View::Bytes converted_view = bytes;
+  Access::Bytes converted_access = bytes;
+  EXPECT_EQ(converted_view, bytes.get_view());
+  EXPECT_EQ(converted_access.get_size(), bytes.get_size());
+  EXPECT(converted_access.get_data() == bytes.get_data());
+
+  bytes = "abc"_view;
+  bytes.append(U8('!'), 3);
+  EXPECT_EQ(bytes.get_view(), "abc!!!"_view);
+  bytes.append(U8('?'), 0);
+  EXPECT_EQ(bytes.get_view(), "abc!!!"_view);
+
+  bytes = "abc"_view;
 
   auto copied = bytes;
   copied.append(U8('!'));
@@ -88,21 +113,78 @@ static auto check_bytes_contract(
   bytes.concat(bytes.get_view());
   EXPECT_EQ(bytes.get_view(), "bcdebcde"_view);
 
-  bytes = "abcdef"_view;
+  auto growing_concat = from_view("ab"_view);
+  while (growing_concat.get_size() < growing_concat.get_capacity()) {
+    growing_concat.append(U8('x'));
+  }
 
-  const U8* reframe_allocation = bytes.get_data();
-  bytes.reframe(2, 3);
-  EXPECT_EQ(bytes.get_view(), "cde"_view);
-  EXPECT(bytes.get_data() == reframe_allocation);
+  const Count concat_size = growing_concat.get_size();
+  const U8* concat_allocation = growing_concat.get_data();
+  growing_concat.concat(growing_concat.slice(0, 2));
+  EXPECT_EQ(growing_concat.get_size(), concat_size + 2);
+  EXPECT_EQ(growing_concat.get_data()[concat_size], U8('a'));
+  EXPECT_EQ(growing_concat.get_data()[concat_size + 1], U8('b'));
+  EXPECT(growing_concat.get_data() != concat_allocation);
 
-  bytes = "abc"_view;
-  bytes.reframe(-2, 5);
-  EXPECT_EQ(bytes.get_view(), "\0\0abc"_view);
+  // Each destination index maps to the source index at `index + start`.
+  // Exhausting the nearby start and size combinations verifies clipping,
+  // overlap, zero padding and allocation reuse without copying implementation
+  // branches into the test.
+  constexpr auto reframe_source = "abcdef"_view;
+  for (S64 start = -8; start <= 8; start++) {
+    for (Count requested_size = 0; requested_size <= 12; requested_size++) {
+      auto reframed = from_view(reframe_source);
+      const Count previous_capacity = reframed.get_capacity();
+      const U8* previous_allocation = reframed.get_data();
 
-  const Count reframe_capacity = bytes.get_capacity();
-  bytes.reframe(0, 0);
-  EXPECT(bytes.is_empty());
-  EXPECT_EQ(bytes.get_capacity(), reframe_capacity);
+      reframed.reframe(start, requested_size);
+
+      EXPECT_EQ(reframed.get_size(), requested_size);
+      for (Count index = 0; index < requested_size; index++) {
+        const S64 source_index = S64(index) + start;
+        const U8 expected =
+            source_index >= 0 && Count(source_index) < reframe_source.get_size()
+                ? reframe_source[Count(source_index)]
+                : U8(0);
+        EXPECT_EQ(reframed.get_data()[index], expected);
+      }
+
+      if (requested_size <= previous_capacity) {
+        EXPECT(reframed.get_data() == previous_allocation);
+        EXPECT_EQ(reframed.get_capacity(), previous_capacity);
+      } else {
+        EXPECT(reframed.get_data() != previous_allocation);
+        EXPECT(reframed.get_capacity() >= requested_size);
+      }
+    }
+  }
+
+  auto growing_reframe = reserve(8);
+  growing_reframe = "abc"_view;
+
+  const Count requested_size = growing_reframe.get_capacity() + 2;
+  const U8* growing_reframe_allocation = growing_reframe.get_data();
+  growing_reframe.reframe(-1, requested_size);
+  EXPECT(growing_reframe.get_data() != growing_reframe_allocation);
+  EXPECT_EQ(growing_reframe.get_size(), requested_size);
+  EXPECT_EQ(growing_reframe.get_data()[0], U8(0));
+  EXPECT_EQ(growing_reframe.get_data()[1], U8('a'));
+  EXPECT_EQ(growing_reframe.get_data()[2], U8('b'));
+  EXPECT_EQ(growing_reframe.get_data()[3], U8('c'));
+  for (Count index = 4; index < growing_reframe.get_size(); index++) {
+    EXPECT_EQ(growing_reframe.get_data()[index], U8(0));
+  }
+
+  auto ensured = from_view("capacity"_view);
+  const Count ensured_capacity = ensured.get_capacity();
+  const U8* ensured_allocation = ensured.get_data();
+  ensured.ensure_capacity(ensured_capacity);
+  EXPECT_EQ(ensured.get_capacity(), ensured_capacity);
+  EXPECT(ensured.get_data() == ensured_allocation);
+  ensured.ensure_capacity(ensured_capacity + 1);
+  EXPECT(ensured.get_capacity() > ensured_capacity);
+  EXPECT_EQ(ensured.get_view(), "capacity"_view);
+  EXPECT(ensured.get_data() != ensured_allocation);
 
   auto resized = reserve(128);
   resized = "preserved"_view;
@@ -118,6 +200,17 @@ static auto check_bytes_contract(
   EXPECT_EQ(resized.get_capacity(), resize_capacity);
   EXPECT(resized.get_data() == resize_allocation);
 
+  auto growing_resize = from_view("abc"_view);
+  const Count growing_resize_capacity = growing_resize.get_capacity();
+  growing_resize.resize(growing_resize_capacity + 2);
+  EXPECT(growing_resize.get_capacity() > growing_resize_capacity);
+  EXPECT_EQ(growing_resize.get_data()[0], U8('a'));
+  EXPECT_EQ(growing_resize.get_data()[1], U8('b'));
+  EXPECT_EQ(growing_resize.get_data()[2], U8('c'));
+  for (Count index = 3; index < growing_resize.get_size(); index++) {
+    EXPECT_EQ(growing_resize.get_data()[index], U8(0));
+  }
+
   auto forgotten = reserve(128);
   const Count forgetful_capacity = forgotten.get_capacity();
   const U8* forgetful_allocation = forgotten.get_data();
@@ -129,6 +222,16 @@ static auto check_bytes_contract(
   EXPECT(forgotten.is_empty());
   EXPECT_EQ(forgotten.get_capacity(), Count(0));
   EXPECT(!forgotten.get_data());
+
+  auto cleared = from_view("retained"_view);
+  const Count cleared_capacity = cleared.get_capacity();
+  const U8* cleared_allocation = cleared.get_data();
+  cleared.clear();
+  EXPECT(cleared.is_empty());
+  EXPECT_EQ(cleared.get_capacity(), cleared_capacity);
+  EXPECT(cleared.get_data() == cleared_allocation);
+  cleared.append(U8('r'));
+  EXPECT_EQ(cleared.get_view(), "r"_view);
 
   bytes = "released"_view;
   bytes.reset();
@@ -266,11 +369,15 @@ VALIDATION_TEST(ManagedBytes, value_semantics) {
   Managed::Bytes copied(original);
   copied.append(U8('!'));
 
+  EXPECT(&copied.get_arena() == &source_arena);
   EXPECT_EQ(original.get_view(), "managed"_view);
   EXPECT_EQ(copied.get_view(), "managed!"_view);
   EXPECT(copied.get_view().get_data() != original.get_view().get_data());
 
+  const U8* moved_allocation = copied.get_data();
   Managed::Bytes moved(Data::take(copied));
+  EXPECT(&moved.get_arena() == &source_arena);
+  EXPECT(moved.get_data() == moved_allocation);
   EXPECT_EQ(moved.get_view(), "managed!"_view);
   EXPECT(copied.is_empty());
   EXPECT(!copied.get_view().get_data());

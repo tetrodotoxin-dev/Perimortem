@@ -8,6 +8,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/memory/allocator/global.hpp"
 #include "perimortem/memory/compile/object.hpp"
 #include "perimortem/memory/compile/vector.hpp"
@@ -64,6 +65,13 @@ static auto check_vector_contract(
   EXPECT_EQ(values.get_data()[1], U32(8));
   EXPECT_EQ(values.get_data()[2], U32(16));
 
+  View::Vector<U32> converted_view = values;
+  Access::Vector<U32> converted_access = values;
+  EXPECT(converted_view.get_data() == values.get_data());
+  EXPECT_EQ(converted_view.get_size(), values.get_size());
+  EXPECT(converted_access.get_data() == values.get_data());
+  EXPECT_EQ(converted_access.get_size(), values.get_size());
+
   values = values.get_view().slice(1, 2);
   EXPECT_EQ(values.get_size(), Count(2));
   EXPECT_EQ(values.get_data()[0], U32(8));
@@ -74,6 +82,49 @@ static auto check_vector_contract(
   EXPECT_EQ(values.get_size(), Count(2));
   EXPECT_EQ(copied.get_size(), Count(3));
   EXPECT(copied.get_data() != values.get_data());
+
+  auto concatenated = from_view(View::Vector<U32>(source));
+  U32* initial_concat_allocation = concatenated.get_data();
+  concatenated.concat(concatenated.get_view());
+  EXPECT_EQ(concatenated.get_size(), Count(6));
+  EXPECT_EQ(concatenated.get_data()[3], U32(4));
+  EXPECT_EQ(concatenated.get_data()[4], U32(8));
+  EXPECT_EQ(concatenated.get_data()[5], U32(16));
+  EXPECT(concatenated.get_data() == initial_concat_allocation);
+
+  while (concatenated.get_size() < concatenated.get_capacity()) {
+    concatenated.insert(32);
+  }
+
+  const Count concatenated_size = concatenated.get_size();
+  U32* concatenated_allocation = concatenated.get_data();
+  concatenated.concat(concatenated.get_view().slice(0, 3));
+  EXPECT_EQ(concatenated.get_size(), concatenated_size + 3);
+  EXPECT_EQ(concatenated.get_data()[concatenated_size], U32(4));
+  EXPECT_EQ(concatenated.get_data()[concatenated_size + 1], U32(8));
+  EXPECT_EQ(concatenated.get_data()[concatenated_size + 2], U32(16));
+  EXPECT(concatenated.get_data() != concatenated_allocation);
+
+  auto unordered = from_view(View::Vector<U32>(source));
+  U32* unordered_prefix = &unordered.get_data()[0];
+  EXPECT(unordered.remove(1));
+  EXPECT_EQ(unordered.get_size(), Count(2));
+  EXPECT_EQ(unordered.get_data()[0], U32(4));
+  EXPECT_EQ(unordered.get_data()[1], U32(16));
+  EXPECT(&unordered.get_data()[0] == unordered_prefix);
+  EXPECT(!unordered.remove(2));
+  EXPECT(unordered.remove(1));
+  EXPECT_EQ(unordered.get_size(), Count(1));
+  EXPECT_EQ(unordered.get_data()[0], U32(4));
+
+  auto ordered = from_view(View::Vector<U32>(source));
+  U32* ordered_prefix = &ordered.get_data()[0];
+  EXPECT(ordered.remove_stable(1));
+  EXPECT_EQ(ordered.get_size(), Count(2));
+  EXPECT_EQ(ordered.get_data()[0], U32(4));
+  EXPECT_EQ(ordered.get_data()[1], U32(16));
+  EXPECT(&ordered.get_data()[0] == ordered_prefix);
+  EXPECT(!ordered.remove_stable(2));
 
   reserved.insert(4);
   reserved = empty;
@@ -100,6 +151,17 @@ static auto check_vector_contract(
   EXPECT_EQ(values.get_data()[1], U32(0));
   EXPECT_EQ(values.get_data()[2], U32(0));
 
+  auto growing_resize = from_view(View::Vector<U32>(source));
+  const Count growing_resize_capacity = growing_resize.get_capacity();
+  growing_resize.resize(growing_resize_capacity + 2);
+  EXPECT(growing_resize.get_capacity() > growing_resize_capacity);
+  EXPECT_EQ(growing_resize.get_data()[0], U32(4));
+  EXPECT_EQ(growing_resize.get_data()[1], U32(8));
+  EXPECT_EQ(growing_resize.get_data()[2], U32(16));
+  for (Count index = 3; index < growing_resize.get_size(); index++) {
+    EXPECT_EQ(growing_resize.get_data()[index], U32(0));
+  }
+
   static_assert(__is_same(decltype(values[0]), Option<U32&>));
   ASSERT(values[0]);
   values[0].visit([](U32& value) { value = 84; }, []() {});
@@ -113,6 +175,50 @@ static auto check_vector_contract(
   EXPECT(values.is_empty());
   EXPECT_EQ(values.get_capacity(), retained_capacity);
   EXPECT(values.get_data() == retained);
+
+  auto retained_values = from_view(View::Vector<U32>(source));
+  const Count retained_values_capacity = retained_values.get_capacity();
+  U32* retained_values_allocation = retained_values.get_data();
+  retained_values.retain(1, Count(-1));
+  EXPECT_EQ(retained_values.get_size(), Count(2));
+  EXPECT_EQ(retained_values.get_data()[0], U32(8));
+  EXPECT_EQ(retained_values.get_data()[1], U32(16));
+  EXPECT_EQ(retained_values.get_capacity(), retained_values_capacity);
+  EXPECT(retained_values.get_data() == retained_values_allocation);
+  retained_values.retain(retained_values.get_size(), 1);
+  EXPECT(retained_values.is_empty());
+  EXPECT_EQ(retained_values.get_capacity(), retained_values_capacity);
+  EXPECT(retained_values.get_data() == retained_values_allocation);
+
+  auto zero_retained = from_view(View::Vector<U32>(source));
+  const Count zero_retained_capacity = zero_retained.get_capacity();
+  zero_retained.retain(0, 0);
+  EXPECT(zero_retained.is_empty());
+  EXPECT_EQ(zero_retained.get_capacity(), zero_retained_capacity);
+
+  auto forgotten = reserve(128);
+  const Count forgetful_capacity = forgotten.get_capacity();
+  U32* forgetful_allocation = forgotten.get_data();
+  forgotten.forgetful_resize(forgetful_capacity - 1);
+  EXPECT_EQ(forgotten.get_size(), forgetful_capacity - 1);
+  EXPECT(forgotten.get_data() == forgetful_allocation);
+  forgotten.get_data()[forgetful_capacity - 2] = 42;
+  forgotten.forgetful_resize(forgetful_capacity >> 1);
+  EXPECT(forgotten.get_capacity() < forgetful_capacity);
+  forgotten.forgetful_resize(0);
+  EXPECT(forgotten.is_empty());
+  EXPECT_EQ(forgotten.get_capacity(), Count(0));
+  EXPECT(!forgotten.get_data());
+
+  auto cleared = from_view(View::Vector<U32>(source));
+  const Count cleared_capacity = cleared.get_capacity();
+  U32* cleared_allocation = cleared.get_data();
+  cleared.clear();
+  EXPECT(cleared.is_empty());
+  EXPECT_EQ(cleared.get_capacity(), cleared_capacity);
+  EXPECT(cleared.get_data() == cleared_allocation);
+  cleared.insert(64);
+  EXPECT_EQ(cleared.get_data()[0], U32(64));
 
   values.reset();
   values.reset();
@@ -162,6 +268,11 @@ static_assert(!supports_resize<UnconstructibleValue>);
 static_assert(supports_retain<UnconstructibleValue>);
 
 VALIDATION_TEST(ThreadVector, capability_contract) {
+  const Count requests = Allocator::Bibliotheca::check_out_requests();
+  Thread::Vector<U32> empty;
+  EXPECT(empty.is_empty());
+  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), requests);
+
   check_vector_contract(
       [](Count capacity) { return Thread::Vector<U32>(capacity); },
       [](View::Vector<U32> values) { return Thread::Vector<U32>(values); },
@@ -177,29 +288,6 @@ VALIDATION_TEST(ThreadVector, move_assignment) {
 
   EXPECT_EQ(destination.get_size(), Count(1));
   EXPECT(!source.get_data());
-}
-
-VALIDATION_TEST(ThreadVector, concat_alias) {
-  Thread::Vector<U32> values;
-  values.insert(4);
-  values.insert(8);
-
-  values.concat(values.get_view());
-  EXPECT_EQ(values.get_size(), Count(4));
-  EXPECT_EQ(values.get_data()[0], U32(4));
-  EXPECT_EQ(values.get_data()[1], U32(8));
-  EXPECT_EQ(values.get_data()[2], U32(4));
-  EXPECT_EQ(values.get_data()[3], U32(8));
-
-  while (values.get_size() < values.get_capacity()) {
-    values.insert(16);
-  }
-
-  const Count previous_size = values.get_size();
-  values.concat(values.get_view().slice(0, 2));
-  EXPECT_EQ(values.get_size(), previous_size + 2);
-  EXPECT_EQ(values.get_data()[previous_size], U32(4));
-  EXPECT_EQ(values.get_data()[previous_size + 1], U32(8));
 }
 
 class ResizeValue {
@@ -236,29 +324,6 @@ VALIDATION_TEST(ThreadVector, resize_lifetimes) {
   EXPECT_EQ(ResizeValue::instances, Count(0));
 }
 
-VALIDATION_TEST(ThreadVector, forgetful_scalars) {
-  Thread::Vector<U32> values;
-  values.forgetful_resize(100);
-  EXPECT_EQ(values.get_size(), Count(100));
-  EXPECT(values.get_capacity() >= 100);
-
-  values.get_data()[99] = 42;
-  EXPECT_EQ(values.get_data()[99], U32(42));
-
-  const Count capacity = values.get_capacity();
-  U32* allocation = values.get_data();
-  values.forgetful_resize(capacity - 1);
-  EXPECT(values.get_data() == allocation);
-
-  values.forgetful_resize(capacity >> 1);
-  EXPECT(values.get_capacity() < capacity);
-
-  values.forgetful_resize(0);
-  EXPECT(values.is_empty());
-  EXPECT_EQ(values.get_capacity(), Count(0));
-  EXPECT(!values.get_data());
-}
-
 VALIDATION_TEST(ThreadVector, self_move_assignment) {
   Thread::Vector<U32> values;
   values.insert(4);
@@ -274,56 +339,6 @@ VALIDATION_TEST(ThreadVector, self_move_assignment) {
   EXPECT_EQ(values.get_size(), Count(2));
   EXPECT_EQ(values.get_data()[0], U32(4));
   EXPECT_EQ(values.get_data()[1], U32(8));
-}
-
-VALIDATION_TEST(ThreadVector, remove) {
-  Thread::Vector<S32> values;
-  values.insert(1);
-  values.insert(2);
-  values.insert(3);
-  values.insert(4);
-
-  EXPECT(values.remove(1));
-  EXPECT_EQ(values.get_size(), 3);
-  EXPECT_EQ(values.get_data()[0], 1);
-  EXPECT_EQ(values.get_data()[1], 4);
-  EXPECT_EQ(values.get_data()[2], 3);
-  EXPECT(!values.contains(2));
-  EXPECT(!values.remove(3));
-
-  EXPECT(values.remove(0));
-  EXPECT_EQ(values.get_data()[0], 3);
-  EXPECT_EQ(values.get_data()[1], 4);
-  EXPECT(values.remove(1));
-  EXPECT_EQ(values.get_data()[0], 3);
-  EXPECT(values.remove(0));
-  EXPECT_EQ(values.get_size(), Count(0));
-  EXPECT(!values.remove(0));
-}
-
-VALIDATION_TEST(ThreadVector, remove_stable) {
-  Thread::Vector<S32> values;
-  values.insert(1);
-  values.insert(2);
-  values.insert(3);
-  values.insert(4);
-
-  EXPECT(values.remove_stable(1));
-  EXPECT_EQ(values.get_size(), 3);
-  EXPECT_EQ(values.get_data()[0], 1);
-  EXPECT_EQ(values.get_data()[1], 3);
-  EXPECT_EQ(values.get_data()[2], 4);
-  EXPECT(!values.contains(2));
-  EXPECT(!values.remove_stable(3));
-
-  EXPECT(values.remove_stable(0));
-  EXPECT_EQ(values.get_data()[0], 3);
-  EXPECT_EQ(values.get_data()[1], 4);
-  EXPECT(values.remove_stable(1));
-  EXPECT_EQ(values.get_data()[0], 3);
-  EXPECT(values.remove_stable(0));
-  EXPECT_EQ(values.get_size(), Count(0));
-  EXPECT(!values.remove_stable(0));
 }
 
 // Byte copies can preserve the resource count while leaving a pointer into the
@@ -683,6 +698,11 @@ static Harness ManagedVector = {
 
 VALIDATION_TEST(ManagedVector, capability_contract) {
   Allocator::Arena arena;
+  const Count requests = Allocator::Bibliotheca::check_out_requests();
+  Managed::Vector<U32> empty(arena);
+  EXPECT(empty.is_empty());
+  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), requests);
+
   check_vector_contract(
       [&](Count capacity) { return Managed::Vector<U32>(arena, capacity); },
       [&](View::Vector<U32> values) {

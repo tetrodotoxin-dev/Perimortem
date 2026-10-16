@@ -21,11 +21,11 @@ VALIDATION_TEST(UtilityRange, overlap) {
   EXPECT_NOT(invalid.has_overlap(invalid));
 }
 
-VALIDATION_TEST(UtilityRange, extend) {
+VALIDATION_TEST(UtilityRange, include) {
   Range range;
-  EXPECT(range.extend(4));
-  EXPECT(range.extend(7));
-  EXPECT(range.extend(2));
+  EXPECT(range.include(4));
+  EXPECT(range.include(7));
+  EXPECT(range.include(2));
 
   EXPECT_EQ(range.start, Count(2));
   EXPECT_EQ(range.size, Count(6));
@@ -33,7 +33,7 @@ VALIDATION_TEST(UtilityRange, extend) {
 
 VALIDATION_TEST(UtilityRange, representable_end) {
   Range range;
-  EXPECT(range.extend(Count(-2)));
+  EXPECT(range.include(Count(-2)));
   EXPECT_EQ(range.start, Count(-2));
   EXPECT_EQ(range.size, Count(1));
 
@@ -41,12 +41,12 @@ VALIDATION_TEST(UtilityRange, representable_end) {
   ASSERT(end);
   end.visit([&](Count value) { EXPECT_EQ(value, Count(-1)); }, []() {});
 
-  EXPECT_NOT(range.extend(Count(-1)));
+  EXPECT_NOT(range.include(Count(-1)));
   EXPECT_EQ(range.start, Count(-2));
   EXPECT_EQ(range.size, Count(1));
 
   Range invalid = {Count(-1), 1};
   EXPECT_NOT(invalid.is_valid());
   EXPECT_NOT(invalid.get_end());
-  EXPECT_NOT(invalid.extend(0));
+  EXPECT_NOT(invalid.include(0));
 }

@@ -31,9 +31,9 @@ constexpr auto compute_hash(Static::Bytes<3> data) -> Count {
   return Count((v * knuth_multiplier) >> 17);
 }
 
-// Compare source[position..] against source[candidate..] up to scan_limit
-// bytes, looking for instances of duplication in earlier parts of the source
-// input.
+// Returns the common prefix length at `position` and the earlier `candidate`,
+// capped by `scan_limit`. The ranges may overlap because matching reads the
+// immutable source rather than copying previously produced output.
 constexpr auto extend_match(
     const U8* data,
     Count position,
@@ -50,13 +50,11 @@ constexpr auto extend_match(
   constexpr auto avx2_channel_width = sizeof(__m256i);
   constexpr auto full_channel_width = avx2_channel_width * fused_channels;
   while (match_length + full_channel_width <= scan_limit) {
-    // Load the lower bytes
     const auto lower_source_chunk = _mm256_loadu_si256(
         Data::cast<const __m256i_u>(data + position + match_length));
     const auto lower_candidate_chunk = _mm256_loadu_si256(
         Data::cast<const __m256i_u>(data + candidate + match_length));
 
-    // Load the upper bytes
     const auto upper_source_chunk = _mm256_loadu_si256(
         Data::cast<const __m256i_u>(
             data + position + match_length + avx2_channel_width));
@@ -103,7 +101,6 @@ constexpr auto extend_match(
     match_length += word_size;
   }
 
-  // Final scalar loop for up to 7 residual bytes.
   while (match_length < scan_limit &&
          data[position + match_length] == data[candidate + match_length]) {
     match_length++;

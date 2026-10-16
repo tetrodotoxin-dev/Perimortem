@@ -63,7 +63,6 @@ class Data {
   // establishes the target lifetime and alignment before dereferencing.
   template <typename target_type>
   static auto cast(const void* source) -> const target_type* {
-    // TODO: start_lifetime_as
     return reinterpret_cast<const target_type*>(source);
   }
 
@@ -71,7 +70,6 @@ class Data {
   // The caller establishes the target lifetime and alignment before use.
   template <typename target_type>
   static auto cast(void* source) -> target_type* {
-    // TODO: start_lifetime_as
     return reinterpret_cast<target_type*>(source);
   }
 

@@ -11,19 +11,20 @@
 
 namespace Perimortem::Memory {
 
-// Matrix represents a bounded two dimensional collection in one contiguous
-// allocation. Rows lie end to end, so traversing one reads consecutive values
-// without allocating each row separately. A flat index cannot distinguish a
-// column past the right edge from the next row. Domain resolves the column and
-// row independently before Matrix calculates the flat index, so a boundary
-// rule acts on the intended axis rather than on the entire allocation.
+// Matrix stores a two dimensional Domain in one contiguous row major
+// allocation. Adjacent columns occupy adjacent values without a separate
+// allocation for each row. A flat index cannot distinguish a column past the
+// right edge from the next row. Domain therefore resolves the column and row
+// independently before Matrix calculates that index, keeping each boundary
+// rule on its declared axis.
 //
-// A Matrix has exactly row_count * column_count live values. An empty
-// axis leaves no addressable values. get_values exposes storage order through
-// a View that remains valid until Matrix storage changes.
+// Each axis extent is U32, so the product of the two extents fits in Count. A
+// Matrix has exactly that many live values. An empty axis leaves no addressable
+// values. `get_values()` exposes row major storage through a View that remains
+// valid until Matrix storage changes.
 //
-// Clip is the default boundary behavior on both axes, but you can explicitly
-// provide different boundary behavior for row and columns separately.
+// Clip is the default for both axes. The template can select different column
+// and row boundary rules when their coordinates require different behavior.
 template <
     typename type,
     Math::Boundary column_boundary = Math::Boundary::Clip,

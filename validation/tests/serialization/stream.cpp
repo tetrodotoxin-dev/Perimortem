@@ -98,6 +98,7 @@ VALIDATION_TEST(SerializationStream, vector_write) {
     U16(0x0304),
     U16(0x0506),
   }};
+
   Thread::Bytes output{};
   Stream::Binary<Data::ByteOrder::Big, Thread::Bytes> writer(output);
 
@@ -118,13 +119,16 @@ VALIDATION_TEST(SerializationStream, native_vector) {
     U32(0x11223344),
     U32(0xAABBCCDD),
   }};
+
   Thread::Bytes output{};
   Stream::Binary<Data::ByteOrder::Native, Thread::Bytes> writer(output);
 
   writer << values.get_view();
 
-  EXPECT_EQ(output.get_size(), values.get_view().get_bytes().get_size());
-  EXPECT(output.get_view() == values.get_view().get_bytes());
+  const View::Bytes native_bytes(
+      Data::cast<const U8>(values.get_data()), values.get_size() * sizeof(U32));
+  EXPECT_EQ(output.get_size(), native_bytes.get_size());
+  EXPECT(output.get_view() == native_bytes);
 }
 
 VALIDATION_TEST(SerializationStream, textual_api) {

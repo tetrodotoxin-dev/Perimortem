@@ -8,6 +8,7 @@
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/memory/global/set.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/set.hpp"
@@ -39,12 +40,22 @@ static auto expect_selected(
 // Set policies share insertion, lookup, removal, traversal, copy, capacity, and
 // reset behavior. The factory supplies each policy's construction requirements
 // so every wrapper runs the same capability contract.
-template <typename factory_type>
-static auto check_set_contract(factory_type create, Test::TestResult& result)
-    -> void {
+template <typename factory_type, typename move_factory_type>
+static auto check_set_contract(
+    factory_type create,
+    move_factory_type create_move_values,
+    Test::TestResult& result) -> void {
   auto empty = create(0);
   EXPECT(empty.is_empty());
   EXPECT_EQ(empty.get_capacity(), Count(0));
+
+  auto initial = create(0);
+  initial.ensure_capacity(1);
+  EXPECT_EQ(initial.get_capacity(), Count(14));
+
+  const Count initial_capacity = initial.get_capacity();
+  initial.ensure_capacity(initial_capacity);
+  EXPECT_EQ(initial.get_capacity(), initial_capacity);
 
   auto values = create(32);
   static_assert(__is_same(decltype(values.find(1)), Option<const S32&>));
@@ -75,6 +86,12 @@ static auto check_set_contract(factory_type create, Test::TestResult& result)
   EXPECT(copied.insert(16));
   EXPECT(!values.contains(16));
 
+  auto assigned = create(0);
+  assigned = values;
+  EXPECT_EQ(assigned.get_size(), values.get_size());
+  EXPECT(assigned.insert(32));
+  EXPECT(!values.contains(32));
+
   EXPECT(values.remove(2));
   EXPECT(!values.remove(2));
   EXPECT(!values.contains(2));
@@ -83,6 +100,8 @@ static auto check_set_contract(factory_type create, Test::TestResult& result)
   values.clear();
   EXPECT(values.is_empty());
   EXPECT_EQ(values.get_capacity(), retained_capacity);
+  EXPECT(values.insert(32));
+  EXPECT(values.contains(32));
 
   values.reset();
   values.reset();
@@ -111,6 +130,55 @@ static auto check_set_contract(factory_type create, Test::TestResult& result)
   EXPECT_EQ(capacity_values.get_capacity(), capacity);
   EXPECT(capacity_values.insert(capacity));
   EXPECT(capacity_values.get_capacity() > capacity);
+
+  auto move_values = create_move_values(0);
+  MoveOnlyValue<S32> inserted_value(4);
+  EXPECT(move_values.insert(Data::take(inserted_value)));
+  EXPECT_EQ(inserted_value.get_value(), 0);
+
+  MoveOnlyValue<S32> duplicate_value(4);
+  EXPECT(!move_values.insert(Data::take(duplicate_value)));
+  EXPECT_EQ(duplicate_value.get_value(), 4);
+  EXPECT(move_values.contains(MoveOnlyValue<S32>(4)));
+  EXPECT(move_values.remove(MoveOnlyValue<S32>(4)));
+  EXPECT(move_values.is_empty());
+
+  // Repeated cycles combine sentinel creation, reuse, clear and reset. Exact
+  // membership checks after every phase verify each rebuilt probe table without
+  // depending on its bucket layout.
+  constexpr Count model_size = 127;
+  auto sequenced = create(0);
+  for (Count cycle = 0; cycle < 8; cycle++) {
+    for (Count key = 0; key < model_size; key++) {
+      EXPECT(sequenced.insert(S32(key)));
+    }
+
+    for (Count key = 0; key < model_size; key += 3) {
+      EXPECT(sequenced.remove(S32(key)));
+    }
+
+    for (Count key = 0; key < model_size; key++) {
+      EXPECT_EQ(sequenced.contains(S32(key)), key % 3 != 0);
+    }
+
+    for (Count key = 0; key < model_size; key += 3) {
+      EXPECT(sequenced.insert(S32(key)));
+    }
+
+    EXPECT_EQ(sequenced.get_size(), model_size);
+    for (Count key = 0; key < model_size; key++) {
+      EXPECT(sequenced.contains(S32(key)));
+    }
+
+    if (cycle % 2 == 0) {
+      const Count retained_capacity = sequenced.get_capacity();
+      sequenced.clear();
+      EXPECT_EQ(sequenced.get_capacity(), retained_capacity);
+    } else {
+      sequenced.reset();
+      EXPECT_EQ(sequenced.get_capacity(), Count(0));
+    }
+  }
 }
 
 template <typename key_type>
@@ -166,20 +234,15 @@ VALIDATION_TEST(ThreadSet, visit_structural_mutation) {
 }
 
 VALIDATION_TEST(ThreadSet, capability_contract) {
+  const Count requests = Allocator::Bibliotheca::check_out_requests();
+  Thread::Set<S32> empty;
+  EXPECT(empty.is_empty());
+  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), requests);
+
   check_set_contract(
-      [](Count capacity) { return Thread::Set<S32>(capacity); }, result);
-}
-
-VALIDATION_TEST(ThreadSet, move_only_keys) {
-  Thread::Set<MoveOnlyValue<S32>> values;
-  for (S32 value = 0; value < 100; value++) {
-    EXPECT(values.insert(MoveOnlyValue<S32>(value)));
-  }
-
-  EXPECT(!values.insert(MoveOnlyValue<S32>(42)));
-  EXPECT(values.contains(MoveOnlyValue<S32>(42)));
-  EXPECT(values.remove(MoveOnlyValue<S32>(42)));
-  EXPECT(!values.contains(MoveOnlyValue<S32>(42)));
+      [](Count capacity) { return Thread::Set<S32>(capacity); },
+      [](Count capacity) { return Thread::Set<MoveOnlyValue<S32>>(capacity); },
+      result);
 }
 
 VALIDATION_TEST(ThreadSet, remove_collisions) {
@@ -236,18 +299,6 @@ VALIDATION_TEST(ThreadSet, remove_displacements) {
     EXPECT(values.contains(ProbeKey(2, 2)));
     EXPECT(values.contains(ProbeKey(3, 3)));
     EXPECT(values.contains(ProbeKey(0, 4)));
-  }
-}
-
-VALIDATION_TEST(ThreadSet, insert_stress_test) {
-  Thread::Set<S32> values;
-  for (Count i = 0; i < 1000; i++) {
-    EXPECT(values.insert(i));
-  }
-
-  EXPECT_EQ(values.get_size(), 1000);
-  for (Count i = 0; i < 1000; i++) {
-    ASSERT(values.contains(i));
   }
 }
 
@@ -357,22 +408,6 @@ VALIDATION_TEST(ThreadSet, key_construction) {
   EXPECT_EQ(counts.constructions, counts.destructions);
 }
 
-VALIDATION_TEST(ThreadSet, reuse) {
-  Thread::Set<S32> values;
-  for (S32 loops = 0; loops < 5; loops++) {
-    values.clear();
-    ASSERT_EQ(values.get_size(), 0);
-    for (Count i = 0; i < 100; i++) {
-      values.insert(i);
-    }
-
-    ASSERT_EQ(values.get_size(), 100);
-    for (Count i = 0; i < 100; i++) {
-      ASSERT(values.contains(i));
-    }
-  }
-}
-
 VALIDATION_TEST(ThreadSet, leak_test) {
   auto pre_test_memory = Allocator::Bibliotheca::allocated_memory();
 
@@ -435,7 +470,9 @@ static auto create_global_set(View::Bytes) -> void {
 
 VALIDATION_TEST(GlobalSet, capability_contract) {
   check_set_contract(
-      [](Count capacity) { return Global::Set<S32>(capacity); }, result);
+      [](Count capacity) { return Global::Set<S32>(capacity); },
+      [](Count capacity) { return Global::Set<MoveOnlyValue<S32>>(capacity); },
+      result);
 }
 
 VALIDATION_TEST(GlobalSet, cross_thread_reallocation) {
@@ -543,12 +580,44 @@ VALIDATION_TEST(ManagedSet, nested_insert_uses_destination_arena) {
 
 VALIDATION_TEST(ManagedSet, capability_contract) {
   Allocator::Arena arena;
+  const Count requests = Allocator::Bibliotheca::check_out_requests();
+  Managed::Set<S32> empty(arena);
+  EXPECT(empty.is_empty());
+  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), requests);
+
   check_set_contract(
       [&](Count capacity) { return Managed::Set<S32>(arena, capacity); },
+      [&](Count capacity) {
+        return Managed::Set<MoveOnlyValue<S32>>(arena, capacity);
+      },
+
       result);
 
   Managed::Set<S32> values(arena);
   EXPECT(&values.get_arena() == &arena);
+  values.insert(4);
+
+  auto copied = values;
+  EXPECT(&copied.get_arena() == &arena);
+
+  auto retained = values.find(4);
+  ASSERT(retained);
+
+  const S32* retained_key = nullptr;
+  expect_selected(
+      retained, [&](const S32& value) { retained_key = &value; }, result);
+  ASSERT(retained_key != nullptr);
+
+  Managed::Set<S32> moved(Data::take(values));
+  EXPECT(values.is_empty());
+  EXPECT_EQ(values.get_capacity(), Count(0));
+  EXPECT(&moved.get_arena() == &arena);
+
+  auto moved_key = moved.find(4);
+  ASSERT(moved_key);
+  expect_selected(
+      moved_key, [&](const S32& value) { EXPECT(&value == retained_key); },
+      result);
 }
 
 VALIDATION_TEST(ManagedSet, growth_preserves_old_values) {

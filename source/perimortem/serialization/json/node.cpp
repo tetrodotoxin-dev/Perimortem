@@ -3,6 +3,7 @@
 
 #include "perimortem/serialization/json/node.hpp"
 
+#include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
@@ -224,8 +225,9 @@ auto Json::Node::operator[](const View::Bytes name) const -> const Json::Node {
 auto Json::Node::contains(const View::Bytes name) const -> Bool {
   if (data.state == (U32)NodeState::Object) {
     View::Vector<Member> members((const Member*)data.ptr, data.size);
-    return members.contains(
-        [name](const Member& member) { return member.name == name; });
+    return Algorithm::Search::match(members, [name](const Member& member) {
+             return member.name == name;
+           }) != Count(-1);
   }
 
   return false;
@@ -312,6 +314,7 @@ auto Json::Node::decode_string(Allocator::Arena& arena) const -> View::Bytes {
       decoded.append(source[i]);
       break;
     }
+
     default:
       decoded.append('\\');
       decoded.append(source[i]);

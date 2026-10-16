@@ -183,17 +183,15 @@ class Uuid {
   perimortem_uuid value{};
 };
 
+// C and C++ exchange the same two word record by value. Uuid adds methods
+// without adding state. Equal size and alignment preserve the object boundary,
+// while standard layout and trivial copying avoid C++ lifetime work.
 static_assert(sizeof(Uuid) == sizeof(perimortem_uuid));
 static_assert(alignof(Uuid) == alignof(perimortem_uuid));
 static_assert(__is_standard_layout(Uuid));
 static_assert(__is_trivially_copyable(Uuid));
 
 }  // namespace Perimortem::Core
-
-static_assert(__is_standard_layout(perimortem_uuid));
-static_assert(__is_trivially_copyable(perimortem_uuid));
-static_assert(__is_trivial(perimortem_uuid));
-static_assert(__is_aggregate(perimortem_uuid));
 
 #endif
 

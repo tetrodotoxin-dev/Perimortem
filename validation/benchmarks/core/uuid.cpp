@@ -16,8 +16,10 @@ using namespace Toolchain::Validation;
 static constexpr Count uuid_batch = 1024;
 static constexpr Uuid serialize_source_a{
   0x550e8400e29b41d4ULL, 0xa716446655440000ULL};
+
 static constexpr Uuid serialize_source_b{
   0x123e4567e89b42d3ULL, 0xa456426614174000ULL};
+
 static constexpr auto dashed_source_a =
     "550e8400-e29b-41d4-a716-446655440000"_bytes;
 static constexpr auto dashed_source_b =

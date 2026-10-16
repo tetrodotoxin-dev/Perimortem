@@ -35,17 +35,6 @@ constexpr U8 encode_lookup[64] = {
   'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
   '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
 
-static_assert(decode_lookup['A'] == 0);
-static_assert(decode_lookup['B'] == 1);
-static_assert(decode_lookup['Z'] == 25);
-static_assert(decode_lookup['a'] == 26);
-static_assert(decode_lookup['z'] == 51);
-static_assert(decode_lookup['0'] == 52);
-static_assert(decode_lookup['9'] == 61);
-static_assert(decode_lookup['+'] == 62);
-static_assert(decode_lookup['/'] == 63);
-static_assert(decode_lookup['='] == _);
-
 // Extra bytes needed after the true output size for vectorized working space.
 
 #ifdef PERI_AVX2

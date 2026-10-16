@@ -791,7 +791,10 @@ constexpr auto process_data(
     pixels.resize(selected_pixel_count);
     if (!reconstruct_filter(
             filtered_rows.get_view(), info.get_width(), info.get_height(),
-            bytes_per_pixel, pixels.get_access().get_bytes())) [[unlikely]] {
+            bytes_per_pixel,
+            Access::Bytes(
+                Data::cast<U8>(pixels.get_data()),
+                pixels.get_size() * sizeof(Rgba8)))) [[unlikely]] {
       Diagnostics::Log::error(
           "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
       return Option<Matrix<Rgba8>>();

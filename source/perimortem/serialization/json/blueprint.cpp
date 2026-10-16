@@ -37,5 +37,6 @@ auto Json::Blueprint::construct(Allocator::Arena& arena) const -> Json::Node {
 
         return Json::Node(nodes);
       },
+
       [](Json::Node node) { return node; });
 }

@@ -331,10 +331,6 @@ class Vector {
     replace_allocation(Core::Data::take(allocation));
   }
 
-  constexpr auto contains(const type& value) const -> Bool {
-    return get_view().contains(value);
-  }
-
   // Returns the value at `index`, or None when the index is outside the current
   // size. The returned reference remains current until an operation replaces
   // the allocation or relocates or replaces the value at that address.

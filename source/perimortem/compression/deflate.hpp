@@ -9,10 +9,13 @@ namespace Perimortem::Compression {
 
 class Deflate {
  public:
+  // None writes stored blocks without LZ77 or Huffman coding. Default examines
+  // up to eight hash chain candidates for each match. Best examines up to 128,
+  // spending more compression time to search for longer matches.
   enum class Level : U8 {
-    None = 0,     // Fastest
-    Default = 1,  // Solid compression at a moderate cost
-    Best = 2,     // Large compute cost, but moderate improvements
+    None = 0,
+    Default = 1,
+    Best = 2,
   };
 
   // Decompresses a zlib wrapped Deflate stream and validates its Adler32

@@ -91,7 +91,6 @@ class alignas(64) Slab {
       size = Data::align<megabytes_2>(block_size);
     }
 
-    // Attempt to grab a block using huge TLB to speed up the slab allocator.
     auto constexpr page_access = PROT_READ | PROT_WRITE;
     auto constexpr page_flags = MAP_PRIVATE | MAP_ANONYMOUS;
     // Request explicit 2 MB pages. A 1 GB page exceeds the ordinary slab
@@ -250,14 +249,16 @@ class Archive {
   // These counters are cumulative for the current thread. They distinguish
   // total checkout traffic from slower paths after a free list miss. A request
   // contributes only to counters for the paths it uses.
-  Count check_out_requests = 0;   // Calls to `check_out`.
-  Count allocation_requests = 0;  // Free list misses that carve a Preface.
-  Count demote_requests = 0;      // Passes that reconsider retained slabs.
-  Count slab_requests = 0;        // Slabs acquired for startup or growth.
+  Count check_out_requests = 0;
+  Count allocation_requests = 0;
+  Count demote_requests = 0;
+  Count slab_requests = 0;
 };
 
 // A POD archive avoids guarded dynamic initialization on the allocator fast
-// path while retaining one independent cache for each thread.
+// path while retaining one independent cache for each thread. Limiting that
+// metadata to half a KiB bounds the thread local footprint to eight cache lines
+// while blocks cycle through its size classes.
 thread_local static Archive secret_archive;
 
 static_assert(sizeof(secret_archive) <= 512);
@@ -498,6 +499,10 @@ auto Allocator::Bibliotheca::check_out_requests() -> Count {
 
 auto Allocator::Bibliotheca::allocation_requests() -> Count {
   return secret_archive.allocation_requests;
+}
+
+auto Allocator::Bibliotheca::demote_requests() -> Count {
+  return secret_archive.demote_requests;
 }
 
 auto Allocator::Bibliotheca::slab_requests() -> Count {

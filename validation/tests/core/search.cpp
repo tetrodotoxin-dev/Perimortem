@@ -60,6 +60,25 @@ VALIDATION_TEST(AlgoSearch, extrema) {
   EXPECT_EQ(Algorithm::Search::max(source), Count(2));
 }
 
+VALIDATION_TEST(AlgoSearch, values) {
+  const U32 values[] = {4, 2, 7, 2};
+  const View::Vector<U32> source(values);
+  EXPECT_EQ(Algorithm::Search::match(source, U32(7)), Count(2));
+  EXPECT_EQ(Algorithm::Search::match(source, U32(9)), Count(-1));
+}
+
+VALIDATION_TEST(AlgoSearch, predicate) {
+  const U32 values[] = {4, 2, 7, 8};
+  const View::Vector<U32> source(values);
+  EXPECT_EQ(
+      Algorithm::Search::match(
+          source, [](U32 value) { return value % 2 != 0; }),
+      Count(2));
+  EXPECT_EQ(
+      Algorithm::Search::match(source, [](U32 value) { return value > 16; }),
+      Count(-1));
+}
+
 VALIDATION_TEST(AlgoSearch, match) {
   constexpr auto test_word = "world"_view;
   EXPECT_EQ(

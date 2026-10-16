@@ -42,9 +42,12 @@ struct Range {
         []() { return False; });
   }
 
-  // Adds an index when the resulting exclusive end remains representable.
-  // False leaves the interval unchanged.
-  constexpr auto extend(Count index) -> Bool {
+  // Expands the interval to include `index` while preserving every index it
+  // already contains. An empty interval begins at `index`. `Count(-1)` cannot
+  // be included because its exclusive end is not representable. False leaves
+  // both bounds unchanged when the current interval or requested index is
+  // invalid.
+  constexpr auto include(Count index) -> Bool {
     return get_end().visit(
         [&](Count end) {
           if (index == Count(-1)) {

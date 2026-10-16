@@ -22,8 +22,9 @@ namespace Perimortem::Core::Reader {
 // return zero initialized values without advancing the cursor.
 class Serial {
  public:
-  // Stores a single read from a Serial stream.
-  // Useful for schemaless data where the next value could be any type.
+  // Value stores either one decoded integer or a View into the Serial source.
+  // Blob bytes are not copied, so the caller keeps the source alive while using
+  // the returned View. `is_blob` distinguishes an empty blob from integer zero.
   class Value {
    public:
     constexpr Value() : type_info(0), value(0) {}
@@ -77,16 +78,19 @@ class Serial {
   constexpr auto set_location(Count location) -> void { cursor = location; }
   constexpr auto get_location() const -> Count { return cursor; }
 
-  // Reads the next value in the stream if available.
+  // Decodes the next integer or blob and advances past its complete encoding.
+  // Malformed or truncated input invalidates the reader and returns the default
+  // Value. That value reports an empty blob and converts to integer zero.
   EXPORTED(PERIMORTEM) auto read() -> Value;
 
-  // Reads the next value in the stream and explicitly parses it as a signed
-  // value. If the value is actually a blob then 0 is returned.
+  // Decodes the next field and returns its integer value. A blob still advances
+  // the cursor but returns zero. Decode failure also returns zero and
+  // invalidates the reader.
   EXPORTED(PERIMORTEM) auto read_value() -> S64;
 
-  // Reads the next value in the stream and explicitly parses it as a signed
-  // value. If the value is actually a regular value than an empty view is
-  // returned.
+  // Decodes the next field and returns a View into its blob bytes. An integer
+  // still advances the cursor but returns an empty View. Decode failure also
+  // returns an empty View and invalidates the reader.
   EXPORTED(PERIMORTEM) auto read_blob() -> View::Bytes;
 
   constexpr auto get_size() const -> Count { return source.get_size(); }

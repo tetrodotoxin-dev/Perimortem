@@ -32,7 +32,9 @@ auto BitStream::Reader::fill() -> void {
     return;
   }
 
-  // Slow path: near stream end we need to load byte by byte.
+  // Fewer than eight source bytes remain, so a packed U64 read would cross the
+  // source View boundary. Individual byte loads fill the remaining buffer
+  // without reading outside the supplied storage.
   while (buffered_bits <= 56 && byte_position < size) {
     buffer |= U64(source_pointer[byte_position++]) << buffered_bits;
     buffered_bits += 8;
@@ -73,11 +75,12 @@ auto BitStream::Reader::read_code(Count count) -> U32 {
 }
 
 auto BitStream::Reader::read_raw_bytes(Count count) -> View::Bytes {
-  // Align to byte boundary: discard fractional bits in the current byte.
+  // Raw blocks begin at the next byte boundary. Fractional buffered bits are
+  // discarded. Complete buffered bytes were prefetched from the source, so
+  // moving `byte_position` backward makes them part of the returned View.
   const Count fractional_bits = buffered_bits & 7;
   advance_bits(fractional_bits);
 
-  // Rewind any whole bytes preloaded into buffer but not yet used.
   const Count buffered_bytes = buffered_bits >> 3;
   if (buffered_bytes > byte_position) [[unlikely]] {
     invalid_stream = True;

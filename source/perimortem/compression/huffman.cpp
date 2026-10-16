@@ -78,6 +78,7 @@ auto Huffman::compute_lengths(
     nodes[new_node] = {
       nodes[left_child].frequency + nodes[right_child].frequency, null_node,
       null_node};
+
     nodes[left_child].parent = U16(new_node);
     nodes[right_child].parent = U16(new_node);
   }

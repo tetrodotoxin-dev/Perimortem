@@ -93,6 +93,7 @@ VALIDATION_TEST(CoreSerialReader, large_blob) {
 
     return (i - 3);
   });
+
   Reader::Serial reader(source);
 
   EXPECT_HEX(reader.read_blob(), expected.get_view());
@@ -265,6 +266,7 @@ VALIDATION_TEST(CoreSerialWriter, large_blob) {
 
     return (i - 3);
   });
+
   Static::Bytes<expected.get_size()> buffer;
   Writer::Serial writer(buffer);
 

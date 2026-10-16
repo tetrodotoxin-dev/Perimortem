@@ -24,8 +24,4 @@ class Point {
   constexpr auto operator[](Count axis) -> type& { return coordinates[axis]; }
 };
 
-static_assert(sizeof(Point<S32, 2>) == sizeof(S32) * 2);
-static_assert(__is_standard_layout(Point<S32, 2>));
-static_assert(__is_aggregate(Point<S32, 2>));
-
 }  // namespace Perimortem::Math

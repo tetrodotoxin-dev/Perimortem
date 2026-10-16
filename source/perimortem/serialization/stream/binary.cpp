@@ -116,7 +116,7 @@ auto Stream::Binary<stream_endian, storage_type>::operator<<(View::Bytes blob)
 template <Data::ByteOrder stream_endian, typename storage_type>
 auto Stream::Binary<stream_endian, storage_type>::operator<<(
     View::Vector<U8> blob) -> Binary& {
-  storage.concat(blob.get_bytes());
+  storage.concat(View::Bytes(blob.get_data(), blob.get_size()));
   return *this;
 }
 

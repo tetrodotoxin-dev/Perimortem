@@ -164,7 +164,8 @@ VALIDATION_TEST(DiagnosticsLog, suppress_messages) {
   Diagnostics::Log::info("should be suppressed"_view);
   EXPECT_EQ(total_events, events_before);
 
-  // Surpressed message shouldn't override the older message.
+  // Filtering the Info record prevents the sink from observing it, leaving the
+  // preceding Error as the last captured record.
   EXPECT(contains(last_entry(), "should pass through"_view));
   EXPECT(has_valid_header(last_entry()));
 }

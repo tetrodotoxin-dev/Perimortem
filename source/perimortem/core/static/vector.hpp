@@ -8,7 +8,14 @@
 
 namespace Perimortem::Core::Static {
 
-// Typically used for small value type arrays.
+// Vector stores exactly `literal_size` values inline. Its size and capacity
+// never change, so views and writable access keep the same address for the
+// Vector lifetime. Vector requests no allocation for the array. Construction
+// and copying retain each value type's own behavior.
+//
+// Constructors can populate the complete array during constant evaluation.
+// Default construction value initializes every slot. Aggregate construction
+// can initialize values without requiring default construction or assignment.
 template <typename type, Count literal_size>
 class Vector {
  private:
@@ -35,7 +42,10 @@ class Vector {
   // requiring elements to support default construction or assignment.
   constexpr Vector(const Storage& source) : storage(source) {}
 
-  // Allows for generating data that would be a pain to manually write out.
+  // Builds constexpr lookup tables from an index function. Storage is default
+  // constructed, then `generator` supplies one assigned value for each index in
+  // ascending order. Unlike aggregate construction, this requires `type` to
+  // support default construction and assignment.
   constexpr Vector(type (*generator)(Count)) {
     for (Count i = 0; i < literal_size; i++) {
       storage.source_block[i] = generator(i);
@@ -80,6 +90,7 @@ class Vector {
   constexpr auto get_data() const -> const type* {
     return storage.source_block;
   }
+
   constexpr auto get_data() -> type* { return storage.source_block; }
   constexpr auto get_access() -> Core::Access::Vector<type> {
     return Core::Access::Vector<type>(storage.source_block, literal_size);

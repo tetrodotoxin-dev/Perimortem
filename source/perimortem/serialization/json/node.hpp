@@ -109,6 +109,7 @@ class Node {
       R64 real;
       Bool flag;
     };
+
     U32 size;
     U32 state;
   } data;

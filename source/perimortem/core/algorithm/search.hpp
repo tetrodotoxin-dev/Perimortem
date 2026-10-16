@@ -25,6 +25,40 @@ class Search {
   // AVX2 compares one register of candidates at a time when available.
   static EXPORTED(PERIMORTEM) auto match(View::Bytes source, U8 value) -> Count;
 
+  // Returns the first index containing `value` or the terminal Count value when
+  // the source contains no equal value.
+  template <typename value_type>
+  static constexpr auto match(
+      View::Vector<value_type> source,
+      const value_type& value) -> Count {
+    const auto* data = source.get_data();
+    for (Count index = 0; index < source.get_size(); index++) {
+      if (data[index] == value) {
+        return index;
+      }
+    }
+
+    return Count(-1);
+  }
+
+  // Evaluates values in index order and returns the first index accepted by
+  // `predicate`. Evaluation stops at that value. Rejecting every value returns
+  // the terminal Count value.
+  template <typename value_type, typename predicate_type>
+  static constexpr auto match(
+      View::Vector<value_type> source,
+      predicate_type predicate)
+      -> decltype(Bool(predicate(*Data::restore<const value_type*>(0))), Count()) {
+    const auto* data = source.get_data();
+    for (Count index = 0; index < source.get_size(); index++) {
+      if (predicate(data[index])) {
+        return index;
+      }
+    }
+
+    return Count(-1);
+  }
+
   // Returns the first index containing the minimum value. Strict comparison
   // preserves the earliest index when values tie. An empty source returns zero.
   template <typename element_type>

@@ -1,8 +1,9 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-// This should only be included in cpp files. Including it in a header would
-// pull source location machinery into every translation unit that includes it.
+// Include Log directly from implementation files. Including it through another
+// header propagates diagnostics source, formatting and message buffer
+// dependencies to every translation unit that consumes that header.
 
 #pragma once
 
@@ -170,7 +171,8 @@ class Log {
   static EXPORTED(PERIMORTEM) auto set_attribution(
       const Source& location = Source::current()) -> Attribution;
 
-  // Default sink to use.
+  // Names the file sink installed for each thread so a caller that temporarily
+  // replaces its sink can restore the default routing.
   static constexpr Sink default_sink = file_sink;
 
   // Logging calls are thread safe

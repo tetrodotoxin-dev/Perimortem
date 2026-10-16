@@ -5,6 +5,7 @@
 
 #include "toolchain/memory/lifetime.hpp"
 
+#include "perimortem/core/access/bytes.h"
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/view/bytes.h"

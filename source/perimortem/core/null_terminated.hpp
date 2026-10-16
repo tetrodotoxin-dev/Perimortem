@@ -54,7 +54,8 @@ class NullTerminated {
 
 }  // namespace Perimortem::Core
 
-// Converts C++ string literals into valid Perimortem byte strings.
+// Produces a compile time View containing every authored literal byte except
+// C++'s implicit final terminator. Authored null bytes remain in the View.
 template <Perimortem::Core::NullTerminated::Literal c_string>
 consteval const Perimortem::Core::View::Bytes operator""_view() {
   return c_string.get_view();

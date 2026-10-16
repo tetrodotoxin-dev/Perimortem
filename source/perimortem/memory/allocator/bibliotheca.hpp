@@ -68,6 +68,11 @@ class Bibliotheca {
   // list miss.
   static EXPORTED(PERIMORTEM) auto allocation_requests() -> Count;
 
+  // Counts inventory ordering passes for the current thread. A pass occurs
+  // when the active slab cannot satisfy a block request and at least one older
+  // slab remains to reconsider before mapping another slab.
+  static EXPORTED(PERIMORTEM) auto demote_requests() -> Count;
+
   // Counts backing slabs obtained for the current thread, including its
   // initial Librarian slab and later inventory growth.
   static EXPORTED(PERIMORTEM) auto slab_requests() -> Count;

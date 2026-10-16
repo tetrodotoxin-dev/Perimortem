@@ -3,29 +3,22 @@
 
 #pragma once
 
-#include "perimortem/core/access/bytes.h"
 #include "perimortem/core/option.hpp"
 #include "perimortem/core/scalar.hpp"
 #include "perimortem/core/view/vector.hpp"
 
 namespace Perimortem::Core::Access {
 
-// Vector provides read and write Access to contiguous values with possible
-// endianness and structure. Indexed access selects the nearest endpoint when
-// the index lies outside nonempty storage. Empty storage returns None, and
-// get_data leaves bounds to the caller. The Access remains valid while the
-// caller keeps every value alive at the same address.
-//
-// Vector data can be converted to Bytes data in order to interperet it
-// at a byte level, however this is only valid in memory. To write and read
-// binary data as vector data it should be serialized using
-// `Perimortem::Serialization::Binary`.
+// Vector borrows caller supplied contiguous values for typed mutation and
+// slicing without allocating or changing their lifetimes. Indexing returns
+// None outside the published size. `get_data()` exposes the raw address for
+// callers that prove their own bounds. Binary serialization remains explicit
+// because the values retain their native in memory representation.
 template <typename type>
 class Vector {
  public:
   using data_type = type;
 
-  // Default to empty string.
   constexpr Vector() = default;
   constexpr Vector(const Vector&) = default;
 
@@ -35,41 +28,12 @@ class Vector {
   template <Count N>
   constexpr Vector(data_type (&source)[N]) : source_block(source), size(N) {}
 
-  constexpr auto at(Count index) -> Core::Option<data_type&> {
-    if (is_empty()) [[unlikely]] {
-      return {};
-    }
-
-    return source_block[index < size ? index : size - 1];
-  }
-
-  template <typename index_type>
-    requires(
-        __is_integral(index_type) && __is_signed(index_type) &&
-        sizeof(index_type) <= sizeof(S64))
-  constexpr auto at(index_type index) -> Core::Option<data_type&> {
-    if (is_empty()) [[unlikely]] {
-      return {};
-    }
-
-    if (index < 0) {
-      return source_block[0];
-    }
-
-    Count coordinate = index;
-    return at(coordinate);
-  }
-
   constexpr auto operator[](Count index) -> Core::Option<data_type&> {
-    return at(index);
-  }
+    if (is_empty() || index >= get_size()) [[unlikely]] {
+      return {};
+    }
 
-  template <typename index_type>
-    requires(
-        __is_integral(index_type) && __is_signed(index_type) &&
-        sizeof(index_type) <= sizeof(S64))
-  constexpr auto operator[](index_type index) -> Core::Option<data_type&> {
-    return at(index);
+    return source_block[index];
   }
 
   constexpr auto slice(Count start, Count size = Count(-1)) const
@@ -85,10 +49,6 @@ class Vector {
   constexpr auto is_empty() const -> Bool { return size == 0; };
   constexpr auto get_size() const -> Count { return size; };
   constexpr auto get_data() -> data_type* { return source_block; };
-  constexpr auto get_bytes() const -> Access::Bytes {
-    return Access::Bytes((U8*)source_block, get_size() * sizeof(data_type));
-  }
-
   constexpr auto get_view() const -> const View::Vector<data_type> {
     return View::Vector(source_block, get_size());
   }

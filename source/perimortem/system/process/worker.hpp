@@ -45,7 +45,6 @@ class Worker {
   static EXPORTED(PERIMORTEM) auto get_thread_id() -> Count;
   static EXPORTED(PERIMORTEM) auto get_thread_name() -> Core::View::Bytes;
 
-  // Returns the number of currently occupied worker slots.
   static EXPORTED(PERIMORTEM) auto get_worker_count() -> Count;
 
   static constexpr auto max_workers() -> Count { return 64; };

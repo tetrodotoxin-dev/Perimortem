@@ -7,8 +7,9 @@
 
 namespace Perimortem::Compression::BitStream {
 
-// A bit writer for DEFLATE packed streams which dynamically manages a buffer
-// compared to the `Access::Bytes` model used by `Core::Writer`.
+// Writer appends a DEFLATE packed stream to caller supplied Thread Bytes. The
+// output can grow during encoding, unlike the fixed Access range consumed by
+// Core Writer.
 //
 // Each byte is filled starting from its least significant bit, and Huffman
 // codes are written from the most significant bit to match canonical decode
@@ -26,7 +27,6 @@ class Writer {
   // Write `length` bits of `value` least significant bit first (extra bits,
   // block headers).
   auto write_bits(U32 value, Count length) -> void;
-  // Write a pre reversed Huffman code returned by `Huffman::encode_symbol`.
   auto write_code(U32 code, Count length) -> void;
   auto flush() -> void;
 

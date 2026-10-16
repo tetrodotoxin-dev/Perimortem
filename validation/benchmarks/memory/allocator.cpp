@@ -51,12 +51,12 @@ CYCLE_BENCH(64)
 CYCLE_BENCH(1024)
 CYCLE_BENCH(65536)
 
-template <Count frame_alloc_count, Count size_minimum, Count size_range>
+template <Count frame_alloc_count, Count size_minimum, Count size_mask>
 static auto frame_stability() -> void {
   Static::Vector<U8*, frame_alloc_count> ptrs;
   for (Count i = 0; i < frame_alloc_count; i++) {
     auto alloc = Allocator::Bibliotheca::check_out(
-        (Random::generate() & size_range) + size_minimum);
+        (Random::generate() & size_mask) + size_minimum);
     ptrs[i] = alloc.get_data();
   }
 
@@ -77,26 +77,27 @@ STABILITY_BENCH(small, 1024, 64, 0xFF);
 STABILITY_BENCH(small, 65536, 64, 0xFF);
 STABILITY_BENCH(varied, 1024, 64, 0xFFFF);
 
+// Keeps one fixed allocation window live while each iteration replaces its
+// oldest block. This measures reuse under steady allocator churn instead of a
+// frame that obtains every block before returning any of them.
 template <
     Count frame_alloc_count,
     Count window_count,
     Count size_minimum,
-    Count size_range>
+    Count size_mask>
 static auto frame_stability_interleaved() -> void {
   constexpr Count window = frame_alloc_count / window_count;
   Static::Vector<U8*, frame_alloc_count> ptrs;
 
-  // Initial allocation.
   for (Count i = 0; i < window; i++) {
     ptrs[i] = Allocator::Bibliotheca::check_out(
-                  (Random::generate() & size_range) + size_minimum)
+                  (Random::generate() & size_mask) + size_minimum)
                   .get_data();
   }
 
-  // Rolling exchange.
   for (Count i = window; i < frame_alloc_count; i++) {
     ptrs[i] = Allocator::Bibliotheca::check_out(
-                  (Random::generate() & size_range) + size_minimum)
+                  (Random::generate() & size_mask) + size_minimum)
                   .get_data();
     Allocator::Bibliotheca::remit(ptrs[i - window]);
   }

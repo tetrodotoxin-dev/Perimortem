@@ -100,7 +100,6 @@ auto Writer::Serial::operator<<(const U64 value) -> Writer::Serial& {
 }
 
 auto Writer::Serial::operator<<(const View::Bytes blob) -> Writer::Serial& {
-  // Write type information
   valid_state &= write_blob(source, cursor, blob);
   return *this;
 }

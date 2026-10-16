@@ -10,6 +10,21 @@
 using namespace Perimortem::Core;
 using namespace Toolchain::Validation;
 
+// The public C records remain plain values that C++ can copy without invoking
+// language specific lifetime behavior.
+static_assert(__is_standard_layout(perimortem_view_bytes));
+static_assert(__is_trivially_copyable(perimortem_view_bytes));
+static_assert(__is_trivial(perimortem_view_bytes));
+static_assert(__is_aggregate(perimortem_view_bytes));
+static_assert(__is_standard_layout(perimortem_access_bytes));
+static_assert(__is_trivially_copyable(perimortem_access_bytes));
+static_assert(__is_trivial(perimortem_access_bytes));
+static_assert(__is_aggregate(perimortem_access_bytes));
+static_assert(__is_standard_layout(perimortem_uuid));
+static_assert(__is_trivially_copyable(perimortem_uuid));
+static_assert(__is_trivial(perimortem_uuid));
+static_assert(__is_aggregate(perimortem_uuid));
+
 static_assert(sizeof(View::Bytes) == sizeof(perimortem_view_bytes));
 static_assert(alignof(View::Bytes) == alignof(perimortem_view_bytes));
 static_assert(sizeof(Access::Bytes) == sizeof(perimortem_access_bytes));
@@ -22,11 +37,13 @@ static_assert([] {
   Uuid uuid;
   return view.is_empty() && access.is_empty() && !uuid.is_set();
 }());
+
 static_assert([] {
   U8 data[] = {1, 2, 3};
   View::Bytes view{data, 3};
   return view.get_size() == 3 && view[1] == 2;
 }());
+
 static_assert([] {
   U8 data[] = {1, 2, 3};
   Access::Bytes access{data, 3};
@@ -38,6 +55,7 @@ static_assert([] {
   selected.visit([](U8& value) { value = 4; }, []() {});
   return data[1] == 4;
 }());
+
 static_assert(
     Uuid::deserialize("0123456789abcdeffedcba9876543210"_bytes)
         .get_value()

@@ -100,17 +100,15 @@ class Bytes {
   perimortem_view_bytes value{};
 };
 
+// C and C++ exchange the same pointer and size record by value. Bytes adds
+// methods without adding state. Equal size and alignment preserve the object
+// boundary, while standard layout and trivial copying avoid C++ lifetime work.
 static_assert(sizeof(Bytes) == sizeof(perimortem_view_bytes));
 static_assert(alignof(Bytes) == alignof(perimortem_view_bytes));
 static_assert(__is_standard_layout(Bytes));
 static_assert(__is_trivially_copyable(Bytes));
 
 }  // namespace Perimortem::Core::View
-
-static_assert(__is_standard_layout(perimortem_view_bytes));
-static_assert(__is_trivially_copyable(perimortem_view_bytes));
-static_assert(__is_trivial(perimortem_view_bytes));
-static_assert(__is_aggregate(perimortem_view_bytes));
 
 #endif
 

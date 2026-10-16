@@ -21,14 +21,14 @@ typedef struct perimortem_access_bytes {
 
 namespace Perimortem::Core::Access {
 
-// Bytes provides read and write Access to byte storage with no endianness.
-// Indexed access selects the nearest endpoint when the index lies outside
-// nonempty storage. Empty storage has no endpoint, so indexed access returns
-// None. get_data exposes raw storage for callers that can prove their bounds.
+// Bytes borrows caller supplied byte storage for mutation and slicing without
+// allocating or changing its lifetime. Indexing returns None outside the
+// published size. `get_data()` exposes the raw address for callers that prove
+// their own bounds.
 //
 // Access uses perimortem_access_bytes as its ABI type. It carries the same
 // pointer, size and storage lifetime as the C record. The C++ layer adds safe
-// empty construction, saturated indexing and View conversion while storing
+// empty construction, bounds checked indexing and View conversion while storing
 // that record directly.
 class Bytes {
  public:
@@ -50,45 +50,17 @@ class Bytes {
   constexpr operator perimortem_access_bytes() const { return value; }
   constexpr operator View::Bytes() const { return get_view(); }
 
-  constexpr auto at(Count index) -> Core::Option<U8&> {
-    if (is_empty()) [[unlikely]] {
-      return {};
-    }
-
-    return value.data[index < value.size ? index : value.size - 1];
-  }
-
-  template <typename index_type>
-    requires(
-        __is_integral(index_type) && __is_signed(index_type) &&
-        sizeof(index_type) <= sizeof(S64))
-  constexpr auto at(index_type index) -> Core::Option<U8&> {
-    if (is_empty()) [[unlikely]] {
-      return {};
-    }
-
-    if (index < 0) {
-      return value.data[0];
-    }
-
-    return at(Count(index));
-  }
-
   constexpr auto operator[](Count index) -> Core::Option<U8&> {
-    return at(index);
-  }
+    if (is_empty() || index >= get_size()) [[unlikely]] {
+      return {};
+    }
 
-  template <typename index_type>
-    requires(
-        __is_integral(index_type) && __is_signed(index_type) &&
-        sizeof(index_type) <= sizeof(S64))
-  constexpr auto operator[](index_type index) -> Core::Option<U8&> {
-    return at(index);
+    return value.data[index];
   }
 
   constexpr auto slice(Count start, Count requested_size = Count(-1)) const
       -> Bytes {
-    if (start >= value.size) {
+    if (start >= value.size) [[unlikely]] {
       return Bytes();
     }
 
@@ -110,17 +82,15 @@ class Bytes {
   perimortem_access_bytes value{};
 };
 
+// C and C++ exchange the same pointer and size record by value. Bytes adds
+// methods without adding state. Equal size and alignment preserve the object
+// boundary, while standard layout and trivial copying avoid C++ lifetime work.
 static_assert(sizeof(Bytes) == sizeof(perimortem_access_bytes));
 static_assert(alignof(Bytes) == alignof(perimortem_access_bytes));
 static_assert(__is_standard_layout(Bytes));
 static_assert(__is_trivially_copyable(Bytes));
 
 }  // namespace Perimortem::Core::Access
-
-static_assert(__is_standard_layout(perimortem_access_bytes));
-static_assert(__is_trivially_copyable(perimortem_access_bytes));
-static_assert(__is_trivial(perimortem_access_bytes));
-static_assert(__is_aggregate(perimortem_access_bytes));
 
 #endif
 

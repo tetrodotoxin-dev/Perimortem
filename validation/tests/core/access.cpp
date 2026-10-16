@@ -11,17 +11,16 @@ using namespace Toolchain::Validation;
 
 static Harness CoreAccess = {.name = "Core::Access"};
 
-VALIDATION_TEST(CoreAccess, saturates_vector) {
+VALIDATION_TEST(CoreAccess, bounds_vector) {
   S32 values[3] = {1, 2, 3};
   Access::Vector<S32> access(values);
-  auto selected = access[99];
+  auto selected = access[2];
   ASSERT(selected);
   selected.visit([](S32& value) { value = 4; }, []() {});
   EXPECT_EQ(values[2], 4);
 
-  auto first = access[-1];
-  ASSERT(first);
-  first.visit([&](S32 value) { EXPECT_EQ(value, 1); }, []() {});
+  EXPECT_NOT(access[3]);
+  EXPECT_NOT(access[Count(-1)]);
 
   Access::Vector<S32> empty;
   EXPECT_NOT(empty[0]);
@@ -31,17 +30,16 @@ VALIDATION_TEST(CoreAccess, saturates_vector) {
   EXPECT_NOT(invalid[0]);
 }
 
-VALIDATION_TEST(CoreAccess, saturates_bytes) {
+VALIDATION_TEST(CoreAccess, bounds_bytes) {
   U8 values[3] = {1, 2, 3};
   Access::Bytes access{values, 3};
-  auto selected = access[99];
+  auto selected = access[2];
   ASSERT(selected);
   selected.visit([](U8& value) { value = 4; }, []() {});
   EXPECT_EQ(values[2], 4);
 
-  auto first = access[-1];
-  ASSERT(first);
-  first.visit([&](U8 value) { EXPECT_EQ(value, 1); }, []() {});
+  EXPECT_NOT(access[3]);
+  EXPECT_NOT(access[Count(-1)]);
 
   Access::Bytes empty{};
   EXPECT_NOT(empty[0]);

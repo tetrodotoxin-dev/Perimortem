@@ -110,6 +110,4 @@ class Version {
   U16 minor = 0;
 };
 
-static_assert(sizeof(Version) == 4);
-
 }  // namespace Perimortem::Utility

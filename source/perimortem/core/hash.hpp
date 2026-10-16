@@ -126,13 +126,13 @@ class Hash {
       }
     }
 
-    // Since we've already dealt with small payloads we can handle the remaining
-    // bytes with three possible cases:
+    // The bulk loop leaves `data` at the next 16 byte boundary. Complete U64
+    // copies handle every remaining size without reading beyond the source.
+    // Tails longer than eight bytes load their final word before falling
+    // through to load the leading word. Shorter tails read backward into the
+    // processed block, then discard those repeated bytes.
     Count left_over = bytes.get_size() & (sizeof(U64) * block_stride - 1);
     switch (left_over) {
-    // Tails longer than eight bytes load their final word first. Shifting
-    // removes bytes belonging to the leading word before control falls through
-    // to consume that word.
     case 15:
     case 14:
     case 13:
@@ -140,11 +140,9 @@ class Hash {
     case 11:
     case 10:
     case 9: {
-      // Under read the buffer so we ensure we don't read outside of bounds.
       U64 remainder_tail[1];
       memcpy_64(remainder_tail, data + left_over - sizeof(U64));
 
-      // Shift out the extra bites
       remainder_tail[0] >>= (sizeof(U64) * 2 - left_over) * 8;
 
       result[1] ^= remainder_tail[0] + const_values[1];
@@ -153,7 +151,6 @@ class Hash {
       [[fallthrough]];
     }
 
-    // Case 2: We have exactly 8 bytes left so read them in a single read.
     case 8: {
       U64 remainder[1];
       memcpy_64(remainder, data);
@@ -163,7 +160,6 @@ class Hash {
       break;
     }
 
-    // Case 4: The buffer was an exact multiple of 16 bytes.
     case 7:
     case 6:
     case 5:
@@ -171,12 +167,9 @@ class Hash {
     case 3:
     case 2:
     case 1: {
-      // The bulk loop leaves `data` at its next block boundary. Reading back
-      // from that point keeps the final partial word inside the source.
       U64 remainder[1];
       memcpy_64(remainder, data + left_over - sizeof(U64));
 
-      // Shift out the extra bites
       remainder[0] >>= (sizeof(U64) - left_over) * 8;
 
       result[0] ^= remainder[0] + const_values[3];
@@ -184,7 +177,6 @@ class Hash {
       break;
     }
 
-    // Case 4: The buffer was an exact multiple of 16 bytes.
     case 0:
       break;
     }

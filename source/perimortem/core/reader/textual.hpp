@@ -29,6 +29,7 @@ class Textual {
   constexpr auto set_location(Count location) -> void {
     cursor = location <= source.get_size() ? location : Count(-1);
   }
+
   constexpr auto get_location() const -> Count { return cursor; }
 
   EXPORTED(PERIMORTEM) auto read_byte() -> U8;

@@ -92,6 +92,4 @@ class Blueprint {
   Value value;
 };
 
-static_assert(sizeof(Blueprint) == 40);
-
 }  // namespace Perimortem::Serialization::Json

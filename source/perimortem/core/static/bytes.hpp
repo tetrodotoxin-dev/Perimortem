@@ -54,8 +54,8 @@ class Bytes {
     }
   }
 
-  // Calls `generator` once for each index to build tables during constant
-  // evaluation.
+  // Builds byte tables from an index function. `generator` supplies one byte
+  // for each index in ascending order and can run during constant evaluation.
   constexpr Bytes(U8 (*generator)(Count)) {
     for (Count i = 0; i < literal_size; i++) {
       storage.source_block[i] = generator(i);

@@ -112,6 +112,7 @@ class Huffman {
         return 8;
       }
     });
+
     return Huffman(code_lengths.get_view());
   }
 
