@@ -25,8 +25,10 @@ class Args {
   using Values = Memory::Managed::
       Map<Core::View::Bytes, Memory::Managed::Vector<Core::View::Bytes>*>;
 
-  // Takes a map of named variable keys and help text as values.
-  // A key of "" (empty view) is used if the tool wants to support positionals.
+  // Groups authored values by a key declared in `config` while preserving their
+  // order. Parsing skips the executable name. The empty key collects positional
+  // values and `help` is always recognized. An unrecognized name logs an error
+  // and returns an empty Values map.
   static EXPORTED(PERIMORTEM) auto parse(
       Memory::Allocator::Arena& arena,
       const Memory::Managed::Map<Core::View::Bytes, Core::View::Bytes>& config,

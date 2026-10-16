@@ -13,7 +13,7 @@ namespace Perimortem::Compression {
 // window and caller supplied depth, preserving enough history for either
 // immediate emission or speculative look ahead.
 //
-// Fixed hash and chain tables avoid `Dynamic::Map` bookkeeping in the Deflate
+// Fixed hash and chain tables avoid `Thread::Map` bookkeeping in the Deflate
 // hot path, where the general map produced lower measured throughput.
 class Lz77 {
  public:

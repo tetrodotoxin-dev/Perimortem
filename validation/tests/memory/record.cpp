@@ -6,7 +6,7 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/memory/dynamic/map.hpp"
+#include "perimortem/memory/thread/map.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -157,9 +157,9 @@ VALIDATION_TEST(DynamicRecord, move_construction) {
   EXPECT_EQ(destructor_count, Count(1));
 }
 
-VALIDATION_TEST(DynamicRecord, map_owner) {
+VALIDATION_TEST(DynamicRecord, map_retains_record) {
   Count destructor_count = 0;
-  Dynamic::Map<Count, Dynamic::Record<RaiiProbe>> values;
+  Thread::Map<Count, Dynamic::Record<RaiiProbe>> values;
 
   {
     Dynamic::Record<RaiiProbe> probe(RaiiProbeFactory(destructor_count, 7));
@@ -178,7 +178,7 @@ VALIDATION_TEST(DynamicRecord, map_owner) {
 
 VALIDATION_TEST(DynamicRecord, map_rehash) {
   Count destructor_count = 0;
-  Dynamic::Map<Count, Dynamic::Record<RaiiProbe>> values;
+  Thread::Map<Count, Dynamic::Record<RaiiProbe>> values;
   for (Count i = 0; i < 16; i++) {
     Dynamic::Record<RaiiProbe> probe(RaiiProbeFactory(destructor_count, i));
     values.insert(i, probe);

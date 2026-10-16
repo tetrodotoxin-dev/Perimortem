@@ -3,287 +3,184 @@
 
 #pragma once
 
+#include "toolchain/memory/lifetime.hpp"
+
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/hash.hpp"
-#include "perimortem/core/option.hpp"
+#include "perimortem/memory/allocation.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/utility/pair.hpp"
+#include "perimortem/memory/container/map.hpp"
 
 namespace Perimortem::Memory::Managed {
 
-// Arena backed scalar map for structured views that share one lifetime.
+// Managed Map stores control hashes, keys and values under one Arena lifetime.
+// Rehashing constructs a current table while former keys and values remain at
+// their previous addresses until the Arena resets. A pointer to a former key or
+// value continues to designate the key or value left by that copy or move and
+// does not follow later Map writes.
 //
-// Like the other managed structures only insert is supported since all produced
-// data by `Managed` types are meant to be stable.
+// Arena reset reclaims the table allocations together. Clearing, removal,
+// replacement and destruction therefore invoke no key or value destructors.
+// Key and value types cannot depend on individual destructors to release
+// separate allocations, handles or Bibliotheca blocks. Every address they
+// retain remains valid only under the same Arena.
 //
-// Algorithm and storage is a trimmed down version of the more general Scalar
-// version of `Dynamic::Map`.
+// The current table is allocated from the recorded Arena. Copy construction
+// creates an independent table in the source Arena. Assignment retains the
+// destination Arena and copies the current key value pairs into its storage.
+// Move construction adopts the source Arena and table, leaving the source
+// empty.
 template <typename key_type, typename value_type>
-class Map {
+class Map final
+    : public Container::Map<Map<key_type, value_type>, key_type, value_type> {
+  using Base = Container::Map<Map<key_type, value_type>, key_type, value_type>;
+  friend Base;
+
  public:
-  using Entry = Utility::Pair<key_type, value_type>;
+  Map() = delete;
+  // An Arena selects the allocation and key and value lifetime policy rather
+  // than supplying key value pairs. Explicit construction prevents an Arena
+  // argument from implicitly creating an empty Map.
+  constexpr explicit Map(Allocator::Arena& selected_arena)
+      : arena(selected_arena) {}
 
-  constexpr Map(Allocator::Arena& arena) : arena(arena) {}
-
-  // A copy keeps the same allocation lifetime but has its own table. Sharing
-  // buckets while copying size would let clearing one map invalidate the
-  // other's entries without updating its bookkeeping.
-  Map(const Map& rhs) : arena(rhs.arena) {
-    if (rhs.is_empty()) {
-      return;
-    }
-
-    ensure_capacity(rhs.get_size());
-    for (Count i = 0; i < rhs.buffer.bucket_count; i++) {
-      if (rhs.buffer.bucket_buffer[i]) {
-        const auto& slot = rhs.buffer.slots_buffer[i];
-        emplace_hashed(slot.hash, slot.entry.key, slot.entry.value);
-      }
-    }
+  Map(Allocator::Arena& selected_arena, Count reserved_capacity)
+      : arena(selected_arena) {
+    Base::ensure_capacity(reserved_capacity);
   }
 
-  auto ensure_capacity(Count items) -> void {
-    if (buffer.bucket_buffer && items * 10 <= buffer.bucket_count * 9) {
-      return;
-    }
-
-    Count bucket_count = buffer.bucket_count == 0 ? 2 : buffer.bucket_count * 2;
-    while (items * 10 > bucket_count * 9) {
-      bucket_count *= 2;
-    }
-
-    rehash(bucket_count);
+  Map(Allocator::Arena& selected_arena, const Map& source)
+    requires(
+        __is_constructible(key_type, const key_type&) &&
+        __is_constructible(value_type, const value_type&))
+      : arena(selected_arena) {
+    Base::copy_from(source);
   }
 
-  auto clear() -> void {
-    for (Count i = 0; i < buffer.bucket_count; i++) {
-      buffer.bucket_buffer[i] = 0;
-    }
-
-    buffer.size = 0;
+  Map(const Map& rhs)
+    requires(
+        __is_constructible(key_type, const key_type&) &&
+        __is_constructible(value_type, const value_type&))
+      : arena(rhs.arena) {
+    Base::copy_from(rhs);
   }
 
-  auto insert(const Entry& item) -> Entry* {
-    return insert(item.key, item.value);
+  constexpr Map(Map&& rhs) : arena(rhs.arena) {
+    Base::take(Core::Data::take(rhs));
   }
 
-  auto insert(const key_type& key, const value_type& value) -> Entry* {
-    auto* slot = find_slot(key);
-    if (slot != nullptr) {
-      slot->entry.value = value;
-      return &slot->entry;
+  constexpr ~Map() = default;
+
+  auto operator=(const Map& rhs) -> Map&
+    requires(
+        __is_constructible(key_type, const key_type&) &&
+        __is_constructible(value_type, const value_type&))
+  {
+    if (this != &rhs) {
+      Base::clear();
+      Base::copy_from(rhs);
     }
 
-    ensure_capacity(buffer.size + 1);
-    return emplace_hashed(get_hash(key), key, value);
+    return *this;
   }
 
-  template <typename found_func, typename missing_func>
-  constexpr auto
-      visit(const key_type& key, found_func found, missing_func missing) const
-      -> decltype(auto) {
-    auto element = find(key);
-    if (element) {
-      return found(*element);
-    } else {
-      return missing();
-    }
-  }
-
-  auto find(const key_type& key) -> Core::Option<value_type&> {
-    Slot* slot = find_slot(key);
-    if (slot == nullptr) {
-      return {};
-    }
-
-    return slot->entry.value;
-  }
-
-  auto find(const key_type& key) const -> Core::Option<const value_type&> {
-    const Slot* slot = find_slot(key);
-    if (slot == nullptr) {
-      return {};
-    }
-
-    return slot->entry.value;
-  }
-
-  auto contains(const key_type& key) const -> Bool { return bool(find(key)); }
-
-  auto get_entry(Count index) -> Entry* {
-    if (index >= buffer.size) {
-      return nullptr;
-    }
-
-    for (Count bucket = 0; bucket < buffer.bucket_count; bucket++) {
-      if (buffer.bucket_buffer[bucket] == 0) {
-        continue;
-      }
-
-      if (index == 0) {
-        return &buffer.slots_buffer[bucket].entry;
-      }
-
-      index--;
-    }
-
-    return nullptr;
-  }
-
-  auto get_entry(Count index) const -> const Entry* {
-    if (index >= buffer.size) {
-      return nullptr;
-    }
-
-    for (Count bucket = 0; bucket < buffer.bucket_count; bucket++) {
-      if (buffer.bucket_buffer[bucket] == 0) {
-        continue;
-      }
-
-      if (index == 0) {
-        return &buffer.slots_buffer[bucket].entry;
-      }
-
-      index--;
-    }
-
-    return nullptr;
-  }
-
-  auto at(const key_type& key) -> value_type& {
-    auto value = find(key);
-    if (value) {
-      return *value;
-    }
-
-    return insert(key, value_type())->value;
-  }
-
-  auto operator[](const key_type& key) -> value_type& { return at(key); }
-
-  auto get_size() const -> Count { return buffer.size; }
-  auto get_capacity() const -> Count { return buffer.bucket_count; }
-  auto is_empty() const -> Bool { return buffer.size == 0; }
+  constexpr auto get_arena() const -> Allocator::Arena& { return arena; }
 
  private:
-  struct Slot {
-    Entry entry;
-    U32 hash = 0;
-  };
+  auto allocate(Count requested_bytes) -> Allocation<U8> {
+    static_assert(
+        alignof(typename Base::Bucket) <= Allocator::Arena::arena_alignment);
+    auto allocation = arena.allocate(requested_bytes);
+    return Allocation<U8>(allocation.get_data(), allocation.get_size());
+  }
 
-  class Buffer {
-   public:
-    U8* bucket_buffer = nullptr;
-    Slot* slots_buffer = nullptr;
-    Count bucket_count = 0;
-    Count size = 0;
-  };
+  // A Managed key or value stored in this Map must use the Map's Arena so reset
+  // of another Arena cannot invalidate reachable data. A key or value already
+  // using this Arena can move into the table. One from another Arena is copied
+  // into this Arena. Types without an Arena contract use ordinary construction.
+  template <typename type>
+  static constexpr Bool has_arena_copy =
+      __is_constructible(type, Allocator::Arena&, const type&) &&
+      requires(const type& selected) { selected.get_arena(); };
 
-  auto find_slot(const key_type& key) -> Slot* {
-    if (buffer.size == 0) {
-      return nullptr;
-    }
-
-    U32 hash = get_hash(key);
-    Count bucket = bucket_index(hash);
-    while (true) {
-      if (buffer.bucket_buffer[bucket] == 0) {
-        return nullptr;
+  template <typename type>
+  constexpr auto materialize(type& selected) -> type {
+    if constexpr (has_arena_copy<type>) {
+      if (&selected.get_arena() != &arena) {
+        return type(arena, selected);
       }
+    }
 
-      if (buffer.slots_buffer[bucket].hash == hash &&
-          buffer.slots_buffer[bucket].entry.key == key) {
-        return buffer.slots_buffer + bucket;
+    if constexpr (__is_constructible(type, type&&)) {
+      return type(Core::Data::take(selected));
+    } else {
+      return type(selected);
+    }
+  }
+
+  template <typename type, typename factory_type>
+  constexpr auto construct(type* destination, factory_type factory) -> type& {
+    if constexpr (
+        __is_same(type, typename Base::Bucket) &&
+        (has_arena_copy<key_type> || has_arena_copy<value_type>)) {
+      type candidate = factory();
+      return Toolchain::Memory::Lifetime::construct<type>(
+          destination, [this, &candidate] {
+            return type(
+                materialize(candidate.key), materialize(candidate.value));
+          });
+    } else if constexpr (has_arena_copy<type>) {
+      type candidate = factory();
+      return Toolchain::Memory::Lifetime::construct<type>(
+          destination, [this, &candidate] { return materialize(candidate); });
+    }
+
+    return Toolchain::Memory::Lifetime::construct<type>(
+        destination, Core::Data::take(factory));
+  }
+
+  // Rehashing leaves the former table accessible until Arena reset. Copying
+  // constructs the current key value pair in uninitialized storage at
+  // `destination` without changing `source`. A move only key value pair cannot
+  // be copied into a second current pair, so relocation move constructs
+  // `destination` and leaves `source` alive in its moved from state.
+  template <typename type>
+  constexpr auto relocate(type* destination, type& source) -> void {
+    if constexpr (__is_constructible(type, const type&)) {
+      const type& copy_source = source;
+      construct(destination, [&copy_source] { return type(copy_source); });
+    } else {
+      construct(
+          destination, [&source] { return type(Core::Data::take(source)); });
+    }
+  }
+
+  // Removal excludes a key value pair from the current table without
+  // reclaiming its Arena storage. Arena reset ends access to every key value
+  // pair and table allocation together.
+  template <typename type>
+  static constexpr auto retire(type*, Count) -> void {}
+
+  // Assignment materializes the replacement under the Arena before reusing
+  // `destination`. This keeps sources derived from the current value accessible
+  // while preserving the policy that no Managed value is destructed
+  // independently. The intermediate value remains in Arena storage until reset.
+  template <typename type, typename factory_type>
+  constexpr auto replace(type* destination, factory_type factory) -> type& {
+    type& candidate = arena.construct_from<type>(Core::Data::take(factory));
+    return construct(destination, [&candidate] {
+      if constexpr (__is_constructible(type, type&&)) {
+        return type(Core::Data::take(candidate));
+      } else {
+        return type(candidate);
       }
-
-      bucket = (bucket + 1) & (buffer.bucket_count - 1);
-    }
+    });
   }
 
-  auto find_slot(const key_type& key) const -> const Slot* {
-    if (buffer.size == 0) {
-      return nullptr;
-    }
-
-    U32 hash = get_hash(key);
-    Count bucket = bucket_index(hash);
-    while (true) {
-      if (buffer.bucket_buffer[bucket] == 0) {
-        return nullptr;
-      }
-
-      if (buffer.slots_buffer[bucket].hash == hash &&
-          buffer.slots_buffer[bucket].entry.key == key) {
-        return buffer.slots_buffer + bucket;
-      }
-
-      bucket = (bucket + 1) & (buffer.bucket_count - 1);
-    }
-  }
-
-  auto get_empty(U32 hash) -> Slot* {
-    Count bucket = bucket_index(hash);
-    while (buffer.bucket_buffer[bucket] != 0) {
-      bucket = (bucket + 1) & (buffer.bucket_count - 1);
-    }
-
-    buffer.bucket_buffer[bucket] = 1;
-    return buffer.slots_buffer + bucket;
-  }
-
-  auto emplace_hashed(U32 hash, const key_type& key, const value_type& value)
-      -> Entry* {
-    Slot* slot = get_empty(hash);
-    slot->hash = hash;
-    buffer.size++;
-    Toolchain::Memory::Lifetime::construct<Entry>(
-        &slot->entry, [&key, &value] { return Entry{key, value}; });
-    return &slot->entry;
-  }
-
-  auto rehash(Count bucket_count) -> void {
-    Buffer current = buffer;
-    buffer = create_buffer(bucket_count);
-
-    // A default buffer has no storage or entries to migrate. Keeping initial
-    // allocation separate also makes the source storage invariant explicit.
-    if (current.bucket_buffer == nullptr) {
-      return;
-    }
-
-    for (Count i = 0; i < current.bucket_count; i++) {
-      if (current.bucket_buffer[i] == 0) {
-        continue;
-      }
-
-      emplace_hashed(
-          current.slots_buffer[i].hash, current.slots_buffer[i].entry.key,
-          current.slots_buffer[i].entry.value);
-    }
-  }
-
-  auto create_buffer(Count bucket_count) -> Buffer {
-    Buffer created;
-    created.bucket_count = bucket_count;
-    created.bucket_buffer = arena.allocate(bucket_count).get_data();
-    created.slots_buffer = arena.reserve<Slot>(bucket_count).get_data();
-    for (Count i = 0; i < bucket_count; i++) {
-      created.bucket_buffer[i] = 0;
-    }
-
-    return created;
-  }
-
-  auto get_hash(const key_type& key) const -> U32 {
-    return U32(Core::Hash(key).get_value());
-  }
-
-  auto bucket_index(U32 hash) const -> Count {
-    return Count(hash & (buffer.bucket_count - 1));
-  }
+  // Arena reset reclaims every table allocation, so detaching a table requires
+  // no individual release operation.
+  static constexpr auto release(U8*) -> void {}
 
   Allocator::Arena& arena;
-  Buffer buffer;
 };
 
 }  // namespace Perimortem::Memory::Managed

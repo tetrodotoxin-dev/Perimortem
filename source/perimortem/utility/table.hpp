@@ -22,7 +22,7 @@ namespace Perimortem::Utility {
 // mutable data.
 //
 // Keyword benchmarks with low hit rates measured more than twice the throughput
-// of `Dynamic::Map`. `cache_line_size` can keep a complete length bucket within
+// of `Thread::Map`. `cache_line_size` can keep a complete length bucket within
 // one cache line when its packed bytes fit.
 //
 // The compact coordinates support from 1 through 255 entries and at most 65535

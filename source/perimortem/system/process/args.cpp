@@ -13,6 +13,7 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/scalar.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
+#include "perimortem/utility/pair.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -47,11 +48,12 @@ static auto process_name() -> View::Bytes {
   return "process"_view;
 }
 
-// Parses the argument and returns a name / value pair.
+// Splits one command line argument into the option name and authored value.
+// Positional arguments use an empty name. Leading dashes introduce an option.
+// Text after the first equals sign becomes its value, while an option without
+// an equals sign receives `true`.
 static auto parse_argument(View::Bytes argument)
     -> Pair<View::Bytes, View::Bytes> {
-  // If the argument is empty or it's missing a dash then it must be a
-  // positional argument.
   if (argument.is_empty() || argument[0] != '-') {
     return {View::Bytes(), argument};
   }
@@ -74,10 +76,9 @@ static auto format_help(
     const Managed::Map<View::Bytes, View::Bytes>& variables,
     View::Bytes command) -> View::Bytes {
   Count label_width = "-help"_view.get_size();
-  for (Count i = 0; i < variables.get_size(); i++) {
-    const auto* variable = variables.get_entry(i);
-    label_width = Scalar::max(label_width, variable->key.get_size() + 1);
-  }
+  variables.visit([&label_width](const View::Bytes& key, const View::Bytes&) {
+    label_width = Scalar::max(label_width, key.get_size() + 1);
+  });
 
   label_width += 2;
 
@@ -91,15 +92,14 @@ static auto format_help(
   }
 
   output.concat("arguments:\n"_view);
-  for (Count i = 0; i < variables.get_size(); i++) {
-    const auto* variable = variables.get_entry(i);
-
-    output.concat("  -"_view);
-    output.concat(variable->key);
-    output.append(U8(' '), label_width - variable->key.get_size() - 1);
-    output.concat(variable->value);
-    output.append('\n');
-  }
+  variables.visit(
+      [&output, label_width](const View::Bytes& key, const View::Bytes& value) {
+        output.concat("  -"_view);
+        output.concat(key);
+        output.append(U8(' '), label_width - key.get_size() - 1);
+        output.concat(value);
+        output.append('\n');
+      });
 
   output.concat("  -help"_view);
   output.append(U8(' '), label_width - "-help"_view.get_size());
@@ -123,13 +123,13 @@ auto Args::parse(
       return Values(arena);
     }
 
-    if (!values.contains(argument.key)) {
-      values[argument.key] =
-          &arena.construct_from<Managed::Vector<View::Bytes>>(
-              [&arena] { return Managed::Vector<View::Bytes>(arena); });
+    auto& selected = values.find_or_create(argument.key);
+    if (!selected) {
+      selected = &arena.construct_from<Managed::Vector<View::Bytes>>(
+          [&arena] { return Managed::Vector<View::Bytes>(arena); });
     }
 
-    values[argument.key]->insert(argument.value);
+    selected->insert(argument.value);
   }
 
   return values;

@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/memory/dynamic/map.hpp"
+#include "perimortem/memory/thread/map.hpp"
 
 #include "toolchain/toolchain.hpp"
 #include "toolchain/validation/benchmark.hpp"
@@ -46,7 +46,7 @@ static Harness MapS32s = {
 
 template <Count values, Bool lookup>
 static auto map_test() -> void {
-  Dynamic::Map<S32, S32> local_map(values);
+  Thread::Map<S32, S32> local_map(values);
   for (Count i = 0; i < values; i++) {
     local_map.insert(lookup_keys[i], S32(i));
   }
@@ -56,7 +56,7 @@ static auto map_test() -> void {
     Benchmark::start_time();
     accumulator = 0;
     for (Count i = 0; i < values; i++) {
-      accumulator += local_map.at(lookup_keys[i % values]);
+      accumulator += *local_map.find(lookup_keys[i % values]);
     }
   }
 
@@ -93,7 +93,7 @@ static auto pointer_key(Count index, Bool missing = False) -> const S32* {
 
 template <Count values, Bool misses>
 static auto pointer_lookup_test() -> void {
-  Dynamic::Map<const S32*, Count> map(values);
+  Thread::Map<const S32*, Count> map(values);
   for (Count i = 0; i < values; i++) {
     map.insert(pointer_key(i), i);
   }
@@ -112,7 +112,7 @@ static auto pointer_lookup_test() -> void {
 
 template <Count values, Bool reserve, Bool duplicate>
 static auto pointer_insert_test() -> void {
-  Dynamic::Map<const S32*, Count> map;
+  Thread::Map<const S32*, Count> map;
   if constexpr (reserve) {
     map.ensure_capacity(values);
   }
@@ -125,7 +125,11 @@ static auto pointer_insert_test() -> void {
 
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
-    map.insert(pointer_key(i), i + 1);
+    if constexpr (duplicate) {
+      map.assign(pointer_key(i), i + 1);
+    } else {
+      map.insert(pointer_key(i), i + 1);
+    }
   }
 
   Benchmark::end_time();
@@ -196,6 +200,7 @@ static constexpr Pair<View::Bytes, Count> non_keyword_source[] = {
   {"log  rint"_view, 27}, {"log_print3"_view, 28}, {"z"_view, 29},
   {"a"_view, 30},         {"nain"_view, 31},
 };
+
 static constexpr Count keyword_count = Data::array_size(keyword_source);
 
 using KeywordTable = Table<Count, keyword_source>;
@@ -219,7 +224,7 @@ static auto create_scramble(Count mask) -> void {
 
 template <Count values, Count mask>
 static auto keyword_test() -> void {
-  Dynamic::Map<View::Bytes, S32> local_map(keyword_count);
+  Thread::Map<View::Bytes, S32> local_map(keyword_count);
   for (Count i = 0; i < keyword_count; i++) {
     local_map.insert(keyword_source[i].key, keyword_source[i].value);
   }
@@ -272,10 +277,11 @@ static Harness MapKeywords = {
   MAP_KEYWORD_TEST(count, mask);            \
   MAP_TABLE_TEST(count, mask);
 
-// Compare complete hits with roughly one hit per 1024 source keys because
-// table behavior changes with hit rate.
-// hit_1000 equals 100.0% source keys.
-// hit_0001 equals about 0.1% source keys.
+// Run both lookup implementations with every source key present and with
+// roughly one hit per 1024 source keys. The sparse case measures miss costs
+// hidden by the complete hit case.
+// `hit_1000` selects 100.0% of source keys.
+// `hit_0001` selects about 0.1% of source keys.
 constexpr auto hit_1000 = Count(0b00000000'00000000);
 constexpr auto hit_0001 = Count(0b00000011'11111111);
 
