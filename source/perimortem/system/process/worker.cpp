@@ -18,6 +18,7 @@
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/storage/vector.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
+#include "perimortem/system/mutex.hpp"
 
 #ifndef TOOLCHAIN_WINDOWS
 
@@ -33,39 +34,23 @@ using namespace Perimortem::System;
 
 using Process::Worker;
 
-// Stores the logical thread id.
-// A thread created outside Perimortem uses the negative one id and represents
-// the main thread for worker queries.
+// Perimortem workers publish their reserved identity and copied name here. A
+// native thread created elsewhere retains the all bits set identity and an
+// empty name, which worker queries treat as the main thread state.
 static thread_local U64 this_thread_id = Count(-1);
 static thread_local View::Bytes this_thread_name = ""_view;
 
 using WorkerJobFunction = Process::Worker::JobFunction;
 
+static Mutex worker_mutex;
+
 #ifdef TOOLCHAIN_WINDOWS
-
-static SRWLOCK worker_mutex = SRWLOCK_INIT;
-static auto lock_workers() -> void {
-  AcquireSRWLockExclusive(&worker_mutex);
-}
-
-static auto unlock_workers() -> void {
-  ReleaseSRWLockExclusive(&worker_mutex);
-}
 
 static auto yield_worker() -> void {
   SwitchToThread();
 }
 
 #else
-
-static pthread_mutex_t worker_mutex = PTHREAD_MUTEX_INITIALIZER;
-static auto lock_workers() -> void {
-  pthread_mutex_lock(&worker_mutex);
-}
-
-static auto unlock_workers() -> void {
-  pthread_mutex_unlock(&worker_mutex);
-}
 
 static auto yield_worker() -> void {
   sched_yield();
@@ -129,8 +114,9 @@ class ThreadInitializer {
           "Process::Worker failed to create a native thread."_view);
     }
 
-    // Block until the spawned thread marks itself as initialized.
-    // This blocks the host thread until all required data is safely copied.
+    // The acquire load pairs with `mark_initialized` after dispatch copies
+    // every field it needs. Construction cannot return while the worker still
+    // refers to this spawning frame.
     while (Bool(__atomic_load_n(&initialized.value, __ATOMIC_ACQUIRE)) !=
            True) {
       yield_worker();
@@ -143,14 +129,13 @@ class ThreadInitializer {
   auto operator=(const ThreadInitializer&) -> ThreadInitializer& = delete;
 
   static auto get_worker_count() -> Count {
-    lock_workers();
+    Mutex::Lock lock(worker_mutex);
 
     Count worker_count = 0;
     for (Count i = 0; i < thread_occupancy.get_size(); i++) {
       worker_count += thread_occupancy[i] != 0 ? 1 : 0;
     }
 
-    unlock_workers();
     return worker_count;
   }
 
@@ -168,27 +153,23 @@ class ThreadInitializer {
   // when one exists. If `thread_occupancy[worker_index]` is one, every worker
   // identity is reserved and the process aborts.
   static auto reserve_thread() -> Count {
-    lock_workers();
+    Mutex::Lock lock(worker_mutex);
 
     auto worker_index =
         Algorithm::Search::min(View::Vector<U8>(thread_occupancy));
     if (thread_occupancy[worker_index] != 0) {
-      unlock_workers();
       Diagnostics::Log::fatal(
           "Program requested to create a Process::Worker but all 64 Workers "
           "were already occupied."_view);
     }
 
     thread_occupancy[worker_index] = 1;
-    unlock_workers();
     return worker_index;
   }
 
   static auto release_thread(Count worker_index) -> void {
-    lock_workers();
-
+    Mutex::Lock lock(worker_mutex);
     thread_occupancy[worker_index] = 0;
-    unlock_workers();
   }
 
   // Copies startup bytes into the worker thread's Bibliotheca. The returned
@@ -233,7 +214,9 @@ class ThreadInitializer {
     // Storage::Bytes zero extends for names shorter than 16.
     Storage::Bytes<16> system_thread_name(thread_name);
 
-    // If the name is longer than 15 characters make sure we still have a null.
+    // Pthreads accept at most fifteen name bytes plus the terminator. Forcing
+    // the final byte to zero preserves termination when the full name was
+    // clipped.
     system_thread_name[15] = 0;
 
     pthread_setname_np(
@@ -250,25 +233,26 @@ class ThreadInitializer {
     auto& initializer = *Data::cast<ThreadInitializer>(initializer_address);
     this_thread_id = initializer.thread_id;
 
-    // Set the thread name both in engine and at the OS level to aid in
-    // debugging and tracing.
+    // Perimortem retains the complete name for diagnostics. The native thread
+    // name is a separate bounded copy used by platform debuggers and tracing.
     this_thread_name = copy_thread_bytes(initializer.requested_name);
     Diagnostics::Log::set_thread_name(this_thread_name);
     set_system_thread_name(this_thread_name);
 
-    // By default the worker inherits its spawning thread's diagnostic logging.
-    // This allows for unified logging by default, but a job can later select
-    // for alternative logging for subsequent messages.
+    // The initial sink and header policy match the spawning thread. A job may
+    // replace either setting for later messages without changing the spawning
+    // thread's local diagnostic state.
     Diagnostics::Log::set_sink(initializer.sink);
     Diagnostics::Log::set_disable_header(initializer.disable_log_header);
 
-    // Copy out the job data from the initializer before it's invalid.
+    // The function pointer is copied and the job bytes move into thread local
+    // storage before `mark_initialized` lets the spawning frame disappear.
     WorkerJobFunction job_function = initializer.job_function;
     View::Bytes job_data = copy_thread_bytes(initializer.job_data);
 
-    // Log the thread start as a debug message using the inherited logger before
-    // we hand off any execution to the job. This way the spawning thread will
-    // always contain a spawn message when it successfully creates a thread.
+    // Emit the start event through the inherited sink before the job can
+    // replace it. Successful initialization therefore produces one diagnostic
+    // record containing the reserved identity and copied payload size.
     {
       Diagnostics::Log::Message<128> start_message(
           Diagnostics::Log::Level::Debug);
@@ -277,7 +261,6 @@ class ThreadInitializer {
                     << job_data.get_size();
     }
 
-    // Run the thread job with the now thread localized job data.
     initializer.mark_initialized();
     job_function(job_data);
 
