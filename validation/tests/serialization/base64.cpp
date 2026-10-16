@@ -7,7 +7,7 @@
 
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/system/filesystem/file.hpp"
 
@@ -56,7 +56,7 @@ VALIDATION_TEST(SerializationBase64, decode_simple) {
 VALIDATION_TEST(SerializationBase64, alphabet) {
   constexpr auto alphabet =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"_view;
-  Static::Bytes<48> expected;
+  Storage::Bytes<48> expected;
   for (Count input = 0, output = 0; input < alphabet.get_size();
        input += 4, output += 3) {
     expected[output] = U8((input << 2) | ((input + 1) >> 4));

@@ -16,7 +16,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/memory/global/bytes.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 
@@ -169,7 +169,7 @@ static auto inspect_path(const char* path) -> FileKind {
 // Metadata comes from the open stream, not a second lookup of its pathname.
 // Windows supplies a volume and file index instead of device and inode, and
 // its timestamp units are converted to the same seconds and nanoseconds form.
-static auto inspect_stream(FILE* file) -> Option<File::Fingerprint> {
+static auto inspect_stream(FILE* file) -> Storage::Option<File::Fingerprint> {
 
 #ifdef TOOLCHAIN_LINUX
 
@@ -290,9 +290,10 @@ static auto get_file_fingerprint(
     FILE* file,
     View::Bytes operation,
     View::Bytes path,
-    FailureReporting reporting) -> Option<File::Fingerprint> {
+    FailureReporting reporting) -> Storage::Option<File::Fingerprint> {
   return inspect_stream(file).visit(
-      [&](const File::Fingerprint& fingerprint) -> Option<File::Fingerprint> {
+      [&](const File::Fingerprint& fingerprint)
+          -> Storage::Option<File::Fingerprint> {
         if (fingerprint.get_size() > max_read_size) {
           report_file_warning(
               reporting, operation, path, "size"_view, "value"_view,
@@ -303,7 +304,7 @@ static auto get_file_fingerprint(
         return fingerprint;
       },
 
-      [&]() -> Option<File::Fingerprint> {
+      [&]() -> Storage::Option<File::Fingerprint> {
         report_file_warning(
             reporting, operation, path, "metadata"_view, "errno"_view, errno);
         return {};
@@ -395,7 +396,7 @@ static auto close_stream(
 // storage. The returned view excludes the terminator so it retains ordinary
 // byte semantics.
 static auto create_path(Access::Bytes output, View::Bytes path)
-    -> Option<View::Bytes> {
+    -> Storage::Option<View::Bytes> {
   Count content_size = path.get_size();
   if (content_size != 0 && path[content_size - 1] == '\0') {
     content_size--;
@@ -427,11 +428,11 @@ static auto create_path(Access::Bytes output, View::Bytes path)
 static auto member_path(
     Access::Bytes output,
     View::Bytes directory,
-    View::Bytes member) -> Option<View::Bytes> {
-  Static::Bytes<max_path_size> member_buffer;
+    View::Bytes member) -> Storage::Option<View::Bytes> {
+  Storage::Bytes<max_path_size> member_buffer;
   return create_path(member_buffer, member)
       .visit(
-          [&](View::Bytes path) -> Option<View::Bytes> {
+          [&](View::Bytes path) -> Storage::Option<View::Bytes> {
             if (path.is_empty() || directory.is_empty()) {
               return {};
             }
@@ -461,7 +462,7 @@ static auto member_path(
             return View::Bytes(output.get_data(), prefix + 1 + suffix);
           },
 
-          []() -> Option<View::Bytes> { return {}; });
+          []() -> Storage::Option<View::Bytes> { return {}; });
 }
 
 template <typename bytes_type>
@@ -472,7 +473,7 @@ static auto read_file(
     FailureReporting reporting = FailureReporting::Warning) -> Bool {
   // Serialize the caller path into bounded native storage before any
   // filesystem operation begins.
-  Static::Bytes<max_path_size> path_buffer;
+  Storage::Bytes<max_path_size> path_buffer;
   return create_path(path_buffer, location)
       .visit(
           [&](View::Bytes path) {
@@ -506,11 +507,11 @@ static auto read_file(
           });
 }
 
-auto File::Root::open(View::Bytes location) -> Option<Root> {
-  Static::Bytes<max_path_size> buffer;
+auto File::Root::open(View::Bytes location) -> Storage::Option<Root> {
+  Storage::Bytes<max_path_size> buffer;
   return create_path(buffer, location)
       .visit(
-          [](View::Bytes path) -> Option<Root> {
+          [](View::Bytes path) -> Storage::Option<Root> {
             if (path.is_empty() ||
                 inspect_path(Data::cast<const char>(path.get_data())) !=
                     FileKind::Directory) {
@@ -520,26 +521,26 @@ auto File::Root::open(View::Bytes location) -> Option<Root> {
             return Root(path);
           },
 
-          []() -> Option<Root> { return {}; });
+          []() -> Storage::Option<Root> { return {}; });
 }
 
 auto File::Root::read(View::Bytes relative_path) const
-    -> Option<Global::Bytes> {
+    -> Storage::Option<Global::Bytes> {
   return read_snapshot(relative_path)
       .visit(
-          [](Snapshot& snapshot) -> Option<Global::Bytes> {
+          [](Snapshot& snapshot) -> Storage::Option<Global::Bytes> {
             return snapshot.take_contents();
           },
 
-          []() -> Option<Global::Bytes> { return {}; });
+          []() -> Storage::Option<Global::Bytes> { return {}; });
 }
 
 auto File::Root::read_snapshot(View::Bytes relative_path) const
-    -> Option<File::Snapshot> {
-  Static::Bytes<max_path_size> buffer;
+    -> Storage::Option<File::Snapshot> {
+  Storage::Bytes<max_path_size> buffer;
   return member_path(buffer, location, relative_path)
       .visit(
-          [&](View::Bytes path) -> Option<File::Snapshot> {
+          [&](View::Bytes path) -> Storage::Option<File::Snapshot> {
             Global::Bytes data{};
             File::Fingerprint fingerprint;
             if (!read_file(path, data, fingerprint, FailureReporting::Silent)) {
@@ -549,15 +550,15 @@ auto File::Root::read_snapshot(View::Bytes relative_path) const
             return File::Snapshot(Data::take(data), fingerprint);
           },
 
-          []() -> Option<File::Snapshot> { return {}; });
+          []() -> Storage::Option<File::Snapshot> { return {}; });
 }
 
 auto File::Root::fingerprint(View::Bytes relative_path) const
-    -> Option<File::Fingerprint> {
-  Static::Bytes<max_path_size> buffer;
+    -> Storage::Option<File::Fingerprint> {
+  Storage::Bytes<max_path_size> buffer;
   return member_path(buffer, location, relative_path)
       .visit(
-          [](View::Bytes path) -> Option<File::Fingerprint> {
+          [](View::Bytes path) -> Storage::Option<File::Fingerprint> {
             FILE* file =
                 open_stream(Data::cast<const char>(path.get_data()), "rb");
             if (!file) {
@@ -568,18 +569,18 @@ auto File::Root::fingerprint(View::Bytes relative_path) const
                 get_file_fingerprint(file, {}, path, FailureReporting::Silent);
             Bool closed =
                 close_stream(file, {}, path, FailureReporting::Silent);
-            return closed ? fingerprint : Option<File::Fingerprint>();
+            return closed ? fingerprint : Storage::Option<File::Fingerprint>();
           },
 
-          []() -> Option<File::Fingerprint> { return {}; });
+          []() -> Storage::Option<File::Fingerprint> { return {}; });
 }
 
 auto File::Root::read(Allocator::Arena& arena, View::Bytes relative_path) const
-    -> Option<View::Bytes> {
-  Static::Bytes<max_path_size> buffer;
+    -> Storage::Option<View::Bytes> {
+  Storage::Bytes<max_path_size> buffer;
   return member_path(buffer, location, relative_path)
       .visit(
-          [&](View::Bytes path) -> Option<View::Bytes> {
+          [&](View::Bytes path) -> Storage::Option<View::Bytes> {
             Managed::Bytes data{arena};
             File::Fingerprint fingerprint;
             if (!read_file(path, data, fingerprint, FailureReporting::Silent)) {
@@ -589,12 +590,12 @@ auto File::Root::read(Allocator::Arena& arena, View::Bytes relative_path) const
             return data.get_view();
           },
 
-          []() -> Option<View::Bytes> { return {}; });
+          []() -> Storage::Option<View::Bytes> { return {}; });
 }
 
 auto File::Root::write(View::Bytes data, View::Bytes relative_path) const
     -> Bool {
-  Static::Bytes<max_path_size> buffer;
+  Storage::Bytes<max_path_size> buffer;
   return member_path(buffer, location, relative_path)
       .visit(
           [&](View::Bytes path) { return File::write(data, path); },
@@ -602,7 +603,7 @@ auto File::Root::write(View::Bytes data, View::Bytes relative_path) const
 }
 
 auto File::Root::remove(View::Bytes relative_path) const -> Bool {
-  Static::Bytes<max_path_size> buffer;
+  Storage::Bytes<max_path_size> buffer;
   return member_path(buffer, location, relative_path)
       .visit(
           [](View::Bytes path) { return File::remove(path); },
@@ -610,14 +611,14 @@ auto File::Root::remove(View::Bytes relative_path) const -> Bool {
 }
 
 auto File::Root::exists(View::Bytes relative_path) const -> Bool {
-  Static::Bytes<max_path_size> buffer;
+  Storage::Bytes<max_path_size> buffer;
   return member_path(buffer, location, relative_path)
       .visit(
           [](View::Bytes path) { return File::exists(path); },
           []() { return False; });
 }
 
-auto File::read(View::Bytes location) -> Option<Global::Bytes> {
+auto File::read(View::Bytes location) -> Storage::Option<Global::Bytes> {
   Global::Bytes data{};
   File::Fingerprint fingerprint;
   Bool read = read_file(location, data, fingerprint);
@@ -625,11 +626,11 @@ auto File::read(View::Bytes location) -> Option<Global::Bytes> {
     return {};
   }
 
-  return Option<Global::Bytes>(Data::take(data));
+  return Storage::Option<Global::Bytes>(Data::take(data));
 }
 
 auto File::read(Allocator::Arena& arena, View::Bytes location)
-    -> Option<View::Bytes> {
+    -> Storage::Option<View::Bytes> {
   // The caller selects Arena storage when the file values join an existing
   // transaction lifetime. Reading directly into that Arena avoids a second
   // process heap allocation.
@@ -640,11 +641,11 @@ auto File::read(Allocator::Arena& arena, View::Bytes location)
     return {};
   }
 
-  return Option<View::Bytes>(data.get_view());
+  return Storage::Option<View::Bytes>(data.get_view());
 }
 
 auto File::write(View::Bytes data, View::Bytes location) -> Bool {
-  Static::Bytes<max_path_size> path_buffer;
+  Storage::Bytes<max_path_size> path_buffer;
   return create_path(path_buffer, location)
       .visit(
           [&](View::Bytes path) {
@@ -678,8 +679,8 @@ auto File::write(View::Bytes data, View::Bytes location) -> Bool {
 }
 
 auto File::replace(View::Bytes source, View::Bytes destination) -> Bool {
-  Static::Bytes<max_path_size> source_buffer;
-  Static::Bytes<max_path_size> destination_buffer;
+  Storage::Bytes<max_path_size> source_buffer;
+  Storage::Bytes<max_path_size> destination_buffer;
   auto source_path = create_path(source_buffer, source);
   auto destination_path = create_path(destination_buffer, destination);
   return source_path.visit(
@@ -719,7 +720,7 @@ auto File::replace(View::Bytes source, View::Bytes destination) -> Bool {
 }
 
 auto File::remove(View::Bytes location) -> Bool {
-  Static::Bytes<max_path_size> path_buffer;
+  Storage::Bytes<max_path_size> path_buffer;
   return create_path(path_buffer, location)
       .visit(
           [](View::Bytes path) {
@@ -731,7 +732,7 @@ auto File::remove(View::Bytes location) -> Bool {
 }
 
 auto File::exists(View::Bytes location) -> Bool {
-  Static::Bytes<max_path_size> path_buffer;
+  Storage::Bytes<max_path_size> path_buffer;
   return create_path(path_buffer, location)
       .visit(
           [](View::Bytes path) {

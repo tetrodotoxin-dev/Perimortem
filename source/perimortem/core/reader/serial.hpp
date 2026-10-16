@@ -57,7 +57,7 @@ class Serial {
 
    private:
     // Value keeps its blob/value discriminator in type_info so the complete
-    // schemaless read remains 16 bytes. Static::Union would require a separate
+    // schemaless read remains 16 bytes. Storage::Union would require a separate
     // tag and grow this hot return type to 24 bytes.
     U64 type_info;
     union {

@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/option.hpp"
 #include "perimortem/core/scalar.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/option.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/math/boundary.hpp"
 #include "perimortem/math/point.hpp"
 #include "perimortem/math/size.hpp"
@@ -45,8 +45,8 @@ class Domain {
     if constexpr (sizeof...(boundaries) == 0) {
       return Boundary::Clip;
     } else {
-      constexpr Core::Static::Vector<Boundary, sizeof...(boundaries)> selected =
-          {{boundaries...}};
+      constexpr Core::Storage::Vector<Boundary, sizeof...(boundaries)>
+          selected = {{boundaries...}};
       if constexpr (sizeof...(boundaries) == 1) {
         return selected[0];
       } else {
@@ -58,7 +58,7 @@ class Domain {
   constexpr auto is_empty() const -> Bool { return extent.is_empty(); }
 
   constexpr auto get_limits() const -> Volume<S64, dimensions> {
-    Core::Static::Vector<S64, dimensions> limits;
+    Core::Storage::Vector<S64, dimensions> limits;
     for (Count axis = 0; axis < dimensions; axis++) {
       limits[axis] = extent[axis];
     }
@@ -91,12 +91,12 @@ class Domain {
   // its axis, while the other policies map them into the finite limits. No
   // policy can produce an index when any axis is empty.
   constexpr auto resolve(Point<S64, dimensions> point) const
-      -> Core::Option<Point<U32, dimensions>> {
+      -> Core::Storage::Option<Point<U32, dimensions>> {
     if (is_empty()) {
       return {};
     }
 
-    Core::Static::Vector<U32, dimensions> mapped;
+    Core::Storage::Vector<U32, dimensions> mapped;
     if (!resolve_axis<0>(point, mapped)) {
       return {};
     }
@@ -106,7 +106,7 @@ class Domain {
 
   // Every axis is at most 32 bits, but several axes can still overflow Count.
   // Returning None lets the caller reject allocation before fitting its buffer.
-  constexpr auto get_element_count() const -> Core::Option<Count> {
+  constexpr auto get_element_count() const -> Core::Storage::Option<Count> {
     if (is_empty()) {
       return Count{};
     }
@@ -114,7 +114,7 @@ class Domain {
     Count count = 1;
     for (Count axis = 0; axis < dimensions; axis++) {
       if (count > ~Count{} / extent[axis]) {
-        return Core::Option<Count>();
+        return Core::Storage::Option<Count>();
       }
 
       count *= extent[axis];
@@ -129,8 +129,8 @@ class Domain {
     if constexpr (sizeof...(boundaries) == 0) {
       return Boundary::Clip;
     } else {
-      constexpr Core::Static::Vector<Boundary, sizeof...(boundaries)> selected =
-          {{boundaries...}};
+      constexpr Core::Storage::Vector<Boundary, sizeof...(boundaries)>
+          selected = {{boundaries...}};
       if constexpr (sizeof...(boundaries) == 1) {
         return selected[0];
       } else {
@@ -144,7 +144,7 @@ class Domain {
   template <Count axis>
   constexpr auto resolve_axis(
       const Point<S64, dimensions>& point,
-      Core::Static::Vector<U32, dimensions>& mapped) const -> Bool {
+      Core::Storage::Vector<U32, dimensions>& mapped) const -> Bool {
     if constexpr (axis == dimensions) {
       return True;
     } else {

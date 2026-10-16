@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/option.hpp"
+#include "perimortem/core/storage/option.hpp"
 
 namespace Perimortem::Utility {
 
@@ -14,9 +14,9 @@ struct Range {
   Count start = 0;
   Count size = 0;
 
-  constexpr auto get_end() const -> Core::Option<Count> {
+  constexpr auto get_end() const -> Core::Storage::Option<Count> {
     if (size > Count(-1) - start) {
-      return Core::Option<Count>();
+      return Core::Storage::Option<Count>();
     }
 
     return start + size;

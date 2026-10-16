@@ -6,8 +6,8 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/writer/binary.hpp"
 
 using namespace Perimortem::Core;
@@ -18,15 +18,16 @@ static Harness CoreBinaryReader = {
 };
 
 template <typename T>
-static auto expect_read(Option<T> actual, T expected, Test::TestResult& result)
-    -> void {
+static auto
+    expect_read(Storage::Option<T> actual, T expected, Test::TestResult& result)
+        -> void {
   actual.visit(
       [&](T value) { EXPECT_EQ(value, expected); }, [&] { EXPECT(false); });
 }
 
 VALIDATION_TEST(CoreBinaryReader, little_unsigned) {
   using Reader = Reader::Binary<Data::ByteOrder::Little>;
-  Static::Bytes<15> source(
+  Storage::Bytes<15> source(
       "\xAB"                                   // Read 1 byte.
       "IREP"                                   // Read 4 bytes.
       "\x34\x12"                               // Read 2 bytes.
@@ -43,7 +44,7 @@ VALIDATION_TEST(CoreBinaryReader, little_unsigned) {
 
 VALIDATION_TEST(CoreBinaryReader, little_endian_signed) {
   using Reader = Reader::Binary<Data::ByteOrder::Little>;
-  Static::Bytes<15> source(
+  Storage::Bytes<15> source(
       "\xD6"
       "\x18\xFC"
       "\x60\x79\xFE\xFF"
@@ -59,7 +60,7 @@ VALIDATION_TEST(CoreBinaryReader, little_endian_signed) {
 
 VALIDATION_TEST(CoreBinaryReader, little_endian_reals) {
   using Reader = Reader::Binary<Data::ByteOrder::Little>;
-  Static::Bytes<12> source(
+  Storage::Bytes<12> source(
       "\x00\x00\x40\x40"                       // R32.
       "\x00\x00\x00\x00\x00\x00\xF8\x3F"_view  // R64
   );
@@ -72,7 +73,7 @@ VALIDATION_TEST(CoreBinaryReader, little_endian_reals) {
 
 VALIDATION_TEST(CoreBinaryReader, big_endian_unsigned) {
   using Reader = Reader::Binary<Data::ByteOrder::Big>;
-  Static::Bytes<15> source(
+  Storage::Bytes<15> source(
       "\xAB"                                   // Read 1 byte.
       "PERI"                                   // Read 4 bytes.
       "\x12\x34"                               // Read 2 bytes.
@@ -89,7 +90,7 @@ VALIDATION_TEST(CoreBinaryReader, big_endian_unsigned) {
 
 VALIDATION_TEST(CoreBinaryReader, big_endian_signed) {
   using Reader = Reader::Binary<Data::ByteOrder::Big>;
-  Static::Bytes<15> source(
+  Storage::Bytes<15> source(
       "\xD6"
       "\xFC\x18"
       "\xFF\xFE\x79\x60"
@@ -105,7 +106,7 @@ VALIDATION_TEST(CoreBinaryReader, big_endian_signed) {
 
 VALIDATION_TEST(CoreBinaryReader, big_endian_reals) {
   using Reader = Reader::Binary<Data::ByteOrder::Big>;
-  Static::Bytes<12> source(
+  Storage::Bytes<12> source(
       "\x40\x40\x00\x00"                       // R32.
       "\x3F\xF8\x00\x00\x00\x00\x00\x00"_view  // R64
   );
@@ -146,7 +147,7 @@ VALIDATION_TEST(CoreBinaryReader, overflow_read) {
 
 VALIDATION_TEST(CoreBinaryReader, set_location) {
   using Reader = Reader::Binary<Data::ByteOrder::Little>;
-  Static::Bytes<6> source("\x0A\x00\x14\x00\x1E\x00"_view);
+  Storage::Bytes<6> source("\x0A\x00\x14\x00\x1E\x00"_view);
   Reader reader(source);
 
   expect_read(reader.read_u16(), U16(0x0A), result);
@@ -168,7 +169,7 @@ VALIDATION_TEST(CoreBinaryReader, invalid_pointer) {
 
 VALIDATION_TEST(CoreBinaryReader, multiple_readers) {
   using Reader = Reader::Binary<Data::ByteOrder::Little>;
-  Static::Bytes<6> source("\x01\x00\x02\x00\x03\x00"_view);
+  Storage::Bytes<6> source("\x01\x00\x02\x00\x03\x00"_view);
   Reader readers[] = {Reader(source), Reader(source)};
 
   expect_read(readers[0].read_u16(), U16(1), result);
@@ -246,7 +247,7 @@ static Harness CoreBinaryWriter = {
 
 VALIDATION_TEST(CoreBinaryWriter, little_unsigned) {
   using Writer = Writer::Binary<Data::ByteOrder::Little>;
-  Static::Bytes<15> buffer;
+  Storage::Bytes<15> buffer;
   Writer writer(buffer);
 
   writer << U8(0xAB) << U16(0x1234) << U32('PERI') << U64(0x0123456789ABCDEF);
@@ -263,7 +264,7 @@ VALIDATION_TEST(CoreBinaryWriter, little_unsigned) {
 
 VALIDATION_TEST(CoreBinaryWriter, little_endian_signed) {
   using Writer = Writer::Binary<Data::ByteOrder::Little>;
-  Static::Bytes<15> buffer;
+  Storage::Bytes<15> buffer;
   Writer writer(buffer);
 
   writer << S8(-42) << S16(-1000) << S32(-100000) << S64(-1000000000LL);
@@ -281,7 +282,7 @@ VALIDATION_TEST(CoreBinaryWriter, little_endian_reals) {
   // R32 value 3 uses bits 0x40400000 and R64 value 1.5 uses bits
   // 0x3FF8000000000000.
   using Writer = Writer::Binary<Data::ByteOrder::Little>;
-  Static::Bytes<12> buffer;
+  Storage::Bytes<12> buffer;
   Writer writer(buffer);
 
   writer << R32(3.0f) << R64(1.5);
@@ -295,7 +296,7 @@ VALIDATION_TEST(CoreBinaryWriter, little_endian_reals) {
 
 VALIDATION_TEST(CoreBinaryWriter, big_endian_unsigned) {
   using Writer = Writer::Binary<Data::ByteOrder::Big>;
-  Static::Bytes<15> buffer;
+  Storage::Bytes<15> buffer;
   Writer writer(buffer);
 
   writer << U8(0xAB) << U16(0x1234) << U32('PERI') << U64(0x0123456789ABCDEF);
@@ -312,7 +313,7 @@ VALIDATION_TEST(CoreBinaryWriter, big_endian_unsigned) {
 
 VALIDATION_TEST(CoreBinaryWriter, big_endian_signed) {
   using Writer = Writer::Binary<Data::ByteOrder::Big>;
-  Static::Bytes<15> buffer;
+  Storage::Bytes<15> buffer;
   Writer writer(buffer);
 
   writer << S8(-42) << S16(-1000) << S32(-100000) << S64(-1000000000LL);
@@ -330,7 +331,7 @@ VALIDATION_TEST(CoreBinaryWriter, big_endian_reals) {
   // R32 value 3 uses bits 0x40400000 and R64 value 1.5 uses bits
   // 0x3FF8000000000000.
   using Writer = Writer::Binary<Data::ByteOrder::Big>;
-  Static::Bytes<12> buffer;
+  Storage::Bytes<12> buffer;
   Writer writer(buffer);
 
   writer << R32(3.0f) << R64(1.5);
@@ -344,13 +345,13 @@ VALIDATION_TEST(CoreBinaryWriter, big_endian_reals) {
 
 VALIDATION_TEST(CoreBinaryWriter, big_endian_vector) {
   using Writer = Writer::Binary<Data::ByteOrder::Big>;
-  Static::Vector<U16, 3> values = {{
+  Storage::Vector<U16, 3> values = {{
     U16(0x0102),
     U16(0x0304),
     U16(0x0506),
   }};
 
-  Static::Bytes<6> buffer;
+  Storage::Bytes<6> buffer;
   Writer writer(buffer);
 
   writer << values.get_view();
@@ -361,7 +362,7 @@ VALIDATION_TEST(CoreBinaryWriter, big_endian_vector) {
 
 VALIDATION_TEST(CoreBinaryWriter, raw_bytes) {
   using Writer = Writer::Binary<Data::ByteOrder::Native>;
-  Static::Bytes<9> buffer;
+  Storage::Bytes<9> buffer;
   Writer writer(buffer);
 
   writer << "blob data"_view;
@@ -372,7 +373,7 @@ VALIDATION_TEST(CoreBinaryWriter, raw_bytes) {
 
 VALIDATION_TEST(CoreBinaryWriter, overflow) {
   using Writer = Writer::Binary<Data::ByteOrder::Native>;
-  Static::Bytes<3> buffer;
+  Storage::Bytes<3> buffer;
   Writer writer(buffer);
 
   writer << U32('PERI');
@@ -382,7 +383,7 @@ VALIDATION_TEST(CoreBinaryWriter, overflow) {
 
 VALIDATION_TEST(CoreBinaryWriter, set_pointer) {
   using Writer = Writer::Binary<Data::ByteOrder::Little>;
-  Static::Bytes<6> buffer;
+  Storage::Bytes<6> buffer;
   Writer writer(buffer);
 
   writer << U16(0x0A0B) << U16(0x0C0D);
@@ -400,7 +401,7 @@ VALIDATION_TEST(CoreBinaryWriter, set_pointer) {
 
 VALIDATION_TEST(CoreBinaryWriter, multiple_writers) {
   using Writer = Writer::Binary<Data::ByteOrder::Little>;
-  Static::Bytes<4> buffer;
+  Storage::Bytes<4> buffer;
   Writer writers[] = {
     Writer(buffer),
     Writer(buffer),
@@ -418,8 +419,8 @@ VALIDATION_TEST(CoreBinaryWriter, multiple_writers) {
 }
 
 template <Data::ByteOrder order>
-static constexpr auto word_bytes() -> Static::Bytes<12> {
-  Static::Bytes<12> bytes;
+static constexpr auto word_bytes() -> Storage::Bytes<12> {
+  Storage::Bytes<12> bytes;
   Writer::Binary<order> writer(Access::Bytes(bytes.get_data(), 12));
   writer << U64(0x0102030405060708ULL);
   writer << U32(0x090a0b0c);

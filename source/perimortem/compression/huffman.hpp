@@ -4,8 +4,8 @@
 #pragma once
 
 #include "perimortem/compression/bit_stream/reader.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/vector.hpp"
 
 namespace Perimortem::Compression {
 
@@ -34,7 +34,7 @@ class Huffman {
 
   constexpr Huffman(Core::View::Vector<U8> code_lengths) {
     const auto* lengths = code_lengths.get_data();
-    Core::Static::Vector<Count, max_code_bits + 2> bit_length_count;
+    Core::Storage::Vector<Count, max_code_bits + 2> bit_length_count;
     for (Count symbol = 0; symbol < code_lengths.get_size(); symbol++) {
       if (lengths[symbol] > 0) {
         bit_length_count[lengths[symbol]]++;
@@ -56,7 +56,7 @@ class Huffman {
       symbol_index += bit_length_count[i];
     }
 
-    Core::Static::Vector<Count, max_code_bits + 2> fill_offset;
+    Core::Storage::Vector<Count, max_code_bits + 2> fill_offset;
     for (Count i = 1; i <= max_bits; i++) {
       fill_offset[i] = base_index[i];
     }
@@ -102,7 +102,7 @@ class Huffman {
   // reserved symbols still participate in the canonical code assignment even
   // though a valid stream never emits them.
   static constexpr auto make_fixed_literal() -> Huffman {
-    Core::Static::Vector<U8, 288> code_lengths([](Count i) -> U8 {
+    Core::Storage::Vector<U8, 288> code_lengths([](Count i) -> U8 {
       switch (i) {
       case 144 ... 255:
         return 9;
@@ -121,7 +121,7 @@ class Huffman {
       Core::Access::Vector<U8> lengths) -> void;
 
   static constexpr auto make_fixed_distance() -> Huffman {
-    Core::Static::Vector<U8, 30> code_lengths([](Count i) -> U8 { return 5; });
+    Core::Storage::Vector<U8, 30> code_lengths([](Count i) -> U8 { return 5; });
     return Huffman(code_lengths.get_view());
   }
 
@@ -172,12 +172,12 @@ class Huffman {
   static constexpr Count fast_bits = 9;
   static constexpr Count fast_table_size = 1 << fast_bits;
 
-  Core::Static::Vector<FastEntry, fast_table_size> fast_table;
-  Core::Static::Vector<U32, max_symbol_count> encode_codes;
-  Core::Static::Vector<U16, max_symbol_count> symbol_map;
-  Core::Static::Vector<Count, max_code_bits + 2> base_index;
-  Core::Static::Vector<U32, max_code_bits + 2> base_code;
-  Core::Static::Vector<U8, max_symbol_count> encode_lengths;
+  Core::Storage::Vector<FastEntry, fast_table_size> fast_table;
+  Core::Storage::Vector<U32, max_symbol_count> encode_codes;
+  Core::Storage::Vector<U16, max_symbol_count> symbol_map;
+  Core::Storage::Vector<Count, max_code_bits + 2> base_index;
+  Core::Storage::Vector<U32, max_code_bits + 2> base_code;
+  Core::Storage::Vector<U8, max_symbol_count> encode_lengths;
   Count max_bits = 0;
 };
 

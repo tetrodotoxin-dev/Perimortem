@@ -9,7 +9,7 @@
 
 #include "perimortem/core/access/bytes.h"
 #include "perimortem/core/diagnostics/source.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/writer/textual.hpp"
@@ -84,7 +84,7 @@ class Log {
     }
 
    private:
-    Static::Bytes<capacity> message_storage;
+    Storage::Bytes<capacity> message_storage;
     Writer::Textual writer;
     Level level;
     Source location;

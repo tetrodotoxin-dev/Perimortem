@@ -78,14 +78,14 @@ auto Time::boot() -> Time {
   return boot_timestamp;
 }
 
-auto Time::calculate_clock() const -> Static::Bytes<12> {
+auto Time::calculate_clock() const -> Storage::Bytes<12> {
   U64 seconds_today = (get_stamp() / nano_to_seconds) % 86400;
   auto hours = seconds_today / 3600;
   auto minutes = (seconds_today % 3600) / 60;
   auto seconds = seconds_today % 60;
   auto milliseconds = (get_stamp() / 1'000'000) % 1000;
 
-  Static::Bytes<12> time_string;
+  Storage::Bytes<12> time_string;
   Writer::Textual time_writer(time_string);
   write_fixed(time_writer, hours);
   time_writer << ':';

@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/static/union.hpp"
+#include "perimortem/core/storage/union.hpp"
 
 #include "toolchain/validation/test.hpp"
 
@@ -13,11 +13,11 @@ using namespace Perimortem::Validation;
 using namespace Toolchain::Validation;
 
 static Harness CoreUnion = {
-  .name = "Core::Static::Union",
+  .name = "Core::Storage::Union",
 };
 
 VALIDATION_TEST(CoreUnion, null) {
-  Static::Union<U32, View::Bytes, Bool> value;
+  Storage::Union<U32, View::Bytes, Bool> value;
 
   EXPECT(value.is_null());
   EXPECT(!value.find<U32>());
@@ -25,9 +25,9 @@ VALIDATION_TEST(CoreUnion, null) {
 }
 
 VALIDATION_TEST(CoreUnion, alternatives) {
-  Static::Union<U32, View::Bytes, Bool> bits(U32(42));
-  Static::Union<U32, View::Bytes, Bool> text("open"_view);
-  Static::Union<U32, View::Bytes, Bool> flag(True);
+  Storage::Union<U32, View::Bytes, Bool> bits(U32(42));
+  Storage::Union<U32, View::Bytes, Bool> text("open"_view);
+  Storage::Union<U32, View::Bytes, Bool> flag(True);
 
   bits.find<U32>().visit(
       [&](U32 value) { EXPECT_EQ(value, U32(42)); }, []() {});
@@ -43,9 +43,9 @@ VALIDATION_TEST(CoreUnion, visit) {
         [](View::Bytes text) { return text.get_size(); });
   };
 
-  Static::Union<U32, View::Bytes> empty;
-  Static::Union<U32, View::Bytes> bits(U32(42));
-  Static::Union<U32, View::Bytes> text("visit"_view);
+  Storage::Union<U32, View::Bytes> empty;
+  Storage::Union<U32, View::Bytes> bits(U32(42));
+  Storage::Union<U32, View::Bytes> text("visit"_view);
   EXPECT_EQ(read(empty), Count(1));
   EXPECT_EQ(read(bits), Count(42));
   EXPECT_EQ(read(text), Count(5));
@@ -57,11 +57,11 @@ VALIDATION_TEST(CoreUnion, visit) {
 }
 
 VALIDATION_TEST(CoreUnion, copy_move) {
-  Static::Union<U32, View::Bytes> first("copy"_view);
-  Static::Union<U32, View::Bytes> second(first);
-  Static::Union<U32, View::Bytes> third(Data::take(second));
-  Static::Union<U32, View::Bytes> copied;
-  Static::Union<U32, View::Bytes> moved;
+  Storage::Union<U32, View::Bytes> first("copy"_view);
+  Storage::Union<U32, View::Bytes> second(first);
+  Storage::Union<U32, View::Bytes> third(Data::take(second));
+  Storage::Union<U32, View::Bytes> copied;
+  Storage::Union<U32, View::Bytes> moved;
 
   copied = first;
   moved = Data::take(copied);
@@ -71,14 +71,14 @@ VALIDATION_TEST(CoreUnion, copy_move) {
   moved.find<View::Bytes>().visit(
       [&](View::Bytes value) { EXPECT_TEXT(value, "copy"_view); }, []() {});
 
-  moved = Static::Union<U32, View::Bytes>();
+  moved = Storage::Union<U32, View::Bytes>();
   EXPECT(moved.is_null());
 }
 
 VALIDATION_TEST(CoreUnion, move_only_alternative) {
   MoveOnlyValue<U64> source(42);
-  Static::Union<MoveOnlyValue<U64>, U64> selected(Data::take(source));
-  Static::Union<MoveOnlyValue<U64>, U64> moved(Data::take(selected));
+  Storage::Union<MoveOnlyValue<U64>, U64> selected(Data::take(source));
+  Storage::Union<MoveOnlyValue<U64>, U64> moved(Data::take(selected));
   auto found = moved.find<MoveOnlyValue<U64>>();
 
   ASSERT(found);
@@ -91,17 +91,17 @@ VALIDATION_TEST(CoreUnion, move_only_alternative) {
   EXPECT_EQ(source.get_value(), U64(0));
 }
 
-static_assert(__is_constructible(Static::Union<U64>, U64));
-static_assert(!__is_convertible_to(U64, Static::Union<U64>));
-static_assert(!__is_constructible(Static::Union<U64>, S32));
-static_assert(!__is_constructible(Static::Union<U64, S64>, S32));
+static_assert(__is_constructible(Storage::Union<U64>, U64));
+static_assert(!__is_convertible_to(U64, Storage::Union<U64>));
+static_assert(!__is_constructible(Storage::Union<U64>, S32));
+static_assert(!__is_constructible(Storage::Union<U64, S64>, S32));
 static_assert(__is_constructible(
-    Static::Union<MoveOnlyValue<U64>, U64>,
+    Storage::Union<MoveOnlyValue<U64>, U64>,
     MoveOnlyValue<U64>&&));
 static_assert(!__is_constructible(
-    Static::Union<MoveOnlyValue<U64>, U64>,
+    Storage::Union<MoveOnlyValue<U64>, U64>,
     const MoveOnlyValue<U64>&));
 static_assert(!__is_constructible(
-    Static::Union<MoveOnlyValue<U64>, U64>,
-    const Static::Union<MoveOnlyValue<U64>, U64>&));
-static_assert(__is_trivially_destructible(Static::Union<View::Bytes, S64>));
+    Storage::Union<MoveOnlyValue<U64>, U64>,
+    const Storage::Union<MoveOnlyValue<U64>, U64>&));
+static_assert(__is_trivially_destructible(Storage::Union<View::Bytes, S64>));

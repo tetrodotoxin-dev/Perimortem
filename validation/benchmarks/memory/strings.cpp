@@ -5,7 +5,7 @@
 #include "toolchain/validation/benchmark.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
 
 using namespace Perimortem::Core;
@@ -22,7 +22,7 @@ static auto concat_test() -> void {
   Count size = 0;
   for (Count i = 0; i < string_batch; i++) {
     Thread::Bytes buffer{};
-    buffer.concat(Static::Bytes<byte_length>());
+    buffer.concat(Storage::Bytes<byte_length>());
     size += buffer.get_size();
   }
 

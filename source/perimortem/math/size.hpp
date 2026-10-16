@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/vector.hpp"
 
 namespace Perimortem::Math {
 
@@ -20,7 +20,7 @@ class Size {
 
  public:
   constexpr Size() = default;
-  constexpr Size(Core::Static::Vector<type, dimensions> source) {
+  constexpr Size(Core::Storage::Vector<type, dimensions> source) {
     for (Count axis = 0; axis < dimensions; axis++) {
       components[axis] = normalize(source[axis]);
     }
@@ -57,7 +57,7 @@ class Size {
     return value;
   }
 
-  Core::Static::Vector<type, dimensions> components;
+  Core::Storage::Vector<type, dimensions> components;
 };
 
 }  // namespace Perimortem::Math

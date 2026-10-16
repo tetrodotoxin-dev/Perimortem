@@ -15,8 +15,8 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 
 #ifndef TOOLCHAIN_WINDOWS
@@ -230,8 +230,8 @@ class ThreadInitializer {
 #else
 
     // Max name length for pthreads is 16 (including the null terminator)
-    // Static::Bytes zero extends for names shorter than 16.
-    Static::Bytes<16> system_thread_name(thread_name);
+    // Storage::Bytes zero extends for names shorter than 16.
+    Storage::Bytes<16> system_thread_name(thread_name);
 
     // If the name is longer than 15 characters make sure we still have a null.
     system_thread_name[15] = 0;
@@ -306,7 +306,7 @@ class ThreadInitializer {
   Bool disable_log_header;
   Bool initialized = False;
 
-  static inline Static::Vector<U8, Process::Worker::max_workers()>
+  static inline Storage::Vector<U8, Process::Worker::max_workers()>
       thread_occupancy;
 };
 

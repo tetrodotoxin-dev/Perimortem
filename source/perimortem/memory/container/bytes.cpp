@@ -103,7 +103,8 @@ auto Container::Bytes<policy_type>::set(U8 value) -> void {
 }
 
 template <typename policy_type>
-auto Container::Bytes<policy_type>::operator[](Count index) -> Option<U8&> {
+auto Container::Bytes<policy_type>::operator[](Count index)
+    -> Storage::Option<U8&> {
   if (index >= size) {
     return {};
   }
@@ -183,7 +184,7 @@ auto Container::Bytes<policy_type>::reframe(S64 start, Count new_size) -> void {
 
 template <typename policy_type>
 auto Container::Bytes<policy_type>::operator[](Count index) const
-    -> Option<const U8&> {
+    -> Storage::Option<const U8&> {
   if (index >= size) {
     return {};
   }

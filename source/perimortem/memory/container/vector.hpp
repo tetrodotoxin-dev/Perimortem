@@ -7,7 +7,7 @@
 
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/option.hpp"
+#include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/memory/allocation.hpp"
 
@@ -334,7 +334,8 @@ class Vector {
   // Returns the value at `index`, or None when the index is outside the current
   // size. The returned reference remains current until an operation replaces
   // the allocation or relocates or replaces the value at that address.
-  constexpr auto operator[](Count index) const -> Core::Option<const type&> {
+  constexpr auto operator[](Count index) const
+      -> Core::Storage::Option<const type&> {
     if (index >= size) {
       return {};
     }
@@ -342,7 +343,7 @@ class Vector {
     return source_block[index];
   }
 
-  constexpr auto operator[](Count index) -> Core::Option<type&> {
+  constexpr auto operator[](Count index) -> Core::Storage::Option<type&> {
     if (index >= size) {
       return {};
     }

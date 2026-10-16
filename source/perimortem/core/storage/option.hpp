@@ -8,7 +8,7 @@
 
 #include "perimortem/core/data.hpp"
 
-namespace Perimortem::Core {
+namespace Perimortem::Core::Storage {
 
 // Option stores either one value directly or None without allocating separate
 // storage. The value does not need to support default construction. Copy and
@@ -211,4 +211,4 @@ class Option<value_type&> {
   value_type* value = nullptr;
 };
 
-}  // namespace Perimortem::Core
+}  // namespace Perimortem::Core::Storage

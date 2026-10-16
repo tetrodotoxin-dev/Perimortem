@@ -4,8 +4,8 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/option.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/option.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/utility/pair.hpp"
@@ -151,9 +151,9 @@ class Table {
       U16 byte_index = 0;
     };
 
-    alignas(64) Core::Static::Vector<U8, storage_size> buffer = {};
-    Core::Static::Vector<Coord, max_range + 1> buffer_coordinates = {};
-    Core::Static::Vector<value_type, source_count> mappings = {};
+    alignas(64) Core::Storage::Vector<U8, storage_size> buffer = {};
+    Core::Storage::Vector<Coord, max_range + 1> buffer_coordinates = {};
+    Core::Storage::Vector<value_type, source_count> mappings = {};
   };
 
   static constexpr Storage byte_pack;
@@ -187,9 +187,10 @@ class Table {
 
  public:
   static constexpr auto find(const Core::View::Bytes key)
-      -> Core::Option<const value_type&> {
+      -> Core::Storage::Option<const value_type&> {
     auto value = find_or_null(key);
-    return value == nullptr ? Core::Option<const value_type&>() : *value;
+    return value == nullptr ? Core::Storage::Option<const value_type&>()
+                            : *value;
   }
 
   static consteval auto get_values() -> Core::View::Vector<value_type> {

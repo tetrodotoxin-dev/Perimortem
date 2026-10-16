@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/option.hpp"
+#include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/view/bytes.h"
 
 namespace Perimortem::Core::Reader {
@@ -32,21 +32,46 @@ class Binary {
   constexpr auto set_location(Count location) -> void { cursor = location; }
   constexpr auto get_location() const -> Count { return cursor; }
 
-  constexpr auto read_u8() -> Option<U8> { return read_value<U8>(); }
-  constexpr auto read_u16() -> Option<U16> { return read_value<U16>(); }
-  constexpr auto read_u32() -> Option<U32> { return read_value<U32>(); }
-  constexpr auto read_u64() -> Option<U64> { return read_value<U64>(); }
-  constexpr auto read_s8() -> Option<S8> { return read_value<S8, U8>(); }
-  constexpr auto read_s16() -> Option<S16> { return read_value<S16, U16>(); }
-  constexpr auto read_s32() -> Option<S32> { return read_value<S32, U32>(); }
-  constexpr auto read_s64() -> Option<S64> { return read_value<S64, U64>(); }
-  constexpr auto read_r32() -> Option<R32> { return read_value<R32, U32>(); }
+  constexpr auto read_u8() -> Storage::Option<U8> { return read_value<U8>(); }
+  constexpr auto read_u16() -> Storage::Option<U16> {
+    return read_value<U16>();
+  }
 
-  constexpr auto read_r64() -> Option<R64> { return read_value<R64, U64>(); }
+  constexpr auto read_u32() -> Storage::Option<U32> {
+    return read_value<U32>();
+  }
 
-  constexpr auto read_bytes(Count count) -> Option<View::Bytes> {
+  constexpr auto read_u64() -> Storage::Option<U64> {
+    return read_value<U64>();
+  }
+
+  constexpr auto read_s8() -> Storage::Option<S8> {
+    return read_value<S8, U8>();
+  }
+
+  constexpr auto read_s16() -> Storage::Option<S16> {
+    return read_value<S16, U16>();
+  }
+
+  constexpr auto read_s32() -> Storage::Option<S32> {
+    return read_value<S32, U32>();
+  }
+
+  constexpr auto read_s64() -> Storage::Option<S64> {
+    return read_value<S64, U64>();
+  }
+
+  constexpr auto read_r32() -> Storage::Option<R32> {
+    return read_value<R32, U32>();
+  }
+
+  constexpr auto read_r64() -> Storage::Option<R64> {
+    return read_value<R64, U64>();
+  }
+
+  constexpr auto read_bytes(Count count) -> Storage::Option<View::Bytes> {
     if (!check_buffer_overruns(count)) {
-      return Option<View::Bytes>();
+      return Storage::Option<View::Bytes>();
     }
 
     View::Bytes result = source.slice(cursor, count);
@@ -70,27 +95,27 @@ class Binary {
   // Constant evaluation cannot load an integer through a byte pointer. Build
   // it from the stream's bytes there, while runtime reads retain memcpy for
   // packed input that may begin at an unaligned address.
-  template <typename T, typename Storage = T>
-  constexpr auto read_value() -> Option<T> {
-    if (!check_buffer_overruns(sizeof(Storage))) {
-      return Option<T>();
+  template <typename T, typename storage_type = T>
+  constexpr auto read_value() -> Storage::Option<T> {
+    if (!check_buffer_overruns(sizeof(storage_type))) {
+      return Storage::Option<T>();
     }
 
-    Storage value = 0;
+    storage_type value = 0;
     if consteval {
-      for (Count i = 0; i < sizeof(Storage); ++i) {
+      for (Count i = 0; i < sizeof(storage_type); ++i) {
         const Count shift = stream_endian == Data::ByteOrder::Little
                                 ? i * 8
-                                : (sizeof(Storage) - i - 1) * 8;
-        value |= Storage(source.get_data()[cursor + i]) << shift;
+                                : (sizeof(storage_type) - i - 1) * 8;
+        value |= storage_type(source.get_data()[cursor + i]) << shift;
       }
     } else {
-      memcpy(&value, source.get_data() + cursor, sizeof(Storage));
+      memcpy(&value, source.get_data() + cursor, sizeof(storage_type));
       value =
           Data::ensure_endian<stream_endian, Data::ByteOrder::Native>(value);
     }
 
-    cursor += sizeof(Storage);
+    cursor += sizeof(storage_type);
     return Data::bit_cast<T>(value);
   }
 

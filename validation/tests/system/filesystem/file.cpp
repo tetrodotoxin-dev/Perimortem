@@ -44,10 +44,12 @@ using namespace Toolchain::Validation;
 using Filesystem::File;
 using Filesystem::Path;
 
-static_assert(
-    __is_same(decltype(File::read(View::Bytes())), Option<Global::Bytes>));
+static_assert(__is_same(
+    decltype(File::read(View::Bytes())),
+    Storage::Option<Global::Bytes>));
 static_assert(requires(const File::Root& root) {
-  requires __is_same(decltype(root.read(View::Bytes())), Option<Global::Bytes>);
+  requires __is_same(
+      decltype(root.read(View::Bytes())), Storage::Option<Global::Bytes>);
 });
 static_assert(requires(File::Snapshot& snapshot) {
   requires __is_same(decltype(snapshot.take_contents()), Global::Bytes);
@@ -61,7 +63,7 @@ constexpr auto replacement_contents = "{\"other\":24}"_view;
 
 template <typename value_type, typename visitor_type>
 static auto expect_selected(
-    Option<value_type>& selected,
+    Storage::Option<value_type>& selected,
     visitor_type visitor,
     Test::TestResult& result) -> void {
   selected.visit(visitor, [&] { EXPECT(false); });
@@ -69,7 +71,7 @@ static auto expect_selected(
 
 template <typename value_type>
 static auto expect_contents(
-    Option<value_type>& selected,
+    Storage::Option<value_type>& selected,
     View::Bytes expected,
     Test::TestResult& result) -> void {
   expect_selected(
@@ -90,7 +92,7 @@ static constexpr CppSize temporary_path_capacity = 256;
 static constexpr Count captured_file_log_capacity = 1024;
 
 static Diagnostics::Log::Level captured_file_log_level;
-static Static::Bytes<captured_file_log_capacity> captured_file_log;
+static Storage::Bytes<captured_file_log_capacity> captured_file_log;
 static Count captured_file_log_size = 0;
 
 static auto capture_file_log(
@@ -142,7 +144,7 @@ static auto traced_child(
     const char* root_path,
     const char* read_path,
     Bool arena_read) -> void {
-  Option<File::Root> root;
+  Storage::Option<File::Root> root;
   if (root_path) {
     root = File::Root::open(
         NullTerminated(root_path, temporary_path_capacity).get_view());
@@ -592,7 +594,8 @@ class TemporaryRoot {
     return File::write(data, NullTerminated(path, sizeof(path)).get_view());
   }
 
-  auto read_outside_member(const char* member) const -> Option<Global::Bytes> {
+  auto read_outside_member(const char* member) const
+      -> Storage::Option<Global::Bytes> {
     char path[temporary_path_capacity];
     Bool built =
         build_member_path(path, sizeof(path), outside_directory_path, member);
@@ -1474,12 +1477,12 @@ VALIDATION_TEST(SystemFileRoot, invalid_routes) {
             View::Bytes(embedded_null, sizeof(embedded_null)));
         EXPECT_NOT(embedded_source);
 
-        Static::Bytes<5> terminated_path = {{'f', 'i', 'l', 'e', '\0'}};
+        Storage::Bytes<5> terminated_path = {{'f', 'i', 'l', 'e', '\0'}};
         auto terminated_source = selected_root.read(terminated_path);
         ASSERT(terminated_source);
         expect_contents(terminated_source, test_contents, result);
 
-        Static::Bytes<Path::max_size + 1> overlong;
+        Storage::Bytes<Path::max_size + 1> overlong;
         for (Count i = 0; i < overlong.get_size(); i++) {
           overlong[i] = 'a';
         }

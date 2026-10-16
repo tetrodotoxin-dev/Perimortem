@@ -10,12 +10,10 @@ _COMPONENTS = {
     "utility": ["core"],
     "math": [
         "core",
-        "utility",
     ],
     "memory": [
         "core",
         "math",
-        "utility",
     ],
     "compression": [
         "core",

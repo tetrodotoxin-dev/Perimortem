@@ -16,7 +16,7 @@ typedef struct perimortem_access_bytes {
 
 #ifdef __cplusplus
 
-#include "perimortem/core/option.hpp"
+#include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/view/bytes.h"
 
 namespace Perimortem::Core::Access {
@@ -50,7 +50,7 @@ class Bytes {
   constexpr operator perimortem_access_bytes() const { return value; }
   constexpr operator View::Bytes() const { return get_view(); }
 
-  constexpr auto operator[](Count index) -> Core::Option<U8&> {
+  constexpr auto operator[](Count index) -> Core::Storage::Option<U8&> {
     if (is_empty() || index >= get_size()) [[unlikely]] {
       return {};
     }

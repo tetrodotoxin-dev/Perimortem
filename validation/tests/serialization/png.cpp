@@ -7,7 +7,7 @@
 
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/system/filesystem/file.hpp"
 #include "validation/tests/log.hpp"
 
@@ -182,7 +182,7 @@ VALIDATION_TEST(SerializationPng, decode_pattern_8x1) {
 }
 
 VALIDATION_TEST(SerializationPng, decode_invalid) {
-  constexpr Static::Bytes<8> garbage = {
+  constexpr Storage::Bytes<8> garbage = {
     {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}};
 
   auto image = Png::decode(garbage);

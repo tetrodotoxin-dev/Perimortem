@@ -20,7 +20,7 @@ using namespace Toolchain::Validation;
 
 using Filesystem::File;
 
-static Static::Bytes<1 << 15> json_data;
+static Storage::Bytes<1 << 15> json_data;
 static Writer::Textual json_text(json_data);
 static constexpr Count json_batch = 1024;
 

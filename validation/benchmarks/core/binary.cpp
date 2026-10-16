@@ -9,7 +9,7 @@
 #include "perimortem/core/access/bytes.h"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/writer/binary.hpp"
 #include "perimortem/system/random.hpp"
 
@@ -17,7 +17,7 @@ using namespace Perimortem::Core;
 using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 
-static Static::Bytes<1 << 12> io_buffer;
+static Storage::Bytes<1 << 12> io_buffer;
 
 auto fill_buffer() -> void {
   Count* data = Data::cast<Count>(io_buffer.get_data());

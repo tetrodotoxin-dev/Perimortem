@@ -110,7 +110,7 @@ static auto append_path(Access::Bytes text, Count& size, View::Bytes path)
 // same routine serve fixed storage and exact Arena storage without introducing
 // a second Path type.
 static auto normalize_path(Access::Bytes text, View::Bytes path)
-    -> Option<Count> {
+    -> Storage::Option<Count> {
   if (path.is_empty()) {
     return {};
   }
@@ -174,7 +174,7 @@ Path::Path(View::Bytes base_file_path, View::Bytes relative_path) {
 }
 
 auto Path::normalize(Allocator::Arena& arena, View::Bytes path)
-    -> Option<View::Bytes> {
+    -> Storage::Option<View::Bytes> {
   // Arena cannot roll back one bump allocation. The fixed Path pass rejects
   // invalid input and measures the exact allocation before Arena state changes.
   Path validated(path);

@@ -4,8 +4,8 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/writer/binary.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
@@ -55,7 +55,7 @@ VALIDATION_TEST(SerializationStream, big_endian) {
 }
 
 VALIDATION_TEST(SerializationStream, binary_reals) {
-  Static::Bytes<12> expected;
+  Storage::Bytes<12> expected;
   Writer::Binary<Data::ByteOrder::Little> expected_writer(
       expected.get_access());
   expected_writer << R32(12.5) << R64(-0.125);
@@ -93,7 +93,7 @@ VALIDATION_TEST(SerializationStream, managed_write) {
 }
 
 VALIDATION_TEST(SerializationStream, vector_write) {
-  Static::Vector<U16, 3> values = {{
+  Storage::Vector<U16, 3> values = {{
     U16(0x0102),
     U16(0x0304),
     U16(0x0506),
@@ -114,7 +114,7 @@ VALIDATION_TEST(SerializationStream, vector_write) {
 }
 
 VALIDATION_TEST(SerializationStream, native_vector) {
-  Static::Vector<U32, 3> values = {{
+  Storage::Vector<U32, 3> values = {{
     U32(0x01020304),
     U32(0x11223344),
     U32(0xAABBCCDD),

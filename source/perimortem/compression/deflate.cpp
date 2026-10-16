@@ -11,15 +11,15 @@
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/scalar.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/vector.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Compression;
 using namespace Perimortem::Memory;
 
 // Distance codes zero through twenty nine use base distances and extra bits.
-constexpr Static::Vector<U16, 30> distance_base = {{
+constexpr Storage::Vector<U16, 30> distance_base = {{
   1,    2,    3,    4,    5,    7,    9,    13,    17,    25,
   33,   49,   65,   97,   129,  193,  257,  385,   513,   769,
   1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577,
@@ -28,7 +28,7 @@ constexpr Static::Vector<U16, 30> distance_base = {{
 // Maps indexes to the correct code length alphabet ordering.
 // The order puts the most commonly nonzero lengths first so the transmitted
 // sequence can be truncated as soon as all trailing entries are zero.
-constexpr Static::Vector<U8, 19> code_length_order = {{
+constexpr Storage::Vector<U8, 19> code_length_order = {{
   16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
 }};
 
@@ -66,12 +66,12 @@ class BackReferenceEncoding {
   auto get_extra_bits() const -> Count { return extra_bits; }
 
   // Length codes 257 through 285 use base lengths and extra bits.
-  static constexpr Static::Vector<U16, 29> length_base = {{
+  static constexpr Storage::Vector<U16, 29> length_base = {{
     3,  4,  5,  6,  7,  8,  9,  10, 11,  13,  15,  17,  19,  23,  27,
     31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258,
   }};
 
-  static constexpr Static::Vector<U8, 29> length_extra_bits = {{
+  static constexpr Storage::Vector<U8, 29> length_extra_bits = {{
     0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2,
     2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0,
   }};
@@ -79,9 +79,9 @@ class BackReferenceEncoding {
   // Precomputed O(1) encoding for every valid match length (3..258). Avoids the
   // backward linear scan over 29 entries for every encoded match.
   static constexpr auto build_length_encoding_table()
-      -> Static::Vector<BackReferenceEncoding, 256> {
+      -> Storage::Vector<BackReferenceEncoding, 256> {
     constexpr Count length_symbol_offset = 257;
-    Static::Vector<BackReferenceEncoding, 256> table;
+    Storage::Vector<BackReferenceEncoding, 256> table;
     for (Count i = Lz77::min_match; i <= Lz77::max_match; i++) {
       Count code = 0;
       for (Count j = length_base.get_size() - 1; j > 0; j--) {
@@ -105,7 +105,7 @@ class BackReferenceEncoding {
   U32 extra_value;
 };
 
-constexpr Static::Vector<BackReferenceEncoding, 256> length_encoding_table =
+constexpr Storage::Vector<BackReferenceEncoding, 256> length_encoding_table =
     BackReferenceEncoding::build_length_encoding_table();
 
 // A cached Lz77 output token which is either a literal byte or back reference.
@@ -289,7 +289,7 @@ constexpr auto inflate_symbols(
       return False;
     }
 
-    constexpr Static::Vector<U8, 30> distance_extra_bits = {{
+    constexpr Storage::Vector<U8, 30> distance_extra_bits = {{
       0, 0, 0, 0, 1, 1, 2, 2,  3,  3,  4,  4,  5,  5,  6,
       6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13,
     }};
@@ -375,14 +375,14 @@ constexpr auto inflate_dynamic(BitStream::Reader& reader, Thread::Bytes& output)
     return False;
   }
 
-  Static::Vector<U8, code_length_order.get_size()> huffman_lengths;
+  Storage::Vector<U8, code_length_order.get_size()> huffman_lengths;
   for (Count i = 0; i < huffman_code_count; i++) {
     huffman_lengths[code_length_order[i]] = U8(reader.read_code(3));
   }
 
   const auto dynamic_table = Huffman(huffman_lengths);
   Count total_codes = literal_code_count + distance_code_count;
-  Static::Vector<U8, Huffman::max_symbol_count> actual_literal_len_lengths;
+  Storage::Vector<U8, Huffman::max_symbol_count> actual_literal_len_lengths;
 
   Count decode_index = 0;
   while (decode_index < total_codes && reader.is_valid()) {
@@ -568,7 +568,7 @@ constexpr auto write_deflate_footer(
 constexpr auto rle_encode_code_lengths(
     View::Vector<U8> literal_len_lengths,
     View::Vector<U8> distance_lengths,
-    Static::Vector<RleEntry, 320>& output) -> Count {
+    Storage::Vector<RleEntry, 320>& output) -> Count {
   const Count literal_length_count = literal_len_lengths.get_size();
   const auto* literal_data = literal_len_lengths.get_data();
   const auto* distance_data = distance_lengths.get_data();
@@ -627,12 +627,12 @@ constexpr auto write_dynamic_block_header(
     Count literal_index,
     View::Vector<U8> distance_lengths,
     Count distance_index) -> void {
-  Static::Vector<RleEntry, 320> rle;
+  Storage::Vector<RleEntry, 320> rle;
   Count rle_count = rle_encode_code_lengths(
       View::Vector<U8>(literal_len_lengths.get_data(), literal_index + 257),
       View::Vector<U8>(distance_lengths.get_data(), distance_index + 1), rle);
 
-  Static::Vector<U32, code_length_order.get_size()> meta_freq;
+  Storage::Vector<U32, code_length_order.get_size()> meta_freq;
   for (Count i = 0; i < code_length_order.get_size(); i++) {
     meta_freq[i] = 0;
   }
@@ -641,7 +641,7 @@ constexpr auto write_dynamic_block_header(
     meta_freq[rle[i].get_symbol()]++;
   }
 
-  Static::Vector<U8, code_length_order.get_size()> meta_lengths;
+  Storage::Vector<U8, code_length_order.get_size()> meta_lengths;
   Huffman::compute_lengths(meta_freq.get_view(), meta_lengths.get_access());
 
   // Trim trailing zero length entries from the meta table.
@@ -732,8 +732,9 @@ constexpr auto collect_lz77_tokens(
     Count search_depth,
     Lz77& lz77,
     Thread::Vector<Token>& tokens,
-    Static::Vector<U32, deflate_literal_len_count>& literal_len_frequencies,
-    Static::Vector<U32, deflate_distance_count>& distance_frequencies) -> void {
+    Storage::Vector<U32, deflate_literal_len_count>& literal_len_frequencies,
+    Storage::Vector<U32, deflate_distance_count>& distance_frequencies)
+    -> void {
   // Matches at least this long emit immediately because another chain search is
   // unlikely to recover its cost. The threshold follows the zlib level 6 lazy
   // matching heuristic.
@@ -823,8 +824,8 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
   }
 
   Lz77 lz77;
-  Static::Vector<U32, deflate_distance_count> distance_frequencies;
-  Static::Vector<U32, deflate_literal_len_count> literal_len_frequencies;
+  Storage::Vector<U32, deflate_distance_count> distance_frequencies;
+  Storage::Vector<U32, deflate_literal_len_count> literal_len_frequencies;
 
   // Every block emits symbol 256 as its terminator. Seed that frequency so
   // length generation cannot omit its code before any source tokens are read.
@@ -838,8 +839,8 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
       source, search_depth, lz77, tokens, literal_len_frequencies,
       distance_frequencies);
 
-  Static::Vector<U8, deflate_literal_len_count> literal_len_lengths;
-  Static::Vector<U8, deflate_distance_count> distance_lengths;
+  Storage::Vector<U8, deflate_literal_len_count> literal_len_lengths;
+  Storage::Vector<U8, deflate_distance_count> distance_lengths;
   Huffman::compute_lengths(
       literal_len_frequencies.get_view(), literal_len_lengths.get_access());
   Huffman::compute_lengths(

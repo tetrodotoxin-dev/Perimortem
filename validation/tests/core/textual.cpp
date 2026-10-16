@@ -226,7 +226,7 @@ static Harness CoreTextual = {
 };
 
 VALIDATION_TEST(CoreTextual, simple_text) {
-  Static::Bytes<10> buffer;
+  Storage::Bytes<10> buffer;
   Writer::Textual writer(buffer.get_access());
 
   writer << "Hello"_view << "World"_view;
@@ -236,7 +236,7 @@ VALIDATION_TEST(CoreTextual, simple_text) {
 }
 
 VALIDATION_TEST(CoreTextual, prevent_overflow) {
-  Static::Bytes<10> buffer;
+  Storage::Bytes<10> buffer;
   Writer::Textual writer(buffer.get_access());
 
   writer << "Hello"_view << "World!!!!"_view;
@@ -246,7 +246,7 @@ VALIDATION_TEST(CoreTextual, prevent_overflow) {
 }
 
 VALIDATION_TEST(CoreTextual, integers) {
-  Static::Bytes<12> buffer;
+  Storage::Bytes<12> buffer;
   Writer::Textual writer(buffer.get_access());
 
   writer << 120000 << -31 << 208;
@@ -256,7 +256,7 @@ VALIDATION_TEST(CoreTextual, integers) {
 }
 
 VALIDATION_TEST(CoreTextual, characters) {
-  Static::Bytes<8> buffer;
+  Storage::Bytes<8> buffer;
   Writer::Textual writer(buffer.get_access());
 
   writer << S8(-128) << ':' << U8(255);
@@ -266,7 +266,7 @@ VALIDATION_TEST(CoreTextual, characters) {
 }
 
 VALIDATION_TEST(CoreTextual, integer_limits) {
-  Static::Bytes<32> buffer;
+  Storage::Bytes<32> buffer;
   Writer::Textual writer(buffer.get_access());
 
   writer << S32(-2147483647 - 1) << ':' << S64(-9223372036854775807LL - 1);
@@ -276,7 +276,7 @@ VALIDATION_TEST(CoreTextual, integer_limits) {
 }
 
 VALIDATION_TEST(CoreTextual, pointer_bounds) {
-  Static::Bytes<4> buffer;
+  Storage::Bytes<4> buffer;
   Writer::Textual writer(buffer.get_access());
 
   writer.set_pointer(Count(-1));
@@ -287,7 +287,7 @@ VALIDATION_TEST(CoreTextual, pointer_bounds) {
 }
 
 VALIDATION_TEST(CoreTextual, invalid_writer_stops_writes) {
-  Static::Bytes<8> buffer;
+  Storage::Bytes<8> buffer;
   for (Count index = 0; index < buffer.get_size(); index++) {
     buffer[index] = '?';
   }
@@ -303,7 +303,7 @@ VALIDATION_TEST(CoreTextual, invalid_writer_stops_writes) {
 }
 
 VALIDATION_TEST(CoreTextual, integers_and_text) {
-  Static::Bytes<24> buffer;
+  Storage::Bytes<24> buffer;
   Writer::Textual writer(buffer.get_access());
 
   writer << "Test Value: "_view << 412010 << " units"_view;
@@ -313,7 +313,7 @@ VALIDATION_TEST(CoreTextual, integers_and_text) {
 }
 
 VALIDATION_TEST(CoreTextual, boolean) {
-  Static::Bytes<11> buffer;
+  Storage::Bytes<11> buffer;
   Writer::Textual writer(buffer.get_access());
 
   // C++ will narrow to int and should print 1 and 0
@@ -327,7 +327,7 @@ VALIDATION_TEST(CoreTextual, boolean) {
 }
 
 VALIDATION_TEST(CoreTextual, floats) {
-  Static::Bytes<40> buffer;
+  Storage::Bytes<40> buffer;
   Writer::Textual writer(buffer.get_access());
 
   writer << 12.08 << 0.0000812;
@@ -341,7 +341,7 @@ VALIDATION_TEST(CoreTextual, floats) {
 }
 
 VALIDATION_TEST(CoreTextual, fractional_digits) {
-  Static::Bytes<32> buffer;
+  Storage::Bytes<32> buffer;
   Writer::Textual writer(buffer.get_access());
 
   writer << R64(0.9999999999999999);
@@ -353,7 +353,7 @@ VALIDATION_TEST(CoreTextual, fractional_digits) {
 }
 
 VALIDATION_TEST(CoreTextual, multiple_writers) {
-  Static::Bytes<34> buffer;
+  Storage::Bytes<34> buffer;
   for (Count index = 0; index < buffer.get_size(); index++) {
     buffer[index] = '?';
   }

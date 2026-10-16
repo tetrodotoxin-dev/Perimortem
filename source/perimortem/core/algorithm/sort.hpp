@@ -6,7 +6,7 @@
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/scalar.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/vector.hpp"
 
 namespace Perimortem::Core::Algorithm {
 
@@ -182,8 +182,8 @@ class Sort {
 
   template <typename type, Count item_count>
   consteval auto operator()(const type (&data)[item_count]) const
-      -> Core::Static::Vector<type, item_count> {
-    Core::Static::Vector<type, item_count> output;
+      -> Core::Storage::Vector<type, item_count> {
+    Core::Storage::Vector<type, item_count> output;
     for (Count i = 0; i < item_count; i++) {
       output[i] = data[i];
     }

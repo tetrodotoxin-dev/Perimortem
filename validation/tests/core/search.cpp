@@ -6,7 +6,7 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/vector.hpp"
 
 using namespace Perimortem::Core;
 using namespace Toolchain::Validation;
@@ -16,15 +16,15 @@ static Harness AlgoSearch = {
 };
 
 template <Count size>
-auto place_text(Static::Bytes<size>& source, View::Bytes text, Count location)
+auto place_text(Storage::Bytes<size>& source, View::Bytes text, Count location)
     -> void {
   Data::copy(source.get_data() + location, text.get_data(), text.get_size());
 }
 
 template <Count size>
 auto make_search_source(View::Bytes text, Count location)
-    -> Static::Bytes<size> {
-  Static::Bytes<size> source;
+    -> Storage::Bytes<size> {
+  Storage::Bytes<size> source;
   for (Count index = 0; index < source.get_size(); index++) {
     source[index] = U8('x');
   }
@@ -42,7 +42,7 @@ VALIDATION_TEST(AlgoSearch, boundaries) {
 }
 
 VALIDATION_TEST(AlgoSearch, byte_offset) {
-  Static::Bytes<160> source;
+  Storage::Bytes<160> source;
   for (Count i = 0; i < source.get_size(); i++) {
     source[i] = 'a';
   }
@@ -123,7 +123,7 @@ VALIDATION_TEST(AlgoSearch, vectorized_match) {
 
 VALIDATION_TEST(AlgoSearch, multiple_matches) {
   constexpr auto test_word = "perimortem testing"_view;
-  constexpr Static::Vector<Count, 12> word_locations = {{
+  constexpr Storage::Vector<Count, 12> word_locations = {{
     12,
     120,
     245,
@@ -138,7 +138,7 @@ VALIDATION_TEST(AlgoSearch, multiple_matches) {
     830,
   }};
 
-  Static::Bytes<
+  Storage::Bytes<
       word_locations[word_locations.get_size() - 1] + test_word.get_size() + 1>
       test_text;
   for (Count i = 0; i < word_locations.get_size(); i++) {
@@ -154,7 +154,7 @@ VALIDATION_TEST(AlgoSearch, multiple_matches) {
 
 VALIDATION_TEST(AlgoSearch, very_large_key) {
   constexpr auto test_word = "perimortem testing on very large strings"_view;
-  constexpr Static::Vector<Count, 11> word_locations = {{
+  constexpr Storage::Vector<Count, 11> word_locations = {{
     12,
     120,
     245,
@@ -168,7 +168,7 @@ VALIDATION_TEST(AlgoSearch, very_large_key) {
     930,
   }};
 
-  Static::Bytes<
+  Storage::Bytes<
       word_locations[word_locations.get_size() - 1] + test_word.get_size() + 1>
       test_text;
   for (Count i = 0; i < word_locations.get_size(); i++) {

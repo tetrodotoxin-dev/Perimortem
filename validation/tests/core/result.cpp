@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/utility/result.hpp"
+#include "perimortem/core/storage/result.hpp"
 
 #include "toolchain/validation/test.hpp"
 
@@ -11,12 +11,11 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Perimortem::Utility;
 using namespace Perimortem::Validation;
 using namespace Toolchain::Validation;
 
-static Harness UtilityResult = {
-  .name = "Utility::Result",
+static Harness CoreStorageResult = {
+  .name = "Core::Storage::Result",
 };
 
 enum class ResultError : U8 {
@@ -58,16 +57,17 @@ class OwnedResultError {
 };
 
 template <typename error_type>
-concept SupportedResultError = requires { typename Result<S32, error_type>; };
+concept SupportedResultError =
+    requires { typename Storage::Result<S32, error_type>; };
 
 static auto create_value(Count& live_values)
-    -> Result<ResultValue, ResultError> {
+    -> Storage::Result<ResultValue, ResultError> {
   ResultValue value(41, live_values);
   return Data::take(value);
 }
 
-VALIDATION_TEST(UtilityResult, visits_value) {
-  Result<S32, ResultError> selected(S32(41));
+VALIDATION_TEST(CoreStorageResult, visits_value) {
+  Storage::Result<S32, ResultError> selected(S32(41));
 
   selected.visit([](S32& value) -> void { value++; }, [](ResultError) {});
 
@@ -78,10 +78,10 @@ VALIDATION_TEST(UtilityResult, visits_value) {
   EXPECT_EQ(value, S32(42));
 }
 
-VALIDATION_TEST(UtilityResult, visits_error) {
-  Result<S32, ResultError> selected(ResultError::Rejected);
-  Result<S32, ResultError> copied(selected);
-  Result<S32, ResultError> moved(Data::take(copied));
+VALIDATION_TEST(CoreStorageResult, visits_error) {
+  Storage::Result<S32, ResultError> selected(ResultError::Rejected);
+  Storage::Result<S32, ResultError> copied(selected);
+  Storage::Result<S32, ResultError> moved(Data::take(copied));
 
   ResultError error = moved.visit(
       [](S32) { return ResultError::Unknown; },
@@ -90,17 +90,18 @@ VALIDATION_TEST(UtilityResult, visits_error) {
   EXPECT(error == ResultError::Rejected);
 }
 
-VALIDATION_TEST(UtilityResult, reference) {
+VALIDATION_TEST(CoreStorageResult, reference) {
   S32 value = 41;
-  Result<S32&, ResultError> selected(value);
+  Storage::Result<S32&, ResultError> selected(value);
 
   selected.visit([](S32& selected) -> void { selected++; }, [](ResultError) {});
 
   EXPECT_EQ(value, S32(42));
 }
 
-VALIDATION_TEST(UtilityResult, dynamic_value) {
-  Result<Thread::Bytes, ResultError> selected(Thread::Bytes("owned"_view));
+VALIDATION_TEST(CoreStorageResult, dynamic_value) {
+  Storage::Result<Thread::Bytes, ResultError> selected(
+      Thread::Bytes("owned"_view));
 
   selected.visit(
       [](Thread::Bytes& value) -> void { value.concat(" value"_view); },
@@ -113,7 +114,7 @@ VALIDATION_TEST(UtilityResult, dynamic_value) {
   EXPECT_TEXT(value, "owned value"_view);
 }
 
-VALIDATION_TEST(UtilityResult, lifetime) {
+VALIDATION_TEST(CoreStorageResult, lifetime) {
   Count live_values = 0;
 
   {
@@ -134,13 +135,13 @@ VALIDATION_TEST(UtilityResult, lifetime) {
   EXPECT_EQ(live_values, Count(0));
 }
 
-VALIDATION_TEST(UtilityResult, copies_and_moves) {
+VALIDATION_TEST(CoreStorageResult, copies_and_moves) {
   Count live_values = 0;
 
   {
     auto first = create_value(live_values);
-    Result<ResultValue, ResultError> copied(first);
-    Result<ResultValue, ResultError> moved(Data::take(copied));
+    Storage::Result<ResultValue, ResultError> copied(first);
+    Storage::Result<ResultValue, ResultError> moved(Data::take(copied));
     EXPECT_EQ(live_values, Count(3));
 
     moved.visit(
@@ -160,7 +161,7 @@ VALIDATION_TEST(UtilityResult, copies_and_moves) {
   EXPECT_EQ(live_values, Count(0));
 }
 
-VALIDATION_TEST(UtilityResult, switches_state) {
+VALIDATION_TEST(CoreStorageResult, switches_state) {
   Count live_values = 0;
 
   {
@@ -198,18 +199,20 @@ VALIDATION_TEST(UtilityResult, switches_state) {
   EXPECT_EQ(live_values, Count(0));
 }
 
-static_assert(!__is_constructible(Result<S32, ResultError>));
-static_assert(__is_constructible(Result<S32, ResultError>, S32));
-static_assert(__is_constructible(Result<S32, ResultError>, ResultError));
-static_assert(!__is_constructible(Result<S32&, ResultError>, S32&&));
-static_assert(!__is_trivially_destructible(ResultValue));
-static_assert(__is_trivially_destructible(Result<S32, ResultError>));
+static_assert(!__is_constructible(Storage::Result<S32, ResultError>));
+static_assert(__is_constructible(Storage::Result<S32, ResultError>, S32));
 static_assert(
-    __is_constructible(Result<ResultValue, ResultError>, ResultValue&&));
+    __is_constructible(Storage::Result<S32, ResultError>, ResultError));
+static_assert(!__is_constructible(Storage::Result<S32&, ResultError>, S32&&));
+static_assert(!__is_trivially_destructible(ResultValue));
+static_assert(__is_trivially_destructible(Storage::Result<S32, ResultError>));
 static_assert(__is_constructible(
-    Result<MoveOnlyValue<U8>, ResultError>,
+    Storage::Result<ResultValue, ResultError>,
+    ResultValue&&));
+static_assert(__is_constructible(
+    Storage::Result<MoveOnlyValue<U8>, ResultError>,
     MoveOnlyValue<U8>&&));
 static_assert(!__is_constructible(
-    Result<MoveOnlyValue<U8>, ResultError>,
-    const Result<MoveOnlyValue<U8>, ResultError>&));
+    Storage::Result<MoveOnlyValue<U8>, ResultError>,
+    const Storage::Result<MoveOnlyValue<U8>, ResultError>&));
 static_assert(!SupportedResultError<OwnedResultError>);

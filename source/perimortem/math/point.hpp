@@ -3,19 +3,19 @@
 
 #pragma once
 
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/vector.hpp"
 
 namespace Perimortem::Math {
 
 // Point gives coordinates a spatial role without choosing a unit or a fixed
-// number of axes. It aggregates Static::Vector because coordinates have no
+// number of axes. It aggregates Storage::Vector because coordinates have no
 // validity restriction and need no second storage policy or constructor.
 template <typename type, Count dimensions>
 class Point {
   static_assert(dimensions > 0);
 
  public:
-  Core::Static::Vector<type, dimensions> coordinates;
+  Core::Storage::Vector<type, dimensions> coordinates;
 
   constexpr auto operator[](Count axis) const -> type {
     return coordinates[axis];

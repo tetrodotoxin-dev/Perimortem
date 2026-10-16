@@ -9,8 +9,8 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/scalar.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
@@ -19,19 +19,19 @@ using namespace Toolchain::Validation;
 constexpr Count max_message_length = 256;
 
 struct LogEvent {
-  Static::Bytes<max_message_length> message;
+  Storage::Bytes<max_message_length> message;
   Count message_size;
 };
 
 constexpr Count event_log_size = 8;
-static Static::Vector<LogEvent, event_log_size> log_events;
+static Storage::Vector<LogEvent, event_log_size> log_events;
 static Count total_events = 0;
 
 static auto capture_sink(
     Diagnostics::Log::Level level,
     View::Bytes message,
     const Diagnostics::Source& location) -> void {
-  Static::Bytes<max_message_length> formatted;
+  Storage::Bytes<max_message_length> formatted;
   Count formatted_size = Diagnostics::Log::format_entry(
       level, message, location, formatted.get_access());
   Count index = total_events++ % event_log_size;
@@ -74,7 +74,7 @@ static auto has_valid_header(View::Bytes entry) -> Bool {
   }
 
   // Validate all number values
-  constexpr Static::Vector<Count, 9> number_indexes = {{
+  constexpr Storage::Vector<Count, 9> number_indexes = {{
     0,
     1,
     3,

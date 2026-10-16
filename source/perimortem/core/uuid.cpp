@@ -123,7 +123,7 @@ static constexpr auto deserialize_ascii(
 
 #endif
 
-auto Uuid::parse(const Static::Bytes<36>& uuid_string) -> Uuid {
+auto Uuid::parse(const Storage::Bytes<36>& uuid_string) -> Uuid {
   Uuid result;
 
 #ifdef PERI_AVX2
@@ -227,7 +227,7 @@ auto Uuid::validate(View::Bytes source) -> Bool {
 #endif
 }
 
-auto Uuid::parse(const Static::Bytes<32>& uuid_string) -> Uuid {
+auto Uuid::parse(const Storage::Bytes<32>& uuid_string) -> Uuid {
   Uuid result;
 
 #ifdef PERI_AVX2
@@ -261,8 +261,8 @@ auto Uuid::parse(const Static::Bytes<32>& uuid_string) -> Uuid {
   return result;
 }
 
-auto Uuid::serialize() const -> const Static::Bytes<36> {
-  Static::Bytes<36> uuid_string;
+auto Uuid::serialize() const -> const Storage::Bytes<36> {
+  Storage::Bytes<36> uuid_string;
   auto byte_buffer = uuid_string.get_access().get_data();
 
 #ifdef PERI_AVX2

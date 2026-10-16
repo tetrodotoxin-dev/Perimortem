@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include "perimortem/core/option.hpp"
+#include "perimortem/core/storage/option.hpp"
+#include "perimortem/core/storage/result.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/math/domain.hpp"
 #include "perimortem/memory/thread/vector.hpp"
-#include "perimortem/utility/result.hpp"
 
 namespace Perimortem::Memory {
 
@@ -87,7 +87,7 @@ class Matrix {
   // existing value. A mismatch leaves the supplied vector with its values.
   static auto project(
       Math::Domain<2, column_boundary, row_boundary> source_domain,
-      Thread::Vector<type>&& source) -> Utility::Result<Matrix, Failure> {
+      Thread::Vector<type>&& source) -> Core::Storage::Result<Matrix, Failure> {
     Count count = source_domain.get_extent(0);
     count *= source_domain.get_extent(1);
     if (source.get_size() != count) {
@@ -125,22 +125,24 @@ class Matrix {
   // empty axis. A successful lookup returns a reference that remains valid
   // until Matrix storage changes.
   constexpr auto get(Math::Point<S64, 2> point) const
-      -> Core::Option<const type&> {
+      -> Core::Storage::Option<const type&> {
     return domain.resolve(point).visit(
-        [this](Math::Point<U32, 2> mapped) -> Core::Option<const type&> {
+        [this](
+            Math::Point<U32, 2> mapped) -> Core::Storage::Option<const type&> {
           return values[get_index(mapped)];
         },
 
-        []() -> Core::Option<const type&> { return {}; });
+        []() -> Core::Storage::Option<const type&> { return {}; });
   }
 
-  constexpr auto get(Math::Point<S64, 2> point) -> Core::Option<type&> {
+  constexpr auto get(Math::Point<S64, 2> point)
+      -> Core::Storage::Option<type&> {
     return domain.resolve(point).visit(
-        [this](Math::Point<U32, 2> mapped) -> Core::Option<type&> {
+        [this](Math::Point<U32, 2> mapped) -> Core::Storage::Option<type&> {
           return values[get_index(mapped)];
         },
 
-        []() -> Core::Option<type&> { return {}; });
+        []() -> Core::Storage::Option<type&> { return {}; });
   }
 
  private:

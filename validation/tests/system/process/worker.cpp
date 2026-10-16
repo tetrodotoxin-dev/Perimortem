@@ -13,7 +13,7 @@
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/reader/binary.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/writer/binary.hpp"
 #include "perimortem/system/process/worker.hpp"
 
@@ -84,7 +84,7 @@ static auto yield_thread() -> void {
 }
 
 static auto fill_worker_payload(
-    Static::Bytes<large_worker_payload_size>& payload_bytes) -> void {
+    Storage::Bytes<large_worker_payload_size>& payload_bytes) -> void {
   for (Count i = 0; i < payload_bytes.get_size(); i++) {
     payload_bytes[i] = U8((i * 37 + 11) & 0xFF);
   }
@@ -198,12 +198,12 @@ static auto select_worker_logger(View::Bytes) -> void {
 
 VALIDATION_TEST(SystemProcessWorker, copies_large_job) {
   WorkerPayloadResult worker_result;
-  Static::Bytes<large_worker_payload_size> expected_payload;
+  Storage::Bytes<large_worker_payload_size> expected_payload;
   fill_worker_payload(expected_payload);
 
   const U64 expected_checksum = checksum_worker_payload(expected_payload);
 
-  Static::Bytes<sizeof(U64) + large_worker_payload_size + sizeof(U64) * 2>
+  Storage::Bytes<sizeof(U64) + large_worker_payload_size + sizeof(U64) * 2>
       job_storage;
   Count source_offset = 1;
   if ((Count(job_storage.get_data() + source_offset) & (sizeof(U64) - 1)) ==
@@ -233,10 +233,10 @@ VALIDATION_TEST(SystemProcessWorker, copies_large_job) {
 
 VALIDATION_TEST(SystemProcessWorker, copies_thread_name) {
   WorkerNameResult worker_result;
-  Static::Bytes<long_worker_name_size> requested_name(long_worker_name);
+  Storage::Bytes<long_worker_name_size> requested_name(long_worker_name);
   const U64 expected_checksum = checksum_worker_payload(long_worker_name);
 
-  Static::Bytes<sizeof(U64) * 2 + long_worker_name_size + sizeof(U64) * 2>
+  Storage::Bytes<sizeof(U64) * 2 + long_worker_name_size + sizeof(U64) * 2>
       job_storage;
 
   Writer::Binary<Data::ByteOrder::Native> writer(job_storage.get_access());
@@ -261,7 +261,7 @@ VALIDATION_TEST(SystemProcessWorker, unnamed_worker) {
   // A diagnostic name is optional. Omitting it must not change the worker's
   // identity or substitute the foreign thread's default name.
   WorkerNameResult worker_result;
-  Static::Bytes<sizeof(U64) * 2> storage;
+  Storage::Bytes<sizeof(U64) * 2> storage;
   Writer::Binary<Data::ByteOrder::Native> writer(storage.get_access());
   writer << U64(Data::address(&worker_result)) << U64(0);
 
@@ -278,7 +278,7 @@ VALIDATION_TEST(SystemProcessWorker, worker_count) {
   WorkerCountResult worker_result;
   const Count baseline_worker_count = Process::Worker::get_worker_count();
 
-  Static::Bytes<sizeof(U64)> job_storage;
+  Storage::Bytes<sizeof(U64)> job_storage;
   Writer::Binary<Data::ByteOrder::Native> writer(job_storage.get_access());
   writer << U64(Data::address(&worker_result));
   ASSERT(writer.is_valid());

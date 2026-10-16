@@ -5,7 +5,7 @@
 
 #include "toolchain/validation/test.hpp"
 
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/serialization/rgba8.hpp"
 
 using namespace Perimortem::Core;
@@ -131,7 +131,7 @@ VALIDATION_TEST(MemoryMatrix, copies_and_pads) {
 }
 
 VALIDATION_TEST(MemoryMatrix, pads_trivial_values) {
-  Static::Vector<U8, 1> source = {{7}};
+  Storage::Vector<U8, 1> source = {{7}};
   auto matrix = Matrix<U8>::create(
       Domain<2, Boundary::Clip, Boundary::Clip>(Size<U32, 2>({{2, 1}})),
       source.get_view());

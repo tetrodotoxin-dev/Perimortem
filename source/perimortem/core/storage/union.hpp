@@ -6,9 +6,9 @@
 #include "toolchain/memory/lifetime.hpp"
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/option.hpp"
+#include "perimortem/core/storage/option.hpp"
 
-namespace Perimortem::Core::Static {
+namespace Perimortem::Core::Storage {
 
 // Union holds either no value or one value from a fixed set of distinct,
 // trivially destructible types. The selected value lives directly in Union
@@ -249,7 +249,7 @@ class Union {
   }
 
   template <typename value_type>
-  constexpr auto find() -> Core::Option<value_type&> {
+  constexpr auto find() -> Option<value_type&> {
     static_assert(
         type_count<value_type>() == 1,
         "Requested value type is not a Union alternative.");
@@ -261,7 +261,7 @@ class Union {
   }
 
   template <typename value_type>
-  constexpr auto find() const -> Core::Option<const value_type&> {
+  constexpr auto find() const -> Option<const value_type&> {
     static_assert(
         type_count<value_type>() == 1,
         "Requested value type is not a Union alternative.");
@@ -285,4 +285,4 @@ class Union {
   constexpr auto is_null() const -> Bool { return tag == 0; }
 };
 
-}  // namespace Perimortem::Core::Static
+}  // namespace Perimortem::Core::Storage

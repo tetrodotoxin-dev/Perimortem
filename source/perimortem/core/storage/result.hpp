@@ -7,7 +7,7 @@
 
 #include "perimortem/core/data.hpp"
 
-namespace Perimortem::Utility {
+namespace Perimortem::Core::Storage {
 
 // Result selects exactly one value or error. The missing default constructor
 // and private state leave no empty outcome for a caller to interpret.
@@ -302,4 +302,4 @@ class Result {
   }
 };
 
-}  // namespace Perimortem::Utility
+}  // namespace Perimortem::Core::Storage

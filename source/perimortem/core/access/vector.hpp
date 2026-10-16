@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/option.hpp"
 #include "perimortem/core/scalar.hpp"
+#include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/view/vector.hpp"
 
 namespace Perimortem::Core::Access {
@@ -28,7 +28,7 @@ class Vector {
   template <Count N>
   constexpr Vector(data_type (&source)[N]) : source_block(source), size(N) {}
 
-  constexpr auto operator[](Count index) -> Core::Option<data_type&> {
+  constexpr auto operator[](Count index) -> Core::Storage::Option<data_type&> {
     if (is_empty() || index >= get_size()) [[unlikely]] {
       return {};
     }

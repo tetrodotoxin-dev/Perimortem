@@ -4,7 +4,7 @@
 #include "perimortem/compression/huffman.hpp"
 
 #include "perimortem/core/scalar.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/vector.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Compression;
@@ -22,7 +22,7 @@ auto Huffman::compute_lengths(
   constexpr U16 null_node = 0xFFFF;
   constexpr Count node_max = Huffman::max_symbol_count * 2;
 
-  Static::Vector<Node, node_max> nodes;
+  Storage::Vector<Node, node_max> nodes;
   const auto* frequency_data = frequencies.get_data();
   auto* length_data = lengths.get_data();
   Count node_count = 0;
@@ -83,7 +83,7 @@ auto Huffman::compute_lengths(
     nodes[right_child].parent = U16(new_node);
   }
 
-  Static::Vector<Count, max_code_bits + 2> codes_per_length;
+  Storage::Vector<Count, max_code_bits + 2> codes_per_length;
   for (Count i = 0; i <= max_code_bits + 1; i++) {
     codes_per_length[i] = 0;
   }

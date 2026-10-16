@@ -3,7 +3,7 @@
 
 #include "perimortem/core/algorithm/search.hpp"
 
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 
 using namespace Perimortem::Core;
 
@@ -41,8 +41,8 @@ auto Algorithm::Search::match(View::Bytes src, View::Bytes value) -> Count {
   constexpr auto vectorize_limit = sizeof(__m256i);
   if (src.get_size() >= vectorize_limit * 2 &&
       value.get_size() <= vectorize_limit) [[likely]] {
-    Static::Bytes<vectorize_limit> value_bytes = value;
-    Static::Bytes<vectorize_limit> value_filter;
+    Storage::Bytes<vectorize_limit> value_bytes = value;
+    Storage::Bytes<vectorize_limit> value_filter;
     Data::set(value_filter.get_data(), 0xFF, value.get_size());
 
     const auto first_byte = _mm256_set1_epi8(value[0]);

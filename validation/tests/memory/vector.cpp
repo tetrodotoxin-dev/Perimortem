@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/vector.hpp"
 
 #include "toolchain/validation/test.hpp"
 
@@ -162,12 +162,12 @@ static auto check_vector_contract(
     EXPECT_EQ(growing_resize.get_data()[index], U32(0));
   }
 
-  static_assert(__is_same(decltype(values[0]), Option<U32&>));
+  static_assert(__is_same(decltype(values[0]), Storage::Option<U32&>));
   ASSERT(values[0]);
   values[0].visit([](U32& value) { value = 84; }, []() {});
 
   const auto& fixed = values;
-  static_assert(__is_same(decltype(fixed[0]), Option<const U32&>));
+  static_assert(__is_same(decltype(fixed[0]), Storage::Option<const U32&>));
   fixed[0].visit([&](U32 value) { EXPECT_EQ(value, U32(84)); }, []() {});
   EXPECT(!fixed[3]);
 
@@ -379,7 +379,7 @@ class RelocationValue {
 template <bool copyable>
 static auto check_removal_lifetimes(Test::TestResult& result) -> void {
   for (Count stable = 0; stable < 2; ++stable) {
-    Static::Vector<U32, 4> owners;
+    Storage::Vector<U32, 4> owners;
     {
       Thread::Vector<RelocationValue<copyable>> values;
       auto remove = [&](Count index) {
@@ -451,7 +451,7 @@ VALIDATION_TEST(ThreadVector, move_removal_lifetimes) {
 
 template <bool copyable>
 static auto check_retain_lifetimes(Test::TestResult& result) -> void {
-  Static::Vector<U32, 5> owners;
+  Storage::Vector<U32, 5> owners;
   {
     Thread::Vector<RelocationValue<copyable>> values;
     for (U32 index = 0; index < owners.get_size(); ++index) {

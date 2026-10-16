@@ -14,8 +14,8 @@
 #include "perimortem/core/access/bytes.h"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/time.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
@@ -35,7 +35,7 @@ class ThreadWriter {
   }
 
   auto prepare_file() -> void {
-    Static::Bytes<512> name_buffer;
+    Storage::Bytes<512> name_buffer;
     Writer::Textual writer(name_buffer.get_access().slice(0, 511));
 
     writer << "perimortem_"_view;
@@ -148,7 +148,7 @@ auto Diagnostics::Log::file_sink(
     Level level,
     View::Bytes message,
     const Source& location) -> void {
-  Static::Bytes<max_message_capacity> message_buffer;
+  Storage::Bytes<max_message_capacity> message_buffer;
   Count message_length =
       format_message(level, message, location, message_buffer.get_access());
   thread_writer.accumulate(message_buffer.slice(0, message_length));
@@ -158,7 +158,7 @@ auto Diagnostics::Log::console_sink(
     Level level,
     View::Bytes message,
     const Source& location) -> void {
-  Static::Bytes<max_message_capacity> message_buffer;
+  Storage::Bytes<max_message_capacity> message_buffer;
   Count message_length =
       format_message(level, message, location, message_buffer.get_access());
   View::Bytes formatted = message_buffer.slice(0, message_length);
@@ -186,7 +186,7 @@ auto Diagnostics::Log::color_sink(
     Level level,
     View::Bytes message,
     const Source& location) -> void {
-  Static::Bytes<max_message_capacity> entry_buffer;
+  Storage::Bytes<max_message_capacity> entry_buffer;
   Count entry_length =
       format_message(level, message, location, entry_buffer.get_access());
   View::Bytes entry = entry_buffer.slice(0, entry_length);
@@ -195,7 +195,7 @@ auto Diagnostics::Log::color_sink(
   }
 
   // 16 extra bytes is enough for any color code + the clear code.
-  Static::Bytes<max_message_capacity + 16> color_buffer;
+  Storage::Bytes<max_message_capacity + 16> color_buffer;
   Writer::Textual writer(color_buffer.get_access());
 
   writer << level_color(level);
@@ -210,7 +210,7 @@ auto Diagnostics::Log::stderr_sink(
     Level level,
     View::Bytes message,
     const Source& location) -> void {
-  Static::Bytes<max_message_capacity> message_buffer;
+  Storage::Bytes<max_message_capacity> message_buffer;
   Count message_length =
       format_message(level, message, location, message_buffer.get_access());
   View::Bytes formatted = message_buffer.slice(0, message_length);
@@ -324,7 +324,7 @@ auto Diagnostics::Log::fatal(View::Bytes message, const Source& location)
 
 #ifdef TOOLCHAIN_LINUX
 
-  Static::Vector<void*, 64> frames;
+  Storage::Vector<void*, 64> frames;
   const S32 frame_count = backtrace(frames.get_data(), frames.get_size());
   for (S32 index = 0; index < frame_count; index++) {
     Dl_info symbol;

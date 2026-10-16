@@ -6,7 +6,7 @@
 #include "perimortem/core/access/bytes.h"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
-#include "perimortem/core/option.hpp"
+#include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/view/bytes.h"
 
 namespace Perimortem::Memory::Container {
@@ -76,9 +76,10 @@ class Bytes {
   // Returns the byte at `index`, or None when the index is outside the current
   // size. The returned reference remains current until an operation changes
   // the size or replaces the allocation.
-  EXPORTED(PERIMORTEM) auto operator[](Count index) -> Core::Option<U8&>;
+  EXPORTED(PERIMORTEM) auto operator[](Count index)
+      -> Core::Storage::Option<U8&>;
   EXPORTED(PERIMORTEM) auto operator[](Count index) const
-      -> Core::Option<const U8&>;
+      -> Core::Storage::Option<const U8&>;
   // Writes `value` to every value within the current size. The size bounds this
   // safe `memset` operation, so no separate byte count is accepted.
   EXPORTED(PERIMORTEM) auto set(U8 value) -> void;

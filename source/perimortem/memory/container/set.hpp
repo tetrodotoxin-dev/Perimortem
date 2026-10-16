@@ -6,7 +6,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/option.hpp"
+#include "perimortem/core/storage/option.hpp"
 
 namespace Perimortem::Memory::Container {
 
@@ -160,7 +160,8 @@ class Set {
 
   // The returned reference designates the stored key until a call to
   // `ensure_capacity()`, `insert()`, `remove()`, `clear()`, or `reset()`.
-  auto find(const key_type& key) const -> Core::Option<const key_type&> {
+  auto find(const key_type& key) const
+      -> Core::Storage::Option<const key_type&> {
     const Count bucket = find_bucket(key, get_hash(key));
     if (bucket == Count(-1) || !is_occupied(hashes[bucket])) {
       return {};

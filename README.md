@@ -20,10 +20,11 @@ the runtime grows.
 
 ## Components
 
-- [Core](source/perimortem/core) supplies fundamental data operations,
-  algorithms, readers, writers, diagnostics, time, hashes and identifiers.
-- [Utility](source/perimortem/utility) supplies results, ranges, versions and
-  tables built on Core.
+- [Core](source/perimortem/core) supplies fundamental data operations, embedded
+  storage abstractions, algorithms, readers, writers, diagnostics, time, hashes
+  and identifiers.
+- [Utility](source/perimortem/utility) supplies ranges, versions and tables
+  built on Core.
 - [Math](source/perimortem/math) describes coordinates, dimensions, volumes and
   boundary behavior.
 - [Memory](source/perimortem/memory) supplies the runtime allocator, arenas,

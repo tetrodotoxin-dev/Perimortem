@@ -8,8 +8,8 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
@@ -22,11 +22,11 @@ static Harness TextualBench = {
 };
 
 VALIDATION_BENCHMARK(TextualBench, write_flags_x1024) {
-  Static::Vector<Bool, 16> values = {
+  Storage::Vector<Bool, 16> values = {
     {True, False, True, False, False, True, False, True, True, True, True,
      False, True, False, False, False}};
 
-  Static::Bytes<20> buffer;
+  Storage::Bytes<20> buffer;
   for (Count i = 0; i < text_batch; i++) {
     const auto index = i & 0xF;
     Writer::Textual writer(buffer.get_access().slice(index, 20));
@@ -37,13 +37,13 @@ VALIDATION_BENCHMARK(TextualBench, write_flags_x1024) {
 }
 
 VALIDATION_BENCHMARK(TextualBench, write_ints_x1024) {
-  Static::Vector<S32, 16> values = {
+  Storage::Vector<S32, 16> values = {
     {10, 1401, -120, 987109, 3, -10, 242, 5131, -2147483648, 2147483647,
      -987654321, 123456789, 0, -1, 9999999, -100}};
 
   Count accumulator = 0;
   for (Count i = 0; i < text_batch; i++) {
-    Static::Bytes<8> buffer;
+    Storage::Bytes<8> buffer;
     Writer::Textual writer(buffer.get_access());
     writer << values[i & 0xF];
     if (!writer.is_valid()) {
@@ -57,14 +57,14 @@ VALIDATION_BENCHMARK(TextualBench, write_ints_x1024) {
 }
 
 VALIDATION_BENCHMARK(TextualBench, write_floats_x1024) {
-  Static::Vector<R64, 16> values = {
+  Storage::Vector<R64, 16> values = {
     {1.0, -21.05, 781.012, 1200041.01, 2390.0037, 0.01234567, 890.098, 0.0,
      -0.000123, 9999.9999, 3.14159265, -2718.28, 812.99149, 29184.124,
      123456789.0, 0.123456789}};
 
   Count accumulator = 0;
   for (Count i = 0; i < text_batch; i++) {
-    Static::Bytes<12> buffer;
+    Storage::Bytes<12> buffer;
     Writer::Textual writer(buffer.get_access());
     writer << values[i & 0xF];
     if (!writer.is_valid()) {
@@ -82,7 +82,7 @@ static Harness TextualReadBench = {
 };
 
 VALIDATION_BENCHMARK(TextualReadBench, read_flags_x1024) {
-  Static::Vector<View::Bytes, 16> values = {
+  Storage::Vector<View::Bytes, 16> values = {
     {"True"_view, "false"_view, "true"_view, "False"_view, "false"_view,
      "true"_view, "False"_view, "True"_view, "true"_view, "false"_view,
      "true"_view, "False"_view, "tree"_view, "folly"_view, "neither"_view,
@@ -99,7 +99,7 @@ VALIDATION_BENCHMARK(TextualReadBench, read_flags_x1024) {
 }
 
 VALIDATION_BENCHMARK(TextualReadBench, read_ints_x1024) {
-  Static::Vector<View::Bytes, 16> values = {
+  Storage::Vector<View::Bytes, 16> values = {
     {"10"_view, "1401"_view, "-120"_view, "987109"_view, "3"_view, "-10"_view,
      "242"_view, "5131"_view, "-2147483648"_view, "2147483647"_view,
      "-9876543210"_view, "1234567890123"_view, "number"_view, "abc"_view,
@@ -120,7 +120,7 @@ VALIDATION_BENCHMARK(TextualReadBench, read_ints_x1024) {
 }
 
 VALIDATION_BENCHMARK(TextualReadBench, read_floats_x1024) {
-  Static::Vector<View::Bytes, 16> values = {
+  Storage::Vector<View::Bytes, 16> values = {
     {"1.0"_view, "-21.05"_view, "781.012"_view, "1200041.01"_view,
      "2390.0037"_view, "0.01234567"_view, "890.098"_view, "0"_view,
      "-0.000123"_view, "9999.9999"_view, "3.14159265"_view, "-2718.28"_view,

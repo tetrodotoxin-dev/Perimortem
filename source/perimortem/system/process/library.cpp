@@ -12,7 +12,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/writer/textual.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
 #include "perimortem/memory/thread/vector.hpp"
@@ -20,7 +20,6 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Perimortem::Utility;
 
 using Process::Library;
 
@@ -28,7 +27,7 @@ using Process::Library;
 
 static auto library_error(Allocator::Arena& errors) -> View::Bytes {
   const auto code = GetLastError();
-  Static::Bytes<96> buffer;
+  Storage::Bytes<96> buffer;
   Writer::Textual message(buffer);
   message << "Windows library operation failed. error="_view << U32(code);
   return errors.copy(message);
@@ -65,7 +64,7 @@ Library::~Library() {
 }
 
 auto Library::open(View::Bytes path, Allocator::Arena& errors)
-    -> Result<Library, View::Bytes> {
+    -> Storage::Result<Library, View::Bytes> {
   Thread::Bytes name(path);
   name.append(0);
 
@@ -110,7 +109,7 @@ auto Library::open(View::Bytes path, Allocator::Arena& errors)
 }
 
 auto Library::symbol(View::Bytes name, Allocator::Arena& errors) const
-    -> Result<void*, View::Bytes> {
+    -> Storage::Result<void*, View::Bytes> {
   Thread::Bytes terminated(name);
   terminated.append(0);
 

@@ -6,7 +6,7 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
 
 using namespace Perimortem::Core;
@@ -50,8 +50,8 @@ VALIDATION_TEST(SystemPath, normalize_in_arena) {
 
 VALIDATION_TEST(SystemPath, normalize_invalid) {
   Allocator::Arena arena;
-  Static::Bytes<3> embedded_nul = {{'a', '\0', 'b'}};
-  Static::Bytes<Path::max_size + 1> oversized;
+  Storage::Bytes<3> embedded_nul = {{'a', '\0', 'b'}};
+  Storage::Bytes<Path::max_size + 1> oversized;
   for (Count i = 0; i < oversized.get_size(); i++) {
     oversized[i] = 'a';
   }

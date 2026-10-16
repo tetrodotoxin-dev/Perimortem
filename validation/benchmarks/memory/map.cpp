@@ -8,8 +8,8 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/system/random.hpp"
 #include "perimortem/utility/pair.hpp"
@@ -22,8 +22,8 @@ using namespace Perimortem::Utility;
 using namespace Toolchain::Validation;
 
 constexpr Count max_key_count = 1 << 16;
-static Static::Vector<S32, max_key_count> lookup_keys;
-static Static::Vector<S32, max_key_count> missing_lookup_keys;
+static Storage::Vector<S32, max_key_count> lookup_keys;
+static Storage::Vector<S32, max_key_count> missing_lookup_keys;
 
 static auto populate_lookup_keys() -> void {
   static Bool populated = False;
@@ -208,7 +208,7 @@ static constexpr Count keyword_count = Data::array_size(keyword_source);
 
 using KeywordTable = Table<Count, keyword_source>;
 
-static Static::Vector<const View::Bytes*, max_key_count> lookup_scramble;
+static Storage::Vector<const View::Bytes*, max_key_count> lookup_scramble;
 static auto create_scramble(Count mask) -> void {
   // Build the lookup sequence before timing so random generation is excluded
   // from each sample. Random order prevents declaration order from biasing

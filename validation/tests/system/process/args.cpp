@@ -8,7 +8,7 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
 #include "validation/tests/log.hpp"
@@ -81,7 +81,7 @@ static constexpr View::Bytes help_prefix =
     "Test parser.\n\n"
     "arguments:\n"_view;
 
-static constexpr Static::Vector<View::Bytes, 6> help_entries = {
+static constexpr Storage::Vector<View::Bytes, 6> help_entries = {
   {"  -dep      Dependency file.\n"_view, "  -threads  Worker count.\n"_view,
    "  -output   Output file.\n"_view, "  -ratio    Ratio value.\n"_view,
    "  -fast     Enable fast path.\n"_view,
@@ -106,7 +106,7 @@ static auto matches_help(View::Bytes message) -> Bool {
 }
 
 VALIDATION_TEST(SystemArgs, basic_parse) {
-  constexpr Static::Vector<View::Bytes, 6> raw = {
+  constexpr Storage::Vector<View::Bytes, 6> raw = {
     {"demo"_view, "-fast"_view, "-output=out.a"_view, "-dep=dep.ttx"_view,
      "-threads=-8"_view, "-ratio=0.25"_view}};
 
@@ -124,7 +124,7 @@ VALIDATION_TEST(SystemArgs, basic_parse) {
 }
 
 VALIDATION_TEST(SystemArgs, help_text) {
-  constexpr Static::Vector<View::Bytes, 2> raw = {
+  constexpr Storage::Vector<View::Bytes, 2> raw = {
     {"/tmp/demo"_view, "-help"_view}};
 
   Allocator::Arena arena;
@@ -138,7 +138,9 @@ VALIDATION_TEST(SystemArgs, help_text) {
 }
 
 VALIDATION_TEST(SystemArgs, double_dash_help) {
-  constexpr Static::Vector<View::Bytes, 2> raw = {{"demo"_view, "--help"_view}};
+  constexpr Storage::Vector<View::Bytes, 2> raw = {
+    {"demo"_view, "--help"_view}};
+
   Allocator::Arena arena;
   Configs config = test_config(arena);
 
@@ -150,7 +152,7 @@ VALIDATION_TEST(SystemArgs, double_dash_help) {
 }
 
 VALIDATION_TEST(SystemArgs, help_keeps_parsing) {
-  constexpr Static::Vector<View::Bytes, 4> raw = {
+  constexpr Storage::Vector<View::Bytes, 4> raw = {
     {"demo"_view, "-help"_view, "-fast"_view, "-output=out.a"_view}};
 
   Allocator::Arena arena;
@@ -164,7 +166,7 @@ VALIDATION_TEST(SystemArgs, help_keeps_parsing) {
 }
 
 VALIDATION_TEST(SystemArgs, empty_value) {
-  constexpr Static::Vector<View::Bytes, 2> raw = {
+  constexpr Storage::Vector<View::Bytes, 2> raw = {
     {"demo"_view, "-output="_view}};
 
   Allocator::Arena arena;
@@ -175,7 +177,7 @@ VALIDATION_TEST(SystemArgs, empty_value) {
 }
 
 VALIDATION_TEST(SystemArgs, unknown_arg) {
-  constexpr Static::Vector<View::Bytes, 3> raw = {
+  constexpr Storage::Vector<View::Bytes, 3> raw = {
     {"demo"_view, "-other"_view, "-output=out"_view}};
 
   Allocator::Arena arena;
@@ -188,7 +190,7 @@ VALIDATION_TEST(SystemArgs, unknown_arg) {
 }
 
 VALIDATION_TEST(SystemArgs, bare_value) {
-  constexpr Static::Vector<View::Bytes, 3> raw = {
+  constexpr Storage::Vector<View::Bytes, 3> raw = {
     {"demo"_view, "-output=out"_view, "source.ttx"_view}};
 
   Allocator::Arena arena;
@@ -201,7 +203,7 @@ VALIDATION_TEST(SystemArgs, bare_value) {
 }
 
 VALIDATION_TEST(SystemArgs, repeated_values) {
-  constexpr Static::Vector<View::Bytes, 4> raw = {
+  constexpr Storage::Vector<View::Bytes, 4> raw = {
     {"demo"_view, "-output=out"_view, "-dep=a.ttx"_view, "-dep=b.ttx"_view}};
 
   Allocator::Arena arena;
@@ -214,7 +216,7 @@ VALIDATION_TEST(SystemArgs, repeated_values) {
 }
 
 VALIDATION_TEST(SystemArgs, dash_only) {
-  constexpr Static::Vector<View::Bytes, 2> raw = {{"demo"_view, "--"_view}};
+  constexpr Storage::Vector<View::Bytes, 2> raw = {{"demo"_view, "--"_view}};
   Allocator::Arena arena;
 
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);

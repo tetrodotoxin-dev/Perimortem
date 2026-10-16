@@ -100,7 +100,7 @@ class Node {
 
  private:
   // Node deliberately packs its scalar payload, range size, and state into 16
-  // bytes. Static::Union would require separate storage for its tag and since
+  // bytes. Storage::Union would require separate storage for its tag and since
   // C++ can't unpack the struct it will tack it on to the end with padding.
   struct {
     union {

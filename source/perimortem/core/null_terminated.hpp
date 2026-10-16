@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/view/bytes.h"
 
 namespace Perimortem::Core {
@@ -62,8 +62,8 @@ consteval const Perimortem::Core::View::Bytes operator""_view() {
 }
 
 template <Perimortem::Core::NullTerminated::Literal c_string>
-consteval const Perimortem::Core::Static::Bytes<c_string.get_size()>
+consteval const Perimortem::Core::Storage::Bytes<c_string.get_size()>
     operator""_bytes() {
-  return Perimortem::Core::Static::Bytes<c_string.get_size()>(
+  return Perimortem::Core::Storage::Bytes<c_string.get_size()>(
       c_string.get_view());
 }

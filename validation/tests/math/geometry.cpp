@@ -117,7 +117,7 @@ VALIDATION_TEST(MathGeometry, mirrored_domain) {
 }
 
 VALIDATION_TEST(MathGeometry, empty_domain_boundary) {
-  Static::Vector<U32, 1> extent;
+  Storage::Vector<U32, 1> extent;
   Domain<1, Boundary::Wrap> domain{Size<U32, 1>(extent)};
   EXPECT_NOT(domain.resolve(Point<S64, 1>({{-1}})));
 }

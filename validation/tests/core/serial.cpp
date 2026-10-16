@@ -7,8 +7,8 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/writer/serial.hpp"
 #include "validation/tests/log.hpp"
 
@@ -23,7 +23,7 @@ static Harness CoreSerialReader = {
 };
 
 VALIDATION_TEST(CoreSerialReader, regular_values) {
-  Static::Bytes<19> buffer =
+  Storage::Bytes<19> buffer =
       "\x01\xAB"
       "\x02\x34\x12"
       "\x04"
@@ -39,7 +39,7 @@ VALIDATION_TEST(CoreSerialReader, regular_values) {
 }
 
 VALIDATION_TEST(CoreSerialReader, negative_values) {
-  Static::Bytes<21> buffer =
+  Storage::Bytes<21> buffer =
       "\x11\xAB"
       "\x12\x34\x12"
       "\x14"
@@ -58,7 +58,7 @@ VALIDATION_TEST(CoreSerialReader, negative_values) {
 
 VALIDATION_TEST(CoreSerialReader, negative_boundaries) {
   constexpr S64 minimum = -9223372036854775807LL - 1;
-  Static::Bytes<11> buffer =
+  Storage::Bytes<11> buffer =
       "\x11\x01"
       "\x18\x00\x00\x00\x00\x00\x00\x00\x80"_view;
   Reader::Serial reader(buffer);
@@ -69,7 +69,7 @@ VALIDATION_TEST(CoreSerialReader, negative_boundaries) {
 }
 
 VALIDATION_TEST(CoreSerialReader, small_blobs) {
-  Static::Bytes<30> buffer =
+  Storage::Bytes<30> buffer =
       "\x21\x0A"
       "Perimortem"
       "\x01\x04"
@@ -84,8 +84,8 @@ VALIDATION_TEST(CoreSerialReader, small_blobs) {
 }
 
 VALIDATION_TEST(CoreSerialReader, large_blob) {
-  Static::Bytes<500> expected([](Count i) -> U8 { return i; });
-  Static::Bytes<503> source([](Count i) -> U8 {
+  Storage::Bytes<500> expected([](Count i) -> U8 { return i; });
+  Storage::Bytes<503> source([](Count i) -> U8 {
     // Header
     if (i < 3) {
       return "\x22\xF4\x01"_view[i];
@@ -101,7 +101,7 @@ VALIDATION_TEST(CoreSerialReader, large_blob) {
 }
 
 VALIDATION_TEST(CoreSerialReader, only_values) {
-  Static::Bytes<30> buffer =
+  Storage::Bytes<30> buffer =
       "\x21\x0A"
       "Perimortem"
       "\x01\x04"
@@ -116,7 +116,7 @@ VALIDATION_TEST(CoreSerialReader, only_values) {
 }
 
 VALIDATION_TEST(CoreSerialReader, only_blobs) {
-  Static::Bytes<30> buffer =
+  Storage::Bytes<30> buffer =
       "\x21\x0A"
       "Perimortem"
       "\x01\x04"
@@ -186,7 +186,7 @@ static Harness CoreSerialWriter = {
 };
 
 VALIDATION_TEST(CoreSerialWriter, regular_values) {
-  Static::Bytes<19> buffer;
+  Storage::Bytes<19> buffer;
   Writer::Serial writer(buffer);
 
   writer << 0xAB << 0x1234 << 'PERI' << 0x0123456789ABCDEF;
@@ -203,7 +203,7 @@ VALIDATION_TEST(CoreSerialWriter, regular_values) {
 }
 
 VALIDATION_TEST(CoreSerialWriter, negative_values) {
-  Static::Bytes<21> buffer;
+  Storage::Bytes<21> buffer;
   Writer::Serial writer(buffer);
 
   // Exercise every payload width with negative magnitudes. The expected type
@@ -228,7 +228,7 @@ VALIDATION_TEST(CoreSerialWriter, negative_values) {
 
 VALIDATION_TEST(CoreSerialWriter, negative_boundaries) {
   constexpr S64 minimum = -9223372036854775807LL - 1;
-  Static::Bytes<11> buffer;
+  Storage::Bytes<11> buffer;
   Writer::Serial writer(buffer);
 
   writer << -1 << minimum;
@@ -241,7 +241,7 @@ VALIDATION_TEST(CoreSerialWriter, negative_boundaries) {
 }
 
 VALIDATION_TEST(CoreSerialWriter, small_blobs) {
-  Static::Bytes<30> buffer;
+  Storage::Bytes<30> buffer;
   Writer::Serial writer(buffer);
 
   writer << "Perimortem"_view << 4 << "Testing String"_view;
@@ -257,8 +257,8 @@ VALIDATION_TEST(CoreSerialWriter, small_blobs) {
 }
 
 VALIDATION_TEST(CoreSerialWriter, large_blob) {
-  Static::Bytes<500> source([](Count i) -> U8 { return i; });
-  Static::Bytes<503> expected([](Count i) -> U8 {
+  Storage::Bytes<500> source([](Count i) -> U8 { return i; });
+  Storage::Bytes<503> expected([](Count i) -> U8 {
     // Header
     if (i < 3) {
       return "\x22\xF4\x01"_view[i];
@@ -267,7 +267,7 @@ VALIDATION_TEST(CoreSerialWriter, large_blob) {
     return (i - 3);
   });
 
-  Static::Bytes<expected.get_size()> buffer;
+  Storage::Bytes<expected.get_size()> buffer;
   Writer::Serial writer(buffer);
 
   writer << source;
@@ -277,7 +277,7 @@ VALIDATION_TEST(CoreSerialWriter, large_blob) {
 }
 
 VALIDATION_TEST(CoreSerialWriter, overflow) {
-  Static::Bytes<20> buffer;
+  Storage::Bytes<20> buffer;
   Writer::Serial writer(buffer);
 
   writer << "Perimortem"_view << 4 << "Testing String"_view;
@@ -286,7 +286,7 @@ VALIDATION_TEST(CoreSerialWriter, overflow) {
 }
 
 VALIDATION_TEST(CoreSerialWriter, pointer_bounds) {
-  Static::Bytes<4> buffer;
+  Storage::Bytes<4> buffer;
   Writer::Serial writer(buffer);
 
   writer.set_pointer(Count(-1));

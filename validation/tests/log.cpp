@@ -5,13 +5,13 @@
 
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Tests;
 
 static Diagnostics::Log::Level captured_level;
-static Static::Bytes<2048> captured;
+static Storage::Bytes<2048> captured;
 static Count captured_size;
 
 static auto capture(

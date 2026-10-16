@@ -4,7 +4,7 @@
 #include "toolchain/toolchain.hpp"
 #include "toolchain/validation/benchmark.hpp"
 
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/system/random.hpp"
@@ -53,7 +53,7 @@ CYCLE_BENCH(65536)
 
 template <Count frame_alloc_count, Count size_minimum, Count size_mask>
 static auto frame_stability() -> void {
-  Static::Vector<U8*, frame_alloc_count> ptrs;
+  Storage::Vector<U8*, frame_alloc_count> ptrs;
   for (Count i = 0; i < frame_alloc_count; i++) {
     auto alloc = Allocator::Bibliotheca::check_out(
         (Random::generate() & size_mask) + size_minimum);
@@ -87,7 +87,7 @@ template <
     Count size_mask>
 static auto frame_stability_interleaved() -> void {
   constexpr Count window = frame_alloc_count / window_count;
-  Static::Vector<U8*, frame_alloc_count> ptrs;
+  Storage::Vector<U8*, frame_alloc_count> ptrs;
 
   for (Count i = 0; i < window; i++) {
     ptrs[i] = Allocator::Bibliotheca::check_out(

@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/option.hpp"
+#include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/global/bytes.hpp"
@@ -115,24 +115,24 @@ class File {
     // retains no directory handle and resolves the copied path for every later
     // transaction.
     static EXPORTED(PERIMORTEM) auto open(Core::View::Bytes location)
-        -> Core::Option<Root>;
+        -> Core::Storage::Option<Root>;
 
     // Returns a new Global Bytes allocation containing one regular file. Some
     // empty Bytes represents an empty file. None silently reports path, open,
     // metadata, content or close failure.
     EXPORTED(PERIMORTEM) auto read(Core::View::Bytes relative_path) const
-        -> Core::Option<Memory::Global::Bytes>;
+        -> Core::Storage::Option<Memory::Global::Bytes>;
 
     // Couples Global values with the Fingerprint from the same open stream so a
     // path replacement cannot mix metadata from another file. None silently
     // reports any transaction failure.
-    EXPORTED(PERIMORTEM) auto read_snapshot(
-        Core::View::Bytes relative_path) const -> Core::Option<Snapshot>;
+    EXPORTED(PERIMORTEM) auto read_snapshot(Core::View::Bytes relative_path)
+        const -> Core::Storage::Option<Snapshot>;
 
     // Observes metadata through an open regular file without reading content.
     // None silently reports path, open, metadata or close failure.
     EXPORTED(PERIMORTEM) auto fingerprint(Core::View::Bytes relative_path) const
-        -> Core::Option<Fingerprint>;
+        -> Core::Storage::Option<Fingerprint>;
 
     // Reads into the caller Arena and returns a View over that allocation. The
     // View remains accessible until the Arena resets or is destroyed. Some
@@ -140,7 +140,7 @@ class File {
     EXPORTED(PERIMORTEM) auto read(
         Memory::Allocator::Arena& arena,
         Core::View::Bytes relative_path) const
-        -> Core::Option<Core::View::Bytes>;
+        -> Core::Storage::Option<Core::View::Bytes>;
 
     // Creates or truncates the selected file and writes the complete source.
     // Success includes stream closure, including an empty write that truncates
@@ -171,14 +171,14 @@ class File {
   // empty Bytes represents an empty file. None reports a logged path, open,
   // metadata, content or close failure.
   static EXPORTED(PERIMORTEM) auto read(Core::View::Bytes location)
-      -> Core::Option<Memory::Global::Bytes>;
+      -> Core::Storage::Option<Memory::Global::Bytes>;
 
   // Reads into the caller Arena and returns a View over that allocation. The
   // View remains accessible until the Arena resets or is destroyed. Some empty
   // View represents an empty file. None reports a logged transaction failure.
   static EXPORTED(PERIMORTEM) auto read(
       Memory::Allocator::Arena& arena,
-      Core::View::Bytes location) -> Core::Option<Core::View::Bytes>;
+      Core::View::Bytes location) -> Core::Storage::Option<Core::View::Bytes>;
 
   // Creates or truncates the selected file and writes the complete source.
   // Success includes stream closure, including an empty write that truncates

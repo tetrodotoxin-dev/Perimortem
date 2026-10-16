@@ -7,14 +7,14 @@
 #include "toolchain/validation/benchmark.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/view/bytes.h"
 
 using namespace Perimortem::Core;
 using namespace Toolchain::Validation;
 static constexpr Count search_batch = 1024;
 
-static constexpr Static::Bytes source =
+static constexpr Storage::Bytes source =
     "package engine.renderer\n"
     "\n"
     "using graphics.pipeline\n"

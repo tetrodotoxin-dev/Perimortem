@@ -8,7 +8,7 @@
 #include "perimortem/compression/huffman.hpp"
 #include "perimortem/compression/lz77.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "validation/tests/log.hpp"
 
 using namespace Perimortem::Core;
@@ -27,12 +27,12 @@ static Harness CompressionTests = {
 // Known test blobs produced by zlib
 
 // "Hello, Perimortem!"
-static constexpr Static::Bytes<26> hello_compressed = {{
+static constexpr Storage::Bytes<26> hello_compressed = {{
   0x78, 0xDA, 0xF3, 0x48, 0xCD, 0xC9, 0xC9, 0xD7, 0x51, 0x08, 0x48, 0x2D, 0xCA,
   0xCC, 0xCD, 0x2F, 0x2A, 0x49, 0xCD, 0x55, 0x04, 0x00, 0x3D, 0x2E, 0x06, 0x86,
 }};
 
-static constexpr Static::Bytes<18> hello_raw = {{
+static constexpr Storage::Bytes<18> hello_raw = {{
   0x48,
   0x65,
   0x6C,
@@ -54,21 +54,21 @@ static constexpr Static::Bytes<18> hello_raw = {{
 }};
 
 // Level zero encodes "Stored block test data ABCDEFGHIJ" as a stored block.
-static constexpr Static::Bytes<44> stored_compressed = {{
+static constexpr Storage::Bytes<44> stored_compressed = {{
   0x78, 0x01, 0x01, 0x21, 0x00, 0xDE, 0xFF, 0x53, 0x74, 0x6F, 0x72,
   0x65, 0x64, 0x20, 0x62, 0x6C, 0x6F, 0x63, 0x6B, 0x20, 0x74, 0x65,
   0x73, 0x74, 0x20, 0x64, 0x61, 0x74, 0x61, 0x20, 0x41, 0x42, 0x43,
   0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0xC9, 0x70, 0x0B, 0x0E,
 }};
 
-static constexpr Static::Bytes<33> stored_raw = {{
+static constexpr Storage::Bytes<33> stored_raw = {{
   0x53, 0x74, 0x6F, 0x72, 0x65, 0x64, 0x20, 0x62, 0x6C, 0x6F, 0x63,
   0x6B, 0x20, 0x74, 0x65, 0x73, 0x74, 0x20, 0x64, 0x61, 0x74, 0x61,
   0x20, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A,
 }};
 
 // 0xAB 0xCD repeated 50 times
-static constexpr Static::Bytes<13> repeat_compressed = {{
+static constexpr Storage::Bytes<13> repeat_compressed = {{
   0x78,
   0xDA,
   0x5B,
@@ -85,7 +85,7 @@ static constexpr Static::Bytes<13> repeat_compressed = {{
 }};
 
 // Empty input
-static constexpr Static::Bytes<8> empty_compressed = {{
+static constexpr Storage::Bytes<8> empty_compressed = {{
   0x78,
   0xDA,
   0x03,
@@ -97,7 +97,7 @@ static constexpr Static::Bytes<8> empty_compressed = {{
 }};
 
 // Single byte 0x42
-static constexpr Static::Bytes<9> single_compressed = {{
+static constexpr Storage::Bytes<9> single_compressed = {{
   0x78,
   0xDA,
   0x73,
@@ -111,14 +111,14 @@ static constexpr Static::Bytes<9> single_compressed = {{
 
 // Corrupt only the Adler32 trailer so inflation reaches checksum validation
 // after decoding an otherwise valid payload.
-static constexpr Static::Bytes<26> bad_adler_compressed = {{
+static constexpr Storage::Bytes<26> bad_adler_compressed = {{
   0x78, 0xDA, 0xF3, 0x48, 0xCD, 0xC9, 0xC9, 0xD7, 0x51, 0x08, 0x48, 0x2D, 0xCA,
   0xCC, 0xCD, 0x2F, 0x2A, 0x49, 0xCD, 0x55, 0x04, 0x00, 0x3D, 0x2E, 0x06, 0x79,
 }};
 
 // Repeat requires an earlier code length. This dynamic header emits it first so
 // inflation must reject the sequence before reading its repeat count.
-static constexpr Static::Bytes<10> repeat_without_previous = {{
+static constexpr Storage::Bytes<10> repeat_without_previous = {{
   0x78,
   0x9C,
   0x05,
@@ -133,7 +133,7 @@ static constexpr Static::Bytes<10> repeat_without_previous = {{
 
 // One zero length is accepted before an undefined code invalidates the bit
 // reader. The rejected symbol must not become an unbounded fill count.
-static constexpr Static::Bytes<10> invalid_dynamic_symbol = {{
+static constexpr Storage::Bytes<10> invalid_dynamic_symbol = {{
   0x78,
   0x9C,
   0x05,
@@ -154,7 +154,7 @@ VALIDATION_TEST(CompressionTests, dynamic_huffman) {
 }
 
 VALIDATION_TEST(CompressionTests, unaligned_input) {
-  Static::Bytes<hello_compressed.get_size() + 1> storage;
+  Storage::Bytes<hello_compressed.get_size() + 1> storage;
   Data::copy(
       storage.get_data() + 1, hello_compressed.get_data(),
       hello_compressed.get_size());
@@ -205,7 +205,7 @@ VALIDATION_TEST(CompressionTests, truncated_input) {
 }
 
 VALIDATION_TEST(CompressionTests, bad_method) {
-  Static::Bytes<26> bad_cm = hello_compressed;
+  Storage::Bytes<26> bad_cm = hello_compressed;
 
   // Corrupt the CM nibble to 9 (DEFLATE requires exactly 8).
   bad_cm[0] = (bad_cm[0] & 0xF0) | 0x09;
@@ -249,7 +249,7 @@ VALIDATION_TEST(CompressionTests, reject_invalid_dynamic_symbol) {
 }
 
 VALIDATION_TEST(CompressionTests, truncated_fast_huffman_code) {
-  Static::Vector<U8, 1> lengths;
+  Storage::Vector<U8, 1> lengths;
   lengths[0] = 9;
 
   const Huffman table(lengths.get_view());
@@ -284,7 +284,7 @@ VALIDATION_TEST(CompressionTests, deflate_empty_input) {
 }
 
 VALIDATION_TEST(CompressionTests, deflate_single_byte) {
-  constexpr Static::Bytes<1> source_bytes = {{
+  constexpr Storage::Bytes<1> source_bytes = {{
     0x42,
   }};
 
@@ -308,7 +308,7 @@ VALIDATION_TEST(CompressionTests, roundtrip_short) {
 VALIDATION_TEST(CompressionTests, roundtrip_binary) {
   // Every possible byte value prevents a text only round trip from masking
   // signed conversion or lookup table errors.
-  Static::Bytes<256> all_bytes;
+  Storage::Bytes<256> all_bytes;
   for (Count i = 0; i < 256; i++) {
     all_bytes[i] = U8(i);
   }
@@ -333,7 +333,7 @@ VALIDATION_TEST(CompressionTests, valid_header) {
 
 VALIDATION_TEST(CompressionTests, repeating_value) {
   constexpr Count source_size = 512;
-  Static::Bytes<source_size> source;
+  Storage::Bytes<source_size> source;
   for (Count i = 0; i < source_size; i++) {
     source[i] = U8(0xAA);
   }
@@ -347,7 +347,7 @@ VALIDATION_TEST(CompressionTests, repeating_value) {
 }
 
 VALIDATION_TEST(CompressionTests, inserted_match) {
-  Static::Bytes<64> source;
+  Storage::Bytes<64> source;
   for (Count index = 0; index < source.get_size(); index++) {
     source[index] = U8(index);
   }
@@ -370,7 +370,7 @@ VALIDATION_TEST(CompressionTests, inserted_match) {
 VALIDATION_TEST(CompressionTests, roundtrip_large) {
   // 8 KB of structured data spanning multiple stored blocks in deflate output.
   constexpr Count size = 8192;
-  Static::Bytes<size> large;
+  Storage::Bytes<size> large;
   for (Count i = 0; i < size; i++) {
     large[i] = U8((i * 31 + i / 128) & 0xFF);
   }

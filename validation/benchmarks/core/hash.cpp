@@ -7,7 +7,7 @@
 #include "toolchain/validation/benchmark.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;
@@ -18,7 +18,7 @@ using namespace Toolchain::Validation;
 static constexpr Count hash_batch = 8192;
 
 // The largest retained hash is 256 bytes and slides through eight offsets.
-static Static::Bytes<264> hash_buffer;
+static Storage::Bytes<264> hash_buffer;
 
 template <typename byte_array>
 static auto fill_hash(byte_array& target) -> void {

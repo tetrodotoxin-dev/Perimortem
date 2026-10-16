@@ -17,7 +17,7 @@ typedef struct perimortem_uuid {
 
 #include "toolchain/toolchain.hpp"
 
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 
 namespace Perimortem::Core {
 
@@ -47,7 +47,7 @@ class Uuid {
 
   // Validates and reads packed hexadecimal with the first sixteen digits in
   // the high word. Invalid input produces the zero UUID.
-  static constexpr auto deserialize(const Static::Bytes<32>& source) -> Uuid {
+  static constexpr auto deserialize(const Storage::Bytes<32>& source) -> Uuid {
     if !consteval {
       return parse(source);
     }
@@ -71,7 +71,7 @@ class Uuid {
 
   // Validates and reads dashed hexadecimal with the first sixteen digits in
   // the high word. Invalid input produces the zero UUID.
-  static constexpr auto deserialize(const Static::Bytes<36>& source) -> Uuid {
+  static constexpr auto deserialize(const Storage::Bytes<36>& source) -> Uuid {
     if !consteval {
       return parse(source);
     }
@@ -169,15 +169,15 @@ class Uuid {
     }
   }
 
-  EXPORTED(PERIMORTEM) auto serialize() const -> const Static::Bytes<36>;
+  EXPORTED(PERIMORTEM) auto serialize() const -> const Storage::Bytes<36>;
 
  private:
   // Runtime operations select the target implementation while their public
   // constexpr entry points retain constant evaluation in this header.
   static EXPORTED(PERIMORTEM) auto validate(View::Bytes source) -> Bool;
-  static EXPORTED(PERIMORTEM) auto parse(const Static::Bytes<32>& source)
+  static EXPORTED(PERIMORTEM) auto parse(const Storage::Bytes<32>& source)
       -> Uuid;
-  static EXPORTED(PERIMORTEM) auto parse(const Static::Bytes<36>& source)
+  static EXPORTED(PERIMORTEM) auto parse(const Storage::Bytes<36>& source)
       -> Uuid;
 
   perimortem_uuid value{};

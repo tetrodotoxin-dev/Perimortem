@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include "perimortem/core/storage/result.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/utility/result.hpp"
 
 namespace Perimortem::System::Process {
 
@@ -20,8 +20,8 @@ class Library {
  public:
   static EXPORTED(PERIMORTEM) auto open(
       Perimortem::Core::View::Bytes path,
-      Perimortem::Memory::Allocator::Arena& errors)
-      -> Perimortem::Utility::Result<Library, Perimortem::Core::View::Bytes>;
+      Perimortem::Memory::Allocator::Arena& errors) -> Perimortem::Core::
+      Storage::Result<Library, Perimortem::Core::View::Bytes>;
 
   EXPORTED(PERIMORTEM) Library(Library&& source);
   Library(const Library&) = delete;
@@ -30,8 +30,8 @@ class Library {
 
   EXPORTED(PERIMORTEM) auto symbol(
       Perimortem::Core::View::Bytes name,
-      Perimortem::Memory::Allocator::Arena& errors) const
-      -> Perimortem::Utility::Result<void*, Perimortem::Core::View::Bytes>;
+      Perimortem::Memory::Allocator::Arena& errors) const -> Perimortem::Core::
+      Storage::Result<void*, Perimortem::Core::View::Bytes>;
 
  private:
   // Only a successful `open()` can construct Library from a native handle.

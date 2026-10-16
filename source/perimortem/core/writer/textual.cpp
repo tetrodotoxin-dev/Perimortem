@@ -23,8 +23,8 @@ constexpr auto
   return true;
 }
 
-constexpr auto create_digit_table() -> Static::Bytes<200> {
-  Static::Bytes<200> values;
+constexpr auto create_digit_table() -> Storage::Bytes<200> {
+  Storage::Bytes<200> values;
   for (Count d1 = 0; d1 < 10; d1++) {
     for (Count d2 = 0; d2 < 10; d2++) {
       auto location = (d2 * 10 + d1) * 2;

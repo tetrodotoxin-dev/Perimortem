@@ -50,12 +50,10 @@ package(
         "core": [],
         "math": [
             "core",
-            "utility",
         ],
         "memory": [
             "core",
             "math",
-            "utility",
         ],
         "serialization": [
             "core",

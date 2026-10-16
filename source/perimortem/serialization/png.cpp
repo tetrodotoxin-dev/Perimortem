@@ -9,8 +9,8 @@
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/scalar.hpp"
-#include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/memory/matrix.hpp"
 
 using namespace Perimortem::Core;
@@ -89,7 +89,7 @@ struct ImageInfo {
 class Chunk {
  public:
   constexpr Chunk() = default;
-  constexpr Chunk(View::Bytes data, Static::Bytes<4> type, U32 length)
+  constexpr Chunk(View::Bytes data, Storage::Bytes<4> type, U32 length)
       : data(data), type(type), length(length), valid(True) {}
 
   constexpr auto get_data() const -> View::Bytes { return data; }
@@ -99,12 +99,12 @@ class Chunk {
 
  private:
   View::Bytes data{};
-  Static::Bytes<4> type;
+  Storage::Bytes<4> type;
   U32 length = 0;
   Bool valid = False;
 };
 
-constexpr Static::Bytes<8> png_signature = {
+constexpr Storage::Bytes<8> png_signature = {
   {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}};
 
 // Length, type and CRC32 each contribute four bytes (U32) to the chunk payload.
@@ -126,13 +126,13 @@ constexpr auto number_of_color_channels(ColorType color_type) -> Count {
   }
 }
 
-constexpr auto populate_crc_table() -> Static::Vector<U32, 256> {
+constexpr auto populate_crc_table() -> Storage::Vector<U32, 256> {
   // PNG chunk CRC32 uses the reflected IEEE polynomial. Constant evaluation
   // expands each possible byte prefix so payload checks need one lookup per
   // byte instead of eight polynomial steps.
   constexpr U32 ieee_crc32_polynomial = 0xEDB88320;
 
-  Static::Vector<U32, 256> table;
+  Storage::Vector<U32, 256> table;
   for (U32 table_index = 0; table_index < 256; table_index++) {
     U32 crc_value = table_index;
     for (Count bit_index = 0; bit_index < 8; bit_index++) {
@@ -147,7 +147,7 @@ constexpr auto populate_crc_table() -> Static::Vector<U32, 256> {
 }
 
 constexpr auto calculate_crc32(View::Bytes data) -> U32 {
-  constexpr Static::Vector<U32, 256> crc_table = populate_crc_table();
+  constexpr Storage::Vector<U32, 256> crc_table = populate_crc_table();
 
   // PNG initializes CRC32 to all ones and complements it after the final byte.
   U32 running_crc = 0xFFFFFFFF;
@@ -181,7 +181,7 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
     return Chunk();
   }
 
-  Static::Bytes<4> type(source.slice(offset + 4, 4));
+  Storage::Bytes<4> type(source.slice(offset + 4, 4));
   View::Bytes data = source.slice(offset + 8, length);
 
   // CRC32 requires another complete pass over the chunk payload. Trusted
@@ -281,7 +281,7 @@ auto score_row(View::Bytes current_row, View::Bytes previous_row)
 
   constexpr auto filter_count = first_row ? 2 : 5;
   constexpr auto channel_count = Rgba8::get_channel_count();
-  Static::Vector<U64, filter_count> scores;
+  Storage::Vector<U64, filter_count> scores;
 
   auto current_row_data = current_row.get_data();
   auto previous_row_data = previous_row.get_data();
@@ -735,7 +735,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
 constexpr auto process_data(
     const ImageInfo info,
     View::Bytes source,
-    View::Bytes palette) -> Option<Matrix<Rgba8>> {
+    View::Bytes palette) -> Storage::Option<Matrix<Rgba8>> {
   // Domain checks the pixel count before either decode path allocates. The
   // filtered stream also carries one control byte per row, so its byte extent
   // needs a separate check before the inflater reserves that storage.
@@ -759,7 +759,7 @@ constexpr auto process_data(
       []() { return False; });
   if (!valid_extent) {
     Diagnostics::Log::error("Png: Decoded extent exceeds address space"_view);
-    return Option<Matrix<Rgba8>>();
+    return Storage::Option<Matrix<Rgba8>>();
   }
 
   const Count decompressed_capacity =
@@ -780,7 +780,7 @@ constexpr auto process_data(
 #endif
 
   if (filtered_rows.is_empty()) [[unlikely]] {
-    return Option<Matrix<Rgba8>>();
+    return Storage::Option<Matrix<Rgba8>>();
   }
 
   Thread::Vector<Rgba8> pixels;
@@ -797,7 +797,7 @@ constexpr auto process_data(
                 pixels.get_size() * sizeof(Rgba8)))) [[unlikely]] {
       Diagnostics::Log::error(
           "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
-      return Option<Matrix<Rgba8>>();
+      return Storage::Option<Matrix<Rgba8>>();
     }
 
   } else {
@@ -810,24 +810,24 @@ constexpr auto process_data(
             bytes_per_pixel, raw_pixels)) [[unlikely]] {
       Diagnostics::Log::error(
           "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
-      return Option<Matrix<Rgba8>>();
+      return Storage::Option<Matrix<Rgba8>>();
     }
 
     if (!convert_to_pixels(
             raw_pixels.get_view(), info.get_width(), info.get_height(),
             info.get_color_type(), palette, pixels)) [[unlikely]] {
       Diagnostics::Log::error("Png: Rgba8 conversion failed"_view);
-      return Option<Matrix<Rgba8>>();
+      return Storage::Option<Matrix<Rgba8>>();
     }
   }
 
   return Matrix<Rgba8>::project(domain, Data::take(pixels))
       .visit(
-          [](Matrix<Rgba8>& matrix) -> Option<Matrix<Rgba8>> {
+          [](Matrix<Rgba8>& matrix) -> Storage::Option<Matrix<Rgba8>> {
             return Data::take(matrix);
           },
 
-          [](Matrix<Rgba8>::Failure) -> Option<Matrix<Rgba8>> {
+          [](Matrix<Rgba8>::Failure) -> Storage::Option<Matrix<Rgba8>> {
             Diagnostics::Log::error(
                 "Png: Decoded pixel count does not match dimensions"_view);
             return {};

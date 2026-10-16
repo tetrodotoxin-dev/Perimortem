@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/static/union.hpp"
+#include "perimortem/core/storage/union.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/serialization/json/node.hpp"
@@ -19,7 +19,7 @@ namespace Perimortem::Serialization::Json {
 // parallel tag or inactive fields.
 class Blueprint {
  private:
-  using Value = Core::Static::Union<
+  using Value = Core::Storage::Union<
       Core::View::Bytes,
       Core::View::Vector<Blueprint>,
       Node,

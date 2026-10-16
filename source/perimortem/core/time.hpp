@@ -6,7 +6,7 @@
 #include "toolchain/toolchain.hpp"
 
 #include "perimortem/core/scalar.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 
 namespace Perimortem::Core {
 
@@ -85,7 +85,7 @@ class Time {
 
   // Formats a Unix wall time stamp as `HH:MM:SS.mmm` in UTC. Calling this on a
   // monotonic stamp has no meaningful result.
-  EXPORTED(PERIMORTEM) auto calculate_clock() const -> Static::Bytes<12>;
+  EXPORTED(PERIMORTEM) auto calculate_clock() const -> Storage::Bytes<12>;
 
  private:
   U64 timestamp;

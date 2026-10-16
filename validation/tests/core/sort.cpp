@@ -106,7 +106,7 @@ VALIDATION_TEST(AlgoSort, heap_fallback) {
     }
   };
 
-  Static::Vector<Counted, 32768> storage;
+  Storage::Vector<Counted, 32768> storage;
   auto measure = [&](Count size) {
     Count comparisons = 0;
     for (Count i = 0; i < size; ++i) {

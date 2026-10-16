@@ -8,7 +8,7 @@
 
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/memory/thread/bytes.hpp"
 #include "perimortem/system/random.hpp"
@@ -54,10 +54,10 @@ class SortWord {
   View::Bytes view{};
 };
 
-static Static::Vector<Count, 1 << 6> count_64;
-static Static::Vector<Count, 1 << 9> count_512;
-static Static::Vector<Count, 1 << 12> count_4k;
-static Static::Vector<Count, 1 << 14> count_16k;
+static Storage::Vector<Count, 1 << 6> count_64;
+static Storage::Vector<Count, 1 << 9> count_512;
+static Storage::Vector<Count, 1 << 12> count_4k;
+static Storage::Vector<Count, 1 << 14> count_16k;
 
 // Random input keeps the benchmark on the general sorting path instead of
 // favoring an ordered or reverse ordered case.
@@ -109,7 +109,7 @@ VALIDATION_BENCHMARK(Sort16kInt, int_16k_items) {
   Benchmark::prevent_optimization(count_16k[0]);
 }
 
-static constexpr Static::Vector<View::Bytes, 24> keyword_seeds = {{
+static constexpr Storage::Vector<View::Bytes, 24> keyword_seeds = {{
   "as"_view,      "if"_view,      "for"_view,     "new"_view,     "via"_view,
   "else"_view,    "func"_view,    "init"_view,    "self"_view,    "true"_view,
   "alias"_view,   "error"_view,   "debug"_view,   "false"_view,   "using"_view,
@@ -120,9 +120,9 @@ static constexpr Static::Vector<View::Bytes, 24> keyword_seeds = {{
 static constexpr Count permute_count = 16;
 static constexpr Count word_width = 12;
 
-static Static::Bytes<keyword_seeds.get_size() * word_width * permute_count>
+static Storage::Bytes<keyword_seeds.get_size() * word_width * permute_count>
     generated_strings;
-static Static::Vector<SortWord, keyword_seeds.get_size() * permute_count>
+static Storage::Vector<SortWord, keyword_seeds.get_size() * permute_count>
     word_pool;
 
 // Generates a larger batch of test words off of a set of source seed
@@ -171,9 +171,9 @@ static auto fill_words(word_array& target) -> void {
   }
 }
 
-static Static::Vector<SortWord, 1 << 8> words_256;
-static Static::Vector<SortWord, 1 << 12> words_4k;
-static Static::Vector<SortWord, 1 << 14> words_16k;
+static Storage::Vector<SortWord, 1 << 8> words_256;
+static Storage::Vector<SortWord, 1 << 12> words_4k;
+static Storage::Vector<SortWord, 1 << 14> words_16k;
 
 static Harness SortStrings256 = {
   .name = "Sorting",

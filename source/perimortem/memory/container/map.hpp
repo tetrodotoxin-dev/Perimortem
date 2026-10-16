@@ -6,7 +6,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/option.hpp"
+#include "perimortem/core/storage/option.hpp"
 
 namespace Perimortem::Memory::Container {
 
@@ -142,7 +142,7 @@ class Map {
   // completes before either copy, so an existing key leaves both arguments and
   // the Map unchanged and returns None.
   auto insert(const key_type& key, const value_type& value)
-      -> Core::Option<value_type&>
+      -> Core::Storage::Option<value_type&>
     requires(
         __is_constructible(key_type, const key_type&) &&
         __is_constructible(value_type, const value_type&))
@@ -155,7 +155,7 @@ class Map {
   // Lookup completes before the move, so an existing key leaves the value
   // unchanged and returns None.
   auto insert(const key_type& key, value_type&& value)
-      -> Core::Option<value_type&>
+      -> Core::Storage::Option<value_type&>
     requires(
         __is_constructible(key_type, const key_type&) &&
         __is_constructible(value_type, value_type &&))
@@ -167,7 +167,7 @@ class Map {
   // Copies a replacement value only when the key is already stored. A missing
   // key leaves the Map and supplied value unchanged and returns None.
   auto assign(const key_type& key, const value_type& value)
-      -> Core::Option<value_type&>
+      -> Core::Storage::Option<value_type&>
     requires(__is_constructible(value_type, const value_type&))
   {
     const Count bucket = find_bucket(key, get_hash(key));
@@ -181,7 +181,7 @@ class Map {
   // Moves a replacement value only when the key is already stored. A missing
   // key leaves the Map and supplied value unchanged and returns None.
   auto assign(const key_type& key, value_type&& value)
-      -> Core::Option<value_type&>
+      -> Core::Storage::Option<value_type&>
     requires(__is_constructible(value_type, value_type &&))
   {
     const Count bucket = find_bucket(key, get_hash(key));
@@ -195,7 +195,7 @@ class Map {
   // Returns the current value for `key`, or None when the Map does not contain
   // that key. The returned reference follows the Map reference lifetime
   // contract and permits direct value mutation.
-  auto find(const key_type& key) -> Core::Option<value_type&> {
+  auto find(const key_type& key) -> Core::Storage::Option<value_type&> {
     const Count bucket = find_bucket(key, get_hash(key));
     if (bucket == Count(-1) || !is_occupied(hashes[bucket])) {
       return {};
@@ -204,7 +204,8 @@ class Map {
     return buckets[bucket].value;
   }
 
-  auto find(const key_type& key) const -> Core::Option<const value_type&> {
+  auto find(const key_type& key) const
+      -> Core::Storage::Option<const value_type&> {
     const Count bucket = find_bucket(key, get_hash(key));
     if (bucket == Count(-1) || !is_occupied(hashes[bucket])) {
       return {};
@@ -283,12 +284,12 @@ class Map {
 
   // Performs lookup without inserting a missing key. None reports that the key
   // is absent.
-  auto operator[](const key_type& key) -> Core::Option<value_type&> {
+  auto operator[](const key_type& key) -> Core::Storage::Option<value_type&> {
     return find(key);
   }
 
   auto operator[](const key_type& key) const
-      -> Core::Option<const value_type&> {
+      -> Core::Storage::Option<const value_type&> {
     return find(key);
   }
 
@@ -411,7 +412,7 @@ class Map {
 
   template <typename factory_type>
   auto insert_if_missing(const key_type& key, factory_type factory)
-      -> Core::Option<value_type&> {
+      -> Core::Storage::Option<value_type&> {
     if (bucket_count == 0) {
       ensure_capacity(1);
     }

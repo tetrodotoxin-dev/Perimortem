@@ -31,7 +31,7 @@ static Harness ThreadSet = {
 
 template <typename value_type, typename visitor_type>
 static auto expect_selected(
-    Option<value_type&> selected,
+    Storage::Option<value_type&> selected,
     visitor_type visitor,
     Test::TestResult& result) -> void {
   selected.visit(visitor, [&] { EXPECT(false); });
@@ -58,7 +58,8 @@ static auto check_set_contract(
   EXPECT_EQ(initial.get_capacity(), initial_capacity);
 
   auto values = create(32);
-  static_assert(__is_same(decltype(values.find(1)), Option<const S32&>));
+  static_assert(
+      __is_same(decltype(values.find(1)), Storage::Option<const S32&>));
 
   EXPECT(values.insert(1));
   EXPECT(values.insert(2));

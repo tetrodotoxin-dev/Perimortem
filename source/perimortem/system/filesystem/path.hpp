@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/option.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
+#include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/memory/allocator/arena.hpp"
 
@@ -31,7 +31,7 @@ class Path {
   // rejects input whose lexical meaning cannot be preserved exactly.
   static EXPORTED(PERIMORTEM) auto normalize(
       Memory::Allocator::Arena& arena,
-      Core::View::Bytes path) -> Core::Option<Core::View::Bytes>;
+      Core::View::Bytes path) -> Core::Storage::Option<Core::View::Bytes>;
 
   constexpr auto get_view() const -> Core::View::Bytes {
     return text.slice(0, size);
@@ -83,7 +83,7 @@ class Path {
   }
 
  private:
-  Core::Static::Bytes<max_size> text;
+  Core::Storage::Bytes<max_size> text;
   Count size = 0;
 };
 

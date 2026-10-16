@@ -9,7 +9,7 @@
 #include "perimortem/core/scalar.hpp"
 #include "perimortem/core/view/bytes.h"
 
-namespace Perimortem::Core::Static {
+namespace Perimortem::Core::Storage {
 
 // Bytes stores exactly `literal_size` inline bytes. Its extent never changes,
 // so views and writable access remain at the same address for the value's
@@ -21,19 +21,19 @@ namespace Perimortem::Core::Static {
 template <Count literal_size>
 class Bytes {
  private:
-  struct Storage {
+  struct Values {
     U8 source_block[literal_size];
   };
 
-  Storage storage{};
+  Values values{};
 
  public:
   constexpr Bytes() {}
 
-  // Static bytes initialize their complete storage from one aggregate source.
+  // Aggregate construction initializes the complete storage from one source.
   // Call sites use an extra pair of braces, as in
-  // `Static::Bytes<3> bytes = {{1, 2, 3}}`.
-  constexpr Bytes(const Storage& source) : storage(source) {}
+  // `Storage::Bytes<3> bytes = {{1, 2, 3}}`.
+  constexpr Bytes(const Values& source) : values(source) {}
 
   // Copies as many source bytes as fit in the fixed extent and zero fills the
   // remaining bytes.
@@ -42,15 +42,15 @@ class Bytes {
     if consteval {
       Count i = 0;
       for (; i < size; i++) {
-        storage.source_block[i] = source.get_data()[i];
+        values.source_block[i] = source.get_data()[i];
       }
 
       for (; i < literal_size; i++) {
-        storage.source_block[i] = 0;
+        values.source_block[i] = 0;
       }
     } else {
-      Data::copy(storage.source_block, source.get_data(), size);
-      Data::set(storage.source_block + size, 0, literal_size - size);
+      Data::copy(values.source_block, source.get_data(), size);
+      Data::set(values.source_block + size, 0, literal_size - size);
     }
   }
 
@@ -58,7 +58,7 @@ class Bytes {
   // for each index in ascending order and can run during constant evaluation.
   constexpr Bytes(U8 (*generator)(Count)) {
     for (Count i = 0; i < literal_size; i++) {
-      storage.source_block[i] = generator(i);
+      values.source_block[i] = generator(i);
     }
   }
 
@@ -67,15 +67,15 @@ class Bytes {
   constexpr Bytes(const U8* source) {
     if consteval {
       for (Count i = 0; i < literal_size; i++) {
-        storage.source_block[i] = source[i];
+        values.source_block[i] = source[i];
       }
     } else {
       if constexpr (literal_size < 16) {
         for (Count i = 0; i < literal_size; i++) {
-          storage.source_block[i] = source[i];
+          values.source_block[i] = source[i];
         }
       } else {
-        Data::copy(storage.source_block, source, literal_size);
+        Data::copy(values.source_block, source, literal_size);
       }
     }
   }
@@ -88,7 +88,7 @@ class Bytes {
       return False;
     }
 
-    return Data::compare(storage.source_block, rhs.get_data(), literal_size);
+    return Data::compare(values.source_block, rhs.get_data(), literal_size);
   }
 
   constexpr auto operator!=(const View::Bytes& rhs) -> Bool {
@@ -96,11 +96,11 @@ class Bytes {
   }
 
   constexpr auto operator[](Count index) -> U8& {
-    return storage.source_block[index];
+    return values.source_block[index];
   }
 
   constexpr auto operator[](Count index) const -> const U8& {
-    return storage.source_block[index];
+    return values.source_block[index];
   }
 
   constexpr auto slice(Count start, Count size) const -> View::Bytes {
@@ -109,20 +109,20 @@ class Bytes {
     }
 
     return View::Bytes(
-        storage.source_block + start,
+        values.source_block + start,
         Core::Scalar::min(size, get_size() - start));
   }
 
   constexpr auto get_size() const -> Count { return literal_size; }
   constexpr auto get_capacity() const -> Count { return literal_size; }
   constexpr auto get_view() const -> const View::Bytes {
-    return View::Bytes(storage.source_block, literal_size);
+    return View::Bytes(values.source_block, literal_size);
   }
 
-  constexpr auto get_data() const -> const U8* { return storage.source_block; }
-  constexpr auto get_data() -> U8* { return storage.source_block; }
+  constexpr auto get_data() const -> const U8* { return values.source_block; }
+  constexpr auto get_data() -> U8* { return values.source_block; }
   constexpr auto get_access() -> Access::Bytes {
-    return Access::Bytes(storage.source_block, literal_size);
+    return Access::Bytes(values.source_block, literal_size);
   }
 
   constexpr auto hash() const -> U64 {
@@ -130,4 +130,4 @@ class Bytes {
   }
 };
 
-}  // namespace Perimortem::Core::Static
+}  // namespace Perimortem::Core::Storage

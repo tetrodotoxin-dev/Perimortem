@@ -48,8 +48,9 @@ static auto check_bytes_contract(
 
   auto bytes = from_view("abc"_view);
   const auto& fixed_bytes = bytes;
-  static_assert(__is_same(decltype(bytes[0]), Option<U8&>));
-  static_assert(__is_same(decltype(fixed_bytes[0]), Option<const U8&>));
+  static_assert(__is_same(decltype(bytes[0]), Storage::Option<U8&>));
+  static_assert(
+      __is_same(decltype(fixed_bytes[0]), Storage::Option<const U8&>));
   ASSERT(bytes[2]);
   bytes[2].visit([&](U8 value) { EXPECT_EQ(value, U8('c')); }, []() {});
   fixed_bytes[1].visit([&](U8 value) { EXPECT_EQ(value, U8('b')); }, []() {});

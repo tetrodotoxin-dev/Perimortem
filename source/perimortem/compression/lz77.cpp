@@ -9,7 +9,7 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/scalar.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Compression;
@@ -23,7 +23,7 @@ constexpr Count window_size = 32768;
 constexpr Count window_mask = window_size - 1;
 constexpr U32 null_entry = 0xFFFFFFFF;
 
-constexpr auto compute_hash(Static::Bytes<3> data) -> Count {
+constexpr auto compute_hash(Storage::Bytes<3> data) -> Count {
   // Knuth multiplicative hash (2^32 / golden ratio) is fast and provides a
   // better distribution for the has table.
   constexpr U32 knuth_multiplier = 2654435761;
@@ -129,7 +129,7 @@ auto Lz77::insert(View::Bytes source, Count position) -> void {
   }
 
   const Count hash =
-      compute_hash(Static::Bytes<3>(source.get_data() + position));
+      compute_hash(Storage::Bytes<3>(source.get_data() + position));
   chain_table.get_data()[position & window_mask] = hash_table.get_data()[hash];
   hash_table.get_data()[hash] = U32(position);
 }
@@ -148,7 +148,7 @@ auto Lz77::find_match_and_insert(
 
   // Insert position before searching so future calls can find it but start the
   // search at the old chain head so we never match position against itself.
-  const Count hash = compute_hash(Static::Bytes<3>(data + position));
+  const Count hash = compute_hash(Storage::Bytes<3>(data + position));
   U32 candidate = hash_table.get_data()[hash];
   chain_table.get_data()[position & window_mask] = candidate;
   hash_table.get_data()[hash] = U32(position);
@@ -194,7 +194,7 @@ auto Lz77::find_match(View::Bytes source, Count position, Count depth) const
     return Match();
   }
 
-  const Count hash = compute_hash(Static::Bytes<3>(data + position));
+  const Count hash = compute_hash(Storage::Bytes<3>(data + position));
   Count best_length = min_match - 1;
   Count best_distance = 0;
   U32 candidate = hash_table.get_data()[hash];
