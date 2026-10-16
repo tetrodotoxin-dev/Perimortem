@@ -58,25 +58,25 @@ constexpr Static::Vector<WordEntry, 8> word_source = {{
 
 using word_table = Table<View::Bytes, word_source>;
 
-struct Fact {
+struct TypeMetadata {
   View::Bytes name{};
   Count byte_size = 0;
   Bool exposed = False;
 };
 
-using FactEntry = Pair<View::Bytes, Fact>;
-constexpr Static::Vector<FactEntry, 3> fact_source = {{
-  FactEntry{"Vec2D"_view, {"Vec2D"_view, 8, True}},
+using MetadataEntry = Pair<View::Bytes, TypeMetadata>;
+constexpr Static::Vector<MetadataEntry, 3> metadata_source = {{
+  MetadataEntry{"Vec2D"_view, {"Vec2D"_view, 8, True}},
   {"Vec3D"_view, {"Vec3D"_view, 12, True}},
   {"Sampler2D"_view, {"Sampler2D"_view, 0, False}},
 }};
 
-using fact_table = Table<Fact, fact_source>;
-using fact_table_aligned = Table<Fact, fact_source>;
+using metadata_table = Table<TypeMetadata, metadata_source>;
 
 constexpr auto make_limit_key(Count index) -> U8 {
   return U8(index);
 }
+
 constexpr Static::Vector<U8, U8(-1)> limit_keys(make_limit_key);
 
 using LimitEntry = Pair<View::Bytes, U8>;
@@ -122,18 +122,18 @@ VALIDATION_TEST(StaticTable, word_table) {
 }
 
 VALIDATION_TEST(StaticTable, find) {
-  const auto vec = fact_table::find("Vec3D"_view);
+  const auto vec = metadata_table::find("Vec3D"_view);
   ASSERT(vec);
   vec.visit(
       [] {},
-      [&](const Fact& fact) {
-        EXPECT_TEXT(fact.name, "Vec3D"_view);
-        EXPECT_EQ(fact.byte_size, 12);
-        EXPECT(fact.exposed);
+      [&](const TypeMetadata& metadata) {
+        EXPECT_TEXT(metadata.name, "Vec3D"_view);
+        EXPECT_EQ(metadata.byte_size, 12);
+        EXPECT(metadata.exposed);
       });
 
-  EXPECT_NOT(fact_table::find("Missing"_view));
-  EXPECT_NOT(fact_table::find(""_view));
+  EXPECT_NOT(metadata_table::find("Missing"_view));
+  EXPECT_NOT(metadata_table::find(""_view));
 }
 
 VALIDATION_TEST(StaticTable, entry_limit) {

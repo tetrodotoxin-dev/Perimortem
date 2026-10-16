@@ -6,8 +6,10 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
+#include "validation/tests/value.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Validation;
 using namespace Toolchain::Validation;
 
 static Harness CoreUnion = {
@@ -68,41 +70,28 @@ VALIDATION_TEST(CoreUnion, copy_move) {
   EXPECT(moved.is_null());
 }
 
-class MoveOnlyValue {
- public:
-  constexpr MoveOnlyValue(U64 value) : value(value) {}
-  MoveOnlyValue(const MoveOnlyValue&) = delete;
-  constexpr MoveOnlyValue(MoveOnlyValue&& source) : value(source.value) {
-    source.value = 0;
-  }
-
-  constexpr auto get() const -> U64 { return value; }
-
- private:
-  U64 value;
-};
-
 VALIDATION_TEST(CoreUnion, move_only_alternative) {
-  MoveOnlyValue source(42);
-  Static::Union<MoveOnlyValue, U64> selected(Data::take(source));
-  Static::Union<MoveOnlyValue, U64> moved(Data::take(selected));
-  auto found = moved.find<MoveOnlyValue>();
+  MoveOnlyValue<U64> source(42);
+  Static::Union<MoveOnlyValue<U64>, U64> selected(Data::take(source));
+  Static::Union<MoveOnlyValue<U64>, U64> moved(Data::take(selected));
+  auto found = moved.find<MoveOnlyValue<U64>>();
 
   ASSERT(found);
-  EXPECT_EQ((*found).get(), U64(42));
-  EXPECT_EQ(source.get(), U64(0));
+  EXPECT_EQ((*found).get_value(), U64(42));
+  EXPECT_EQ(source.get_value(), U64(0));
 }
 
 static_assert(__is_constructible(Static::Union<U64>, U64));
 static_assert(!__is_convertible_to(U64, Static::Union<U64>));
 static_assert(!__is_constructible(Static::Union<U64>, S32));
 static_assert(!__is_constructible(Static::Union<U64, S64>, S32));
-static_assert(
-    __is_constructible(Static::Union<MoveOnlyValue, U64>, MoveOnlyValue&&));
+static_assert(__is_constructible(
+    Static::Union<MoveOnlyValue<U64>, U64>,
+    MoveOnlyValue<U64>&&));
 static_assert(!__is_constructible(
-    Static::Union<MoveOnlyValue, U64>,
-    const MoveOnlyValue&));
+    Static::Union<MoveOnlyValue<U64>, U64>,
+    const MoveOnlyValue<U64>&));
 static_assert(!__is_constructible(
-    Static::Union<MoveOnlyValue, U64>,
-    const Static::Union<MoveOnlyValue, U64>&));
+    Static::Union<MoveOnlyValue<U64>, U64>,
+    const Static::Union<MoveOnlyValue<U64>, U64>&));
 static_assert(__is_trivially_destructible(Static::Union<View::Bytes, S64>));

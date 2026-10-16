@@ -7,10 +7,12 @@
 
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
+#include "validation/tests/value.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
+using namespace Perimortem::Validation;
 using namespace Toolchain::Validation;
 
 static Harness UtilityResult = {
@@ -53,14 +55,6 @@ class ResultValue {
 class OwnedResultError {
  public:
   ~OwnedResultError() {}
-};
-
-class MoveOnlyResultValue {
- public:
-  MoveOnlyResultValue() {}
-  MoveOnlyResultValue(const MoveOnlyResultValue&) = delete;
-  MoveOnlyResultValue(MoveOnlyResultValue&&) {}
-  ~MoveOnlyResultValue() {}
 };
 
 template <typename error_type>
@@ -187,6 +181,7 @@ VALIDATION_TEST(UtilityResult, switches_state) {
         [](const ResultValue& value) {
           return value.get() == S32(41) ? True : False;
         },
+
         [](ResultError) { return False; }));
 
     auto copied = create_value(live_values);
@@ -196,6 +191,7 @@ VALIDATION_TEST(UtilityResult, switches_state) {
         [](const ResultValue& value) {
           return value.get() == S32(41) ? True : False;
         },
+
         [](ResultError) { return False; }));
   }
 
@@ -211,9 +207,9 @@ static_assert(__is_trivially_destructible(Result<S32, ResultError>));
 static_assert(
     __is_constructible(Result<ResultValue, ResultError>, ResultValue&&));
 static_assert(__is_constructible(
-    Result<MoveOnlyResultValue, ResultError>,
-    MoveOnlyResultValue&&));
+    Result<MoveOnlyValue<U8>, ResultError>,
+    MoveOnlyValue<U8>&&));
 static_assert(!__is_constructible(
-    Result<MoveOnlyResultValue, ResultError>,
-    const Result<MoveOnlyResultValue, ResultError>&));
+    Result<MoveOnlyValue<U8>, ResultError>,
+    const Result<MoveOnlyValue<U8>, ResultError>&));
 static_assert(!SupportedResultError<OwnedResultError>);

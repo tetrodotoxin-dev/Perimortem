@@ -7,37 +7,103 @@
 
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/global/set.hpp"
+#include "perimortem/memory/managed/bytes.hpp"
+#include "perimortem/memory/managed/set.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
-#include "validation/tests/memory/hashable.hpp"
+#include "perimortem/system/process/worker.hpp"
+#include "validation/tests/memory/arena_retained_value.hpp"
+#include "validation/tests/memory/global_allocation_value.hpp"
+#include "validation/tests/memory/probe_key.hpp"
+#include "validation/tests/value.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
+using namespace Perimortem::System;
+using namespace Perimortem::Validation;
 using namespace Toolchain::Validation;
 
 static Harness ThreadSet = {
   .name = "Thread::Set",
-  .setup =
-      []() {
-        default_construct_count = 0;
-        default_destruct_count = 0;
-      },
 };
 
-class MoveOnlyKey {
- public:
-  MoveOnlyKey(S32 value) : value(value) {}
+// Set policies share insertion, lookup, removal, traversal, copy, capacity, and
+// reset behavior. The factory supplies each policy's construction requirements
+// so every wrapper runs the same capability contract.
+template <typename factory_type>
+static auto check_set_contract(factory_type create, Test::TestResult& result)
+    -> void {
+  auto empty = create(0);
+  EXPECT(empty.is_empty());
+  EXPECT_EQ(empty.get_capacity(), Count(0));
 
-  MoveOnlyKey(const MoveOnlyKey&) = delete;
-  MoveOnlyKey(MoveOnlyKey&&) = default;
+  auto values = create(32);
+  static_assert(__is_same(decltype(values.find(1)), Option<const S32&>));
 
-  constexpr auto hash() const -> U64 { return Hash(value).get_value(); }
-  constexpr auto operator==(const MoveOnlyKey& rhs) const -> Bool {
-    return value == rhs.value;
+  EXPECT(values.insert(1));
+  EXPECT(values.insert(2));
+  EXPECT(values.insert(4));
+  EXPECT(!values.insert(1));
+  EXPECT_EQ(values.get_size(), Count(3));
+  EXPECT(values.contains(1));
+  EXPECT(!values.contains(8));
+
+  auto found = values.find(2);
+  ASSERT(found);
+  EXPECT_EQ(*found, 2);
+  EXPECT(!values.find(8));
+
+  const auto& fixed = values;
+  auto fixed_found = fixed.find(4);
+  ASSERT(fixed_found);
+  EXPECT_EQ(*fixed_found, 4);
+
+  S32 sum = 0;
+  values.visit([&sum](const S32& value) { sum += value; });
+  EXPECT_EQ(sum, 7);
+
+  auto copied = values;
+  EXPECT(copied.insert(16));
+  EXPECT(!values.contains(16));
+
+  EXPECT(values.remove(2));
+  EXPECT(!values.remove(2));
+  EXPECT(!values.contains(2));
+
+  const Count retained_capacity = values.get_capacity();
+  values.clear();
+  EXPECT(values.is_empty());
+  EXPECT_EQ(values.get_capacity(), retained_capacity);
+
+  values.reset();
+  values.reset();
+  EXPECT(values.is_empty());
+  EXPECT_EQ(values.get_capacity(), Count(0));
+
+  auto assigned_empty = create(32);
+  assigned_empty.insert(1);
+  assigned_empty = empty;
+  EXPECT(assigned_empty.is_empty());
+  EXPECT_EQ(assigned_empty.get_capacity(), Count(0));
+
+  auto capacity_values = create(0);
+  capacity_values.ensure_capacity(1000);
+
+  const Count capacity = capacity_values.get_capacity();
+  EXPECT(capacity >= 1000);
+  capacity_values.ensure_capacity(capacity);
+  EXPECT_EQ(capacity_values.get_capacity(), capacity);
+
+  for (Count key = 0; key < capacity; key++) {
+    EXPECT(capacity_values.insert(key));
   }
 
- private:
-  S32 value;
-};
+  EXPECT_EQ(capacity_values.get_size(), capacity);
+  EXPECT_EQ(capacity_values.get_capacity(), capacity);
+  EXPECT(capacity_values.insert(capacity));
+  EXPECT(capacity_values.get_capacity() > capacity);
+}
 
 template <typename key_type>
 static constexpr Bool supports_copy_insert =
@@ -57,65 +123,12 @@ static constexpr Bool supports_copy_assignment =
       destination = source;
     };
 
-using MoveOnlySet = Thread::Set<MoveOnlyKey>;
-static_assert(!supports_copy_insert<MoveOnlyKey>);
-static_assert(supports_move_insert<MoveOnlyKey>);
+using MoveOnlySet = Thread::Set<MoveOnlyValue<S32>>;
+static_assert(!supports_copy_insert<MoveOnlyValue<S32>>);
+static_assert(supports_move_insert<MoveOnlyValue<S32>>);
 static_assert(!__is_constructible(MoveOnlySet, const MoveOnlySet&));
 static_assert(!supports_copy_assignment<MoveOnlySet>);
 static_assert(__is_constructible(MoveOnlySet, MoveOnlySet&&));
-
-VALIDATION_TEST(ThreadSet, unique_values) {
-  Thread::Set<S32> values;
-
-  EXPECT(values.insert(1));
-  EXPECT(!values.insert(1));
-  EXPECT(values.insert(4));
-  EXPECT(values.contains(1));
-  EXPECT(values.contains(4));
-  EXPECT(!values.contains(2));
-  EXPECT_EQ(values.get_size(), 2);
-
-  values.clear();
-  EXPECT(values.is_empty());
-  EXPECT(!values.contains(1));
-}
-
-VALIDATION_TEST(ThreadSet, find) {
-  Thread::Set<S32> values(4);
-
-  values.insert(1);
-  values.insert(2);
-  values.insert(4);
-
-  static_assert(__is_same(decltype(values.find(2)), Option<const S32&>));
-  auto found = values.find(2);
-  ASSERT(found);
-  EXPECT_EQ(*found, 2);
-  EXPECT(!values.find(8));
-
-  const auto& const_values = values;
-  auto const_found = const_values.find(4);
-  ASSERT(const_found);
-  EXPECT_EQ(*const_found, 4);
-  EXPECT(!const_values.find(8));
-}
-
-VALIDATION_TEST(ThreadSet, visit) {
-  Thread::Set<S32> values;
-  values.insert(1);
-  values.insert(2);
-  values.insert(4);
-
-  S32 total = 0;
-  values.visit([&total](const S32& value) { total += value; });
-  EXPECT_EQ(total, 7);
-
-  total = 0;
-
-  const Thread::Set<S32>& const_values = values;
-  const_values.visit([&total](const S32& value) { total += value; });
-  EXPECT_EQ(total, 7);
-}
 
 // Structural mutation can rebuild probe storage during the callback. The
 // contract guarantees safe mutation and a valid resulting Set without
@@ -144,137 +157,47 @@ VALIDATION_TEST(ThreadSet, visit_structural_mutation) {
   EXPECT(!values.contains(removed_key));
 }
 
-VALIDATION_TEST(ThreadSet, logical_capacity) {
-  Thread::Set<S32> values;
-  EXPECT_EQ(values.get_capacity(), Count(0));
-
-  values.ensure_capacity(1000);
-
-  const Count capacity = values.get_capacity();
-  EXPECT(capacity >= 1000);
-
-  values.ensure_capacity(capacity);
-  EXPECT_EQ(values.get_capacity(), capacity);
-
-  for (Count key = 0; key < capacity; key++) {
-    EXPECT(values.insert(key));
-  }
-
-  EXPECT_EQ(values.get_capacity(), capacity);
-  EXPECT(values.insert(capacity));
-  EXPECT(values.get_capacity() > capacity);
-}
-
-VALIDATION_TEST(ThreadSet, clear_and_reset) {
-  Thread::Set<S32> values(32);
-  const Count capacity = values.get_capacity();
-
-  values.insert(1);
-
-  values.clear();
-  EXPECT(values.is_empty());
-  EXPECT_EQ(values.get_capacity(), capacity);
-
-  values.reset();
-  values.reset();
-  EXPECT(values.is_empty());
-  EXPECT_EQ(values.get_capacity(), Count(0));
-}
-
-VALIDATION_TEST(ThreadSet, empty_assignment_resets_capacity) {
-  Thread::Set<S32> empty;
-  Thread::Set<S32> values(32);
-  values.insert(1);
-
-  values = empty;
-
-  EXPECT(values.is_empty());
-  EXPECT_EQ(values.get_capacity(), Count(0));
+VALIDATION_TEST(ThreadSet, capability_contract) {
+  check_set_contract(
+      [](Count capacity) { return Thread::Set<S32>(capacity); }, result);
 }
 
 VALIDATION_TEST(ThreadSet, move_only_keys) {
-  Thread::Set<MoveOnlyKey> values;
+  Thread::Set<MoveOnlyValue<S32>> values;
   for (S32 value = 0; value < 100; value++) {
-    EXPECT(values.insert(MoveOnlyKey(value)));
+    EXPECT(values.insert(MoveOnlyValue<S32>(value)));
   }
 
-  EXPECT(!values.insert(MoveOnlyKey(42)));
-  EXPECT(values.contains(MoveOnlyKey(42)));
-  EXPECT(values.remove(MoveOnlyKey(42)));
-  EXPECT(!values.contains(MoveOnlyKey(42)));
-}
-
-VALIDATION_TEST(ThreadSet, remove) {
-  Thread::Set<S32> values;
-
-  values.insert(1);
-  values.insert(2);
-  values.insert(4);
-
-  EXPECT(values.remove(2));
-  EXPECT(!values.remove(2));
-  EXPECT_EQ(values.get_size(), 2);
-  EXPECT(values.contains(1));
-  EXPECT(!values.contains(2));
-  EXPECT(values.contains(4));
-
-  EXPECT(values.insert(2));
-  EXPECT(values.contains(2));
+  EXPECT(!values.insert(MoveOnlyValue<S32>(42)));
+  EXPECT(values.contains(MoveOnlyValue<S32>(42)));
+  EXPECT(values.remove(MoveOnlyValue<S32>(42)));
+  EXPECT(!values.contains(MoveOnlyValue<S32>(42)));
 }
 
 VALIDATION_TEST(ThreadSet, remove_collisions) {
-  class CollisionKey {
-   public:
-    CollisionKey(Count value) : value(value) {}
-
-    constexpr auto hash() const -> U64 { return U64(-1); }
-    constexpr auto operator==(const CollisionKey& rhs) const -> Bool {
-      return value == rhs.value;
-    }
-
-   private:
-    Count value = 0;
-  };
-
-  Thread::Set<CollisionKey> values;
+  Thread::Set<ProbeKey> values;
   for (Count i = 0; i < 24; i++) {
-    EXPECT(values.insert(CollisionKey(i)));
+    EXPECT(values.insert(ProbeKey(Count(-1), i)));
   }
 
   const Count capacity = values.get_capacity();
-  EXPECT(values.remove(CollisionKey(8)));
-  EXPECT(!values.contains(CollisionKey(8)));
+  EXPECT(values.remove(ProbeKey(Count(-1), 8)));
+  EXPECT(!values.contains(ProbeKey(Count(-1), 8)));
   for (Count i = 0; i < 24; i++) {
     if (i == 8) {
       continue;
     }
 
-    ASSERT(values.contains(CollisionKey(i)));
+    ASSERT(values.contains(ProbeKey(Count(-1), i)));
   }
 
-  EXPECT(!values.insert(CollisionKey(16)));
-  EXPECT(values.insert(CollisionKey(8)));
-  EXPECT(values.contains(CollisionKey(8)));
+  EXPECT(!values.insert(ProbeKey(Count(-1), 16)));
+  EXPECT(values.insert(ProbeKey(Count(-1), 8)));
+  EXPECT(values.contains(ProbeKey(Count(-1), 8)));
   EXPECT_EQ(values.get_capacity(), capacity);
 }
 
 VALIDATION_TEST(ThreadSet, remove_displacements) {
-  class ProbeKey {
-   public:
-    ProbeKey(Count home, Count id) : home(home), id(id) {}
-
-    // Tests can build exact probe chains because Core::Hash delegates to this
-    // hook for custom key types.
-    constexpr auto hash() const -> U64 { return home; }
-    constexpr auto operator==(const ProbeKey& rhs) const -> Bool {
-      return home == rhs.home && id == rhs.id;
-    }
-
-   private:
-    Count home = 0;
-    Count id = 0;
-  };
-
   EXPECT_EQ(Hash(ProbeKey(3, 99)).get_value(), 3);
 
   {
@@ -403,23 +326,21 @@ VALIDATION_TEST(ThreadSet, pointer_keys) {
 }
 
 VALIDATION_TEST(ThreadSet, key_construction) {
-  Count construct_count = 0;
-  Count destruct_count = 0;
+  TrackedValue::Counts counts;
 
   {
-    Thread::Set<Hashable> values;
+    Thread::Set<TrackedValue> values;
     for (Count i = 0; i < 100; i++) {
-      values.insert(Hashable(i, construct_count, destruct_count));
+      values.insert(TrackedValue(i, counts));
     }
 
     EXPECT_EQ(values.get_size(), 100);
     for (Count i = 0; i < 100; i++) {
-      ASSERT(values.contains(Hashable(i, construct_count, destruct_count)));
+      ASSERT(values.contains(TrackedValue(i, counts)));
     }
   }
 
-  EXPECT_EQ(construct_count, destruct_count);
-  EXPECT_EQ(default_construct_count, default_destruct_count);
+  EXPECT_EQ(counts.constructions, counts.destructions);
 }
 
 VALIDATION_TEST(ThreadSet, reuse) {
@@ -477,4 +398,167 @@ VALIDATION_TEST(ThreadSet, leak_test) {
 
   auto post_test_memory = Allocator::Bibliotheca::allocated_memory();
   EXPECT_EQ(pre_test_memory, post_test_memory);
+}
+
+static_assert(__is_constructible(Global::Set<U32>));
+static_assert(!__is_convertible_to(Count, Global::Set<U32>));
+
+static Harness GlobalSet = {
+  .name = "Global::Set",
+};
+
+static GlobalAllocationValue::Counts global_set_counts;
+static Global::Set<GlobalAllocationValue> transferred_set;
+
+static auto create_global_set(View::Bytes) -> void {
+  Global::Set<GlobalAllocationValue> created;
+  for (U32 value = 0; value < 1024; value++) {
+    created.insert(GlobalAllocationValue(value, global_set_counts));
+  }
+
+  transferred_set = Data::take(created);
+}
+
+VALIDATION_TEST(GlobalSet, capability_contract) {
+  check_set_contract(
+      [](Count capacity) { return Global::Set<S32>(capacity); }, result);
+}
+
+VALIDATION_TEST(GlobalSet, cross_thread_reallocation) {
+  global_set_counts = {};
+
+  auto worker = Process::Worker::start(
+      "global.set"_view, create_global_set, View::Bytes());
+  worker.join();
+
+  EXPECT_EQ(transferred_set.get_size(), Count(1024));
+  EXPECT_EQ(global_set_counts.copies, Count(0));
+  EXPECT(global_set_counts.moves > transferred_set.get_size());
+
+  Count visited = 0;
+  transferred_set.visit([&](const GlobalAllocationValue& value) {
+    visited++;
+    EXPECT(value.has_valid_location());
+    EXPECT(value.get_value() < 1024);
+  });
+
+  EXPECT_EQ(visited, Count(1024));
+
+  // Reset releases worker allocated storage from this thread.
+  transferred_set.reset();
+  EXPECT(transferred_set.is_empty());
+  EXPECT_EQ(transferred_set.get_capacity(), Count(0));
+  EXPECT_EQ(global_set_counts.releases, Count(1024));
+}
+
+static_assert(!__is_constructible(Managed::Set<U32>));
+static_assert(__is_constructible(Managed::Set<U32>, Allocator::Arena&));
+
+static Harness ManagedSet = {
+  .name = "Managed::Set",
+};
+
+VALIDATION_TEST(ManagedSet, cross_arena_copy_assignment) {
+  Allocator::Arena source_arena;
+  Allocator::Arena destination_arena;
+  Managed::Set<U32> source(source_arena);
+  Managed::Set<U32> destination(destination_arena);
+  source.insert(4);
+  destination.insert(8);
+
+  destination = source;
+
+  EXPECT(&destination.get_arena() == &destination_arena);
+  EXPECT(destination.contains(4));
+  EXPECT(!destination.contains(8));
+  source.insert(16);
+  EXPECT(!destination.contains(16));
+}
+
+VALIDATION_TEST(ManagedSet, rvalue_assignment_copies) {
+  Allocator::Arena source_arena;
+  Allocator::Arena destination_arena;
+  Managed::Set<U32> source(source_arena);
+  Managed::Set<U32> destination(destination_arena);
+  source.insert(4);
+
+  destination = Data::take(source);
+
+  EXPECT(&destination.get_arena() == &destination_arena);
+  EXPECT(source.contains(4));
+  EXPECT(destination.contains(4));
+}
+
+VALIDATION_TEST(ManagedSet, nested_values_use_destination_arena) {
+  Allocator::Arena source_arena;
+  Allocator::Arena destination_arena;
+  Managed::Set<Managed::Bytes> source(source_arena);
+  source.insert(Managed::Bytes(source_arena, "nested"_view));
+
+  Managed::Set<Managed::Bytes> destination(destination_arena);
+  destination = source;
+
+  Count visited = 0;
+  destination.visit([&](const Managed::Bytes& value) {
+    visited++;
+    EXPECT(&value.get_arena() == &destination_arena);
+  });
+
+  EXPECT_EQ(visited, Count(1));
+
+  source_arena.reset();
+  destination.visit([&](const Managed::Bytes& value) {
+    EXPECT_EQ(value.get_view(), "nested"_view);
+  });
+}
+
+VALIDATION_TEST(ManagedSet, nested_insert_uses_destination_arena) {
+  Allocator::Arena source_arena;
+  Allocator::Arena destination_arena;
+  Managed::Bytes value(source_arena, "nested"_view);
+  Managed::Set<Managed::Bytes> destination(destination_arena);
+
+  EXPECT(destination.insert(value));
+  source_arena.reset();
+
+  destination.visit([&](const Managed::Bytes& stored_value) {
+    EXPECT(&stored_value.get_arena() == &destination_arena);
+    EXPECT_EQ(stored_value.get_view(), "nested"_view);
+  });
+}
+
+VALIDATION_TEST(ManagedSet, capability_contract) {
+  Allocator::Arena arena;
+  check_set_contract(
+      [&](Count capacity) { return Managed::Set<S32>(arena, capacity); },
+      result);
+
+  Managed::Set<S32> values(arena);
+  EXPECT(&values.get_arena() == &arena);
+}
+
+VALIDATION_TEST(ManagedSet, growth_preserves_old_values) {
+  ArenaRetainedValue::Counts counts;
+  {
+    Allocator::Arena arena;
+    Managed::Set<ArenaRetainedValue> values(arena);
+    ArenaRetainedValue first(1, counts);
+    values.insert(first);
+
+    auto retained = values.find(first);
+    ASSERT(retained);
+    const ArenaRetainedValue* retained_location = &*retained;
+
+    for (Count value = 2; value < 64; value++) {
+      ArenaRetainedValue inserted(value, counts);
+      values.insert(inserted);
+    }
+
+    EXPECT(retained_location->has_valid_location());
+    EXPECT(values.remove(first));
+    values.clear();
+    EXPECT_EQ(counts.destructions, Count(62));
+  }
+
+  EXPECT_EQ(counts.destructions, Count(63));
 }
