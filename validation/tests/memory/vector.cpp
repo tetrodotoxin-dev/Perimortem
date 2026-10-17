@@ -16,7 +16,7 @@
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 #include "perimortem/memory/thread/vector.hpp"
-#include "perimortem/system/process/worker.hpp"
+#include "perimortem/system/process/thread.hpp"
 #include "validation/tests/memory/arena_retained_value.hpp"
 #include "validation/tests/memory/global_allocation_value.hpp"
 
@@ -615,14 +615,14 @@ static Global::Vector<U32> transferred_values;
 static GlobalAllocationValue::Counts global_vector_counts;
 static Global::Vector<GlobalAllocationValue> transferred_resources;
 
-static auto create_global_vector(View::Bytes) -> void {
+static auto create_global_vector(void*) -> void {
   Global::Vector<U32> created;
   created.insert(4);
   created.insert(8);
   transferred_values = Data::take(created);
 }
 
-static auto create_global_resources(View::Bytes) -> void {
+static auto create_global_resources(void*) -> void {
   Global::Vector<GlobalAllocationValue> created;
   for (U32 value = 0; value < 128; value++) {
     created.insert(GlobalAllocationValue(value, global_vector_counts));
@@ -639,9 +639,9 @@ VALIDATION_TEST(GlobalVector, capability_contract) {
 }
 
 VALIDATION_TEST(GlobalVector, cross_thread_transfer) {
-  auto worker = Process::Worker::start(
-      "global.vector"_view, create_global_vector, View::Bytes());
-  worker.join();
+  Process::Thread thread =
+      Process::Thread::start("global.vector"_view, create_global_vector);
+  thread.join();
 
   EXPECT_EQ(transferred_values.get_size(), Count(2));
   EXPECT_EQ(transferred_values.get_data()[0], U32(4));
@@ -650,20 +650,20 @@ VALIDATION_TEST(GlobalVector, cross_thread_transfer) {
   EXPECT_EQ(transferred_values.get_data()[2], U32(16));
 
   // Main thread release proves that the process heap block can be released by a
-  // thread other than the worker that populated the Vector.
+  // thread other than the one that populated the Vector.
   transferred_values.reset();
   EXPECT(!transferred_values.get_data());
 }
 
 // Reallocation consumes the old process heap objects rather than copying them.
 // Releasing the completed Vector on this thread proves that both its value
-// resources and backing allocation can cross the worker boundary.
+// resources and backing allocation can cross the native thread boundary.
 VALIDATION_TEST(GlobalVector, resource_cross_thread_reallocation) {
   global_vector_counts = {};
 
-  auto worker = Process::Worker::start(
-      "global.resources"_view, create_global_resources, View::Bytes());
-  worker.join();
+  Process::Thread thread =
+      Process::Thread::start("global.resources"_view, create_global_resources);
+  thread.join();
 
   EXPECT_EQ(transferred_resources.get_size(), Count(128));
   EXPECT_EQ(global_vector_counts.copies, Count(0));

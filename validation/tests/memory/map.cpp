@@ -13,7 +13,7 @@
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
-#include "perimortem/system/process/worker.hpp"
+#include "perimortem/system/process/thread.hpp"
 #include "validation/tests/memory/arena_retained_value.hpp"
 #include "validation/tests/memory/global_allocation_value.hpp"
 #include "validation/tests/memory/probe_key.hpp"
@@ -708,7 +708,7 @@ static Harness GlobalMap = {
 static GlobalAllocationValue::Counts global_map_counts;
 static Global::Map<U32, GlobalAllocationValue> transferred_map;
 
-static auto create_global_map(View::Bytes) -> void {
+static auto create_global_map(void*) -> void {
   Global::Map<U32, GlobalAllocationValue> created;
   for (U32 value = 0; value < 128; value++) {
     created.insert(U32(value), GlobalAllocationValue(value, global_map_counts));
@@ -727,15 +727,15 @@ VALIDATION_TEST(GlobalMap, capability_contract) {
       result);
 }
 
-// The worker repeatedly grows the Map and moves its values within process heap
-// storage. Reading and resetting it on this thread verifies that the keys,
-// values and allocation can cross the worker boundary.
+// The source thread repeatedly grows the Map and moves its values within
+// process heap storage. Reading and resetting it on this thread verifies that
+// the keys, values and allocation can cross the native thread boundary.
 VALIDATION_TEST(GlobalMap, cross_thread_reallocation) {
   global_map_counts = {};
 
-  auto worker = Process::Worker::start(
-      "global.map"_view, create_global_map, View::Bytes());
-  worker.join();
+  Process::Thread thread =
+      Process::Thread::start("global.map"_view, create_global_map);
+  thread.join();
 
   EXPECT_EQ(transferred_map.get_size(), Count(128));
   EXPECT_EQ(global_map_counts.copies, Count(0));

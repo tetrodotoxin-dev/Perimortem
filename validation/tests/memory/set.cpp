@@ -13,7 +13,7 @@
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/set.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
-#include "perimortem/system/process/worker.hpp"
+#include "perimortem/system/process/thread.hpp"
 #include "validation/tests/memory/arena_retained_value.hpp"
 #include "validation/tests/memory/global_allocation_value.hpp"
 #include "validation/tests/memory/probe_key.hpp"
@@ -460,7 +460,7 @@ static Harness GlobalSet = {
 static GlobalAllocationValue::Counts global_set_counts;
 static Global::Set<GlobalAllocationValue> transferred_set;
 
-static auto create_global_set(View::Bytes) -> void {
+static auto create_global_set(void*) -> void {
   Global::Set<GlobalAllocationValue> created;
   for (U32 value = 0; value < 1024; value++) {
     created.insert(GlobalAllocationValue(value, global_set_counts));
@@ -479,9 +479,9 @@ VALIDATION_TEST(GlobalSet, capability_contract) {
 VALIDATION_TEST(GlobalSet, cross_thread_reallocation) {
   global_set_counts = {};
 
-  auto worker = Process::Worker::start(
-      "global.set"_view, create_global_set, View::Bytes());
-  worker.join();
+  Process::Thread thread =
+      Process::Thread::start("global.set"_view, create_global_set);
+  thread.join();
 
   EXPECT_EQ(transferred_set.get_size(), Count(1024));
   EXPECT_EQ(global_set_counts.copies, Count(0));
@@ -496,8 +496,8 @@ VALIDATION_TEST(GlobalSet, cross_thread_reallocation) {
 
   EXPECT_EQ(visited, Count(1024));
 
-  // The worker created and populated the process heap allocation. Resetting on
-  // this thread verifies that Global storage can cross that thread boundary.
+  // Another thread created and populated the process heap allocation. Resetting
+  // here verifies that Global storage can cross that thread boundary.
   transferred_set.reset();
   EXPECT(transferred_set.is_empty());
   EXPECT_EQ(transferred_set.get_capacity(), Count(0));

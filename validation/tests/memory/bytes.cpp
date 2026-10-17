@@ -11,7 +11,7 @@
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
-#include "perimortem/system/process/worker.hpp"
+#include "perimortem/system/process/thread.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -315,8 +315,8 @@ static Harness GlobalBytes = {
 
 static Global::Bytes transferred_bytes;
 
-static auto create_global_bytes(View::Bytes source) -> void {
-  Global::Bytes created(source);
+static auto create_global_bytes(void*) -> void {
+  Global::Bytes created("thread owned"_view);
   transferred_bytes = Data::take(created);
 }
 
@@ -327,16 +327,16 @@ VALIDATION_TEST(GlobalBytes, capability_contract) {
 }
 
 VALIDATION_TEST(GlobalBytes, cross_thread_transfer) {
-  auto worker = Process::Worker::start(
-      "global.bytes"_view, create_global_bytes, "worker owned"_view);
-  worker.join();
+  Process::Thread thread =
+      Process::Thread::start("global.bytes"_view, create_global_bytes);
+  thread.join();
 
-  EXPECT_EQ(transferred_bytes.get_view(), "worker owned"_view);
+  EXPECT_EQ(transferred_bytes.get_view(), "thread owned"_view);
   transferred_bytes.append(U8('!'));
-  EXPECT_EQ(transferred_bytes.get_view(), "worker owned!"_view);
+  EXPECT_EQ(transferred_bytes.get_view(), "thread owned!"_view);
 
   // Main thread release proves that the process heap block can be released by a
-  // thread other than the worker that allocated and populated the values.
+  // thread other than the one that allocated and populated the values.
   transferred_bytes.reset();
   EXPECT(!transferred_bytes.get_view().get_data());
 }
