@@ -50,8 +50,7 @@ static auto contains(View::Bytes haystack, View::Bytes message) -> Bool {
 }
 
 static auto has_valid_header(View::Bytes entry) -> Bool {
-  constexpr auto header_length = 14;
-  if (entry.get_size() < header_length) {
+  if (entry.get_size() < 6) {
     return false;
   }
 
@@ -66,28 +65,27 @@ static auto has_valid_header(View::Bytes entry) -> Bool {
     return false;
   }
 
-  // The timestamp has fixed separators after its hour, minute, second and
-  // millisecond fields.
-  const U8* b = entry.get_data() + 2;
-  if (b[2] != ':' || b[5] != ':' || b[8] != '.') {
+  Count cursor = 2;
+  Count minute_digits = 0;
+  while (cursor < entry.get_size() && entry[cursor] >= '0' &&
+         entry[cursor] <= '9') {
+    minute_digits++;
+    cursor++;
+  }
+
+  if (minute_digits < 2 || cursor + 10 >= entry.get_size()) {
     return false;
   }
 
-  // Every remaining timestamp position must contain one decimal digit.
-  constexpr Storage::Vector<Count, 9> number_indexes = {{
-    0,
-    1,
-    3,
-    4,
-    6,
-    7,
-    9,
-    10,
-    11,
-  }};
+  const U8* elapsed = entry.get_data() + cursor;
+  if (elapsed[0] != ':' || elapsed[3] != ':' || elapsed[7] != '.' ||
+      elapsed[9] != ' ' || elapsed[10] != '[') {
+    return false;
+  }
 
-  for (Count i = 0; i < number_indexes.get_size(); i++) {
-    if (b[number_indexes[i]] < '0' || b[number_indexes[i]] > '9') {
+  constexpr Count digit_offsets[] = {1, 2, 4, 5, 6, 8};
+  for (Count offset : digit_offsets) {
+    if (elapsed[offset] < '0' || elapsed[offset] > '9') {
       return false;
     }
   }

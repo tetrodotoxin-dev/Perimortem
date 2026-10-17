@@ -7,13 +7,17 @@
 #include <immintrin.h>
 #endif
 #include <stdlib.h>
+#ifdef TOOLCHAIN_WINDOWS
+#include <windows.h>
+#else
+#include <time.h>
+#endif
 #ifdef TOOLCHAIN_WASM
 #include <unistd.h>
 #endif
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/time.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
@@ -22,6 +26,28 @@ using namespace Perimortem::System;
 
 static constexpr Count channel_depth = 4;
 static constexpr Count max_index = 4 * channel_depth;
+
+// UUID version 7 encodes Unix milliseconds as part of its wire format. Keeping
+// this wall clock read private prevents its stamp from being compared with the
+// public monotonic clock used for interval measurement.
+static auto unix_milliseconds() -> U64 {
+
+#ifdef TOOLCHAIN_WINDOWS
+
+  FILETIME stamp;
+  GetSystemTimePreciseAsFileTime(&stamp);
+
+  const U64 ticks = (U64(stamp.dwHighDateTime) << 32) | stamp.dwLowDateTime;
+  return (ticks - 116444736000000000ULL) / 10'000;
+
+#else
+
+  timespec stamp;
+  clock_gettime(CLOCK_REALTIME, &stamp);
+  return U64(stamp.tv_sec) * 1'000 + U64(stamp.tv_nsec) / 1'000'000;
+
+#endif
+}
 
 struct PhiloxState {
   static constexpr Count round_count = 10;
@@ -250,9 +276,7 @@ auto Random::generate_uuid_v4() -> Uuid {
 }
 
 auto Random::generate_uuid_v7() -> Uuid {
-  // Time::clock supplies Unix wall time so version 7 timestamps remain
-  // comparable across application restarts.
-  const U64 timestamp = Time::clock().get_stamp() / 1'000'000;
+  const U64 timestamp = unix_milliseconds();
 
 #ifdef PERI_AVX2
 

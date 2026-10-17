@@ -3,6 +3,8 @@
 
 #include "perimortem/system/random.hpp"
 
+#include <time.h>
+
 #include "toolchain/validation/test.hpp"
 
 using namespace Perimortem::Core;
@@ -27,9 +29,14 @@ VALIDATION_TEST(SystemRandom, generate_uuid_v4) {
 }
 
 VALIDATION_TEST(SystemRandom, generate_uuid_v7) {
+  const U64 before = U64(time(nullptr)) * 1'000;
   Uuid uuid = Random::generate_uuid_v7();
+  const U64 after = U64(time(nullptr) + 1) * 1'000;
 
   auto output = uuid.serialize();
+  const U64 timestamp = uuid.get_value().high >> 16;
+  EXPECT(timestamp >= before);
+  EXPECT(timestamp < after);
   EXPECT(output.hash());
   EXPECT_EQ(output[14], U8('7'));
   EXPECT(

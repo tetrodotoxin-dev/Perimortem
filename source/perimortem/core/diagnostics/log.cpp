@@ -13,9 +13,9 @@
 
 #include "perimortem/core/access/bytes.h"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/diagnostics/time.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/storage/vector.hpp"
-#include "perimortem/core/time.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
@@ -41,7 +41,10 @@ class ThreadWriter {
     writer << "perimortem_"_view;
     writer << "["_view << thread_name << "]_"_view;
 
-    writer << Time::now().get_stamp();
+    // The monotonic suffix records when this writer created its file without
+    // encoding a wall time whose punctuation can depend on locale or be unsafe
+    // in a filename.
+    writer << Diagnostics::Time::now().get_nanoseconds();
     writer << ".log"_view;
 
     name_buffer[writer.get_location()] = '\0';
@@ -112,6 +115,21 @@ constexpr auto level_color(Diagnostics::Log::Level level) -> View::Bytes {
   }
 
   return ""_view;
+}
+
+static auto write_padded(Writer::Textual& writer, U64 value, Count width)
+    -> void {
+  U64 threshold = 1;
+  for (Count digit = 1; digit < width; digit++) {
+    threshold *= 10;
+  }
+
+  while (threshold > 1 && value < threshold) {
+    writer << '0';
+    threshold /= 10;
+  }
+
+  writer << value;
 }
 
 static auto format_message(
@@ -288,7 +306,25 @@ auto Diagnostics::Log::format_entry(
   Writer::Textual writer(output);
 
   writer << level_char(level) << ' ';
-  writer << Time::clock().calculate_clock() << ' ';
+
+  // Tag each message with elapsed diagnostic time from the shared boot sample.
+  // Formatting it as MM:SS:mmm.t exposes stalls and bursts that sequence alone
+  // cannot show. The 100 microsecond reporting floor captures those intervals
+  // without claiming precision beyond the practical cost of logging.
+  const auto current = Diagnostics::Time::now();
+  const U64 elapsed_100_microseconds =
+      Diagnostics::Time::boot().measure(current).convert_to_nanoseconds() /
+      100'000;
+
+  const U64 elapsed_milliseconds = elapsed_100_microseconds / 10;
+  const U64 elapsed_seconds = elapsed_milliseconds / 1'000;
+  write_padded(writer, elapsed_seconds / 60, 2);
+  writer << ':';
+  write_padded(writer, elapsed_seconds % 60, 2);
+  writer << ':';
+  write_padded(writer, elapsed_milliseconds % 1'000, 3);
+  writer << '.';
+  writer << elapsed_100_microseconds % 10 << ' ';
   writer << "["_view << thread_name << "] "_view;
 
   writer << location.get_file();

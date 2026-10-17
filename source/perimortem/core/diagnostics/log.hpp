@@ -212,8 +212,11 @@ class Log {
   static EXPORTED(PERIMORTEM) auto flush() -> void;
 
   // Writes the canonical Perimortem header and message into caller storage.
-  // The returned byte count lets a custom sink forward exactly the written
-  // prefix.
+  // The header records monotonic time since Perimortem loaded as MM:SS:mmm.t.
+  // Minutes use at least two digits and expand instead of wrapping. The final
+  // digit establishes a 100 microsecond reporting floor, exposing spacing
+  // between messages without relying on wall time. The returned byte count lets
+  // a custom sink forward exactly the written prefix.
   static EXPORTED(PERIMORTEM) auto format_entry(
       Level level,
       Core::View::Bytes message,
