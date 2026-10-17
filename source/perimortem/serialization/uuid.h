@@ -1,8 +1,8 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#ifndef PERIMORTEM_CORE_UUID_H
-#define PERIMORTEM_CORE_UUID_H
+#ifndef PERIMORTEM_SERIALIZATION_UUID_H
+#define PERIMORTEM_SERIALIZATION_UUID_H
 
 #include "toolchain/toolchain.h"
 
@@ -19,7 +19,7 @@ typedef struct perimortem_uuid {
 
 #include "perimortem/core/storage/bytes.hpp"
 
-namespace Perimortem::Core {
+namespace Perimortem::Serialization {
 
 // A 128 bit UUID value with canonical hexadecimal serialization.
 //
@@ -47,7 +47,8 @@ class Uuid {
 
   // Validates and reads packed hexadecimal with the first sixteen digits in
   // the high word. Invalid input produces the zero UUID.
-  static constexpr auto deserialize(const Storage::Bytes<32>& source) -> Uuid {
+  static constexpr auto deserialize(const Core::Storage::Bytes<32>& source)
+      -> Uuid {
     if !consteval {
       return parse(source);
     }
@@ -71,7 +72,8 @@ class Uuid {
 
   // Validates and reads dashed hexadecimal with the first sixteen digits in
   // the high word. Invalid input produces the zero UUID.
-  static constexpr auto deserialize(const Storage::Bytes<36>& source) -> Uuid {
+  static constexpr auto deserialize(const Core::Storage::Bytes<36>& source)
+      -> Uuid {
     if !consteval {
       return parse(source);
     }
@@ -134,7 +136,7 @@ class Uuid {
   // Reports whether a View contains one complete packed or dashed UUID. Both
   // hexadecimal letter cases are accepted. Dashed input separates groups of
   // eight, four, four, four and twelve digits.
-  static constexpr auto is_valid(View::Bytes source) -> Bool {
+  static constexpr auto is_valid(Core::View::Bytes source) -> Bool {
     if consteval {
       const auto is_hex = [](U8 byte) -> Bool {
         return (byte >= '0' && byte <= '9') || (byte >= 'a' && byte <= 'f') ||
@@ -169,15 +171,15 @@ class Uuid {
     }
   }
 
-  EXPORTED(PERIMORTEM) auto serialize() const -> const Storage::Bytes<36>;
+  EXPORTED(PERIMORTEM) auto serialize() const -> const Core::Storage::Bytes<36>;
 
  private:
   // Runtime operations select the target implementation while their public
   // constexpr entry points retain constant evaluation in this header.
-  static EXPORTED(PERIMORTEM) auto validate(View::Bytes source) -> Bool;
-  static EXPORTED(PERIMORTEM) auto parse(const Storage::Bytes<32>& source)
+  static EXPORTED(PERIMORTEM) auto validate(Core::View::Bytes source) -> Bool;
+  static EXPORTED(PERIMORTEM) auto parse(const Core::Storage::Bytes<32>& source)
       -> Uuid;
-  static EXPORTED(PERIMORTEM) auto parse(const Storage::Bytes<36>& source)
+  static EXPORTED(PERIMORTEM) auto parse(const Core::Storage::Bytes<36>& source)
       -> Uuid;
 
   perimortem_uuid value{};
@@ -191,7 +193,7 @@ static_assert(alignof(Uuid) == alignof(perimortem_uuid));
 static_assert(__is_standard_layout(Uuid));
 static_assert(__is_trivially_copyable(Uuid));
 
-}  // namespace Perimortem::Core
+}  // namespace Perimortem::Serialization
 
 #endif
 

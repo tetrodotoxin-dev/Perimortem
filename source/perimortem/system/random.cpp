@@ -17,6 +17,7 @@
 #include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
 
 static constexpr Count channel_depth = 4;

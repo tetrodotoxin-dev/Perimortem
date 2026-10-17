@@ -58,8 +58,8 @@ package(
         "system": [
             "core",
             "memory",
+            "serialization",
         ],
-        "utility": ["core"],
     },
     module = "perimortem",
     shared = "//source:perimortem_shared",

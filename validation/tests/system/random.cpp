@@ -6,6 +6,7 @@
 #include "toolchain/validation/test.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 

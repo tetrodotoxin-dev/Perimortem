@@ -7,7 +7,6 @@ package(default_visibility = ["//visibility:public"])
 # Defines each module and its dependencies for SDK generation.
 _COMPONENTS = {
     "core": [],
-    "utility": ["core"],
     "memory": [
         "core",
     ],
@@ -22,6 +21,7 @@ _COMPONENTS = {
     "system": [
         "core",
         "memory",
+        "serialization",
     ],
 }
 

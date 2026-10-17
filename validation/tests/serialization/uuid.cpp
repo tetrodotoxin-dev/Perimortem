@@ -1,18 +1,19 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/uuid.h"
+#include "perimortem/serialization/uuid.h"
 
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Serialization;
 
 using namespace Toolchain::Validation;
 
-static Harness CoreUuid = {
-  .name = "Core::Uuid",
+static Harness SerializationUuid = {
+  .name = "Serialization::Uuid",
 };
 
 static_assert(Uuid::is_valid("0123456789abcdeffedcba9876543210"_view));
@@ -21,7 +22,7 @@ static_assert(!Uuid::is_valid("cb8c03d8-2b01-4a39-b31d-2c6805e6503g"_view));
 static_assert(
     !Uuid::deserialize("cb8c03d8-2b01-4a39-b31d-2c6805e6503g"_bytes).is_set());
 
-VALIDATION_TEST(CoreUuid, default) {
+VALIDATION_TEST(SerializationUuid, default) {
   Uuid uuid{};
   constexpr Uuid uuid_const{};
 
@@ -37,7 +38,7 @@ VALIDATION_TEST(CoreUuid, default) {
   EXPECT(Uuid(0, 1).is_set());
 }
 
-VALIDATION_TEST(CoreUuid, deserialize_bits_64) {
+VALIDATION_TEST(SerializationUuid, deserialize_bits_64) {
   Uuid uuid{0x0123456789abcdefULL, 0xfedcba9876543210ULL};
   constexpr Uuid uuid_const{0x0123456789abcdefULL, 0xfedcba9876543210ULL};
 
@@ -52,7 +53,7 @@ VALIDATION_TEST(CoreUuid, deserialize_bits_64) {
   EXPECT(uuid == uuid_const);
 }
 
-VALIDATION_TEST(CoreUuid, decode_32_nibble) {
+VALIDATION_TEST(SerializationUuid, decode_32_nibble) {
   Uuid uuid = Uuid::deserialize("0123456789abcdeffedcba9876543210"_bytes);
   constexpr Uuid uuid_const =
       Uuid::deserialize("0123456789abcdeffedcba9876543210"_bytes);
@@ -68,7 +69,7 @@ VALIDATION_TEST(CoreUuid, decode_32_nibble) {
   EXPECT(uuid == uuid_const);
 }
 
-VALIDATION_TEST(CoreUuid, deserialize_uuid_v4) {
+VALIDATION_TEST(SerializationUuid, deserialize_uuid_v4) {
   Uuid uuid = Uuid::deserialize("cb8c03d8-2b01-4a39-b31d-2c6805e6503c"_bytes);
   constexpr Uuid uuid_const =
       Uuid::deserialize("cb8c03d8-2b01-4a39-b31d-2c6805e6503c"_bytes);
@@ -84,7 +85,7 @@ VALIDATION_TEST(CoreUuid, deserialize_uuid_v4) {
   EXPECT(uuid == uuid_const);
 }
 
-VALIDATION_TEST(CoreUuid, uppercase_hexadecimal) {
+VALIDATION_TEST(SerializationUuid, uppercase_hexadecimal) {
   Uuid packed = Uuid::deserialize("0123456789ABCDEFFEDCBA9876543210"_bytes);
   constexpr Uuid packed_const =
       Uuid::deserialize("0123456789ABCDEFFEDCBA9876543210"_bytes);
@@ -101,7 +102,7 @@ VALIDATION_TEST(CoreUuid, uppercase_hexadecimal) {
   EXPECT(dashed == dashed_const);
 }
 
-VALIDATION_TEST(CoreUuid, validation) {
+VALIDATION_TEST(SerializationUuid, validation) {
   EXPECT(Uuid::is_valid("00000000000000000000000000000000"_view));
   EXPECT(Uuid::is_valid("0123456789abcdeffedcba9876543210"_view));
   EXPECT(Uuid::is_valid("0123456789ABCDEFFEDCBA9876543210"_view));
@@ -125,7 +126,7 @@ VALIDATION_TEST(CoreUuid, validation) {
               .is_set());
 }
 
-VALIDATION_TEST(CoreUuid, serialize_uuid_v4) {
+VALIDATION_TEST(SerializationUuid, serialize_uuid_v4) {
   Uuid uuid{0xcb8c03d82b014a39ULL, 0xb31d2c6805e6503cULL};
 
   EXPECT_TEXT(uuid.serialize(), "cb8c03d8-2b01-4a39-b31d-2c6805e6503c"_bytes);

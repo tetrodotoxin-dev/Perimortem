@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/uuid.h"
+#include "perimortem/serialization/uuid.h"
 
 #include "toolchain/toolchain.hpp"
 #include "toolchain/validation/benchmark.hpp"
@@ -10,6 +10,7 @@
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 
@@ -34,12 +35,12 @@ static auto select_uuid_source() -> void {
   uuid_source_offset = Random::generate();
 }
 
-static Harness CoreUuid = {
+static Harness SerializationUuid = {
   .name = "UUIDs",
   .setup = select_uuid_source,
 };
 
-VALIDATION_BENCHMARK(CoreUuid, serialize_x1024) {
+VALIDATION_BENCHMARK(SerializationUuid, serialize_x1024) {
   // Measures formatting from an existing UUID so generation remains outside
   // the measurement.
   Count value = 0;
@@ -56,7 +57,7 @@ VALIDATION_BENCHMARK(CoreUuid, serialize_x1024) {
   Benchmark::prevent_optimization(value);
 }
 
-VALIDATION_BENCHMARK(CoreUuid, deserialize_dashed_x1024) {
+VALIDATION_BENCHMARK(SerializationUuid, deserialize_dashed_x1024) {
   Count value = 0;
   for (Count i = 0; i < uuid_batch; i++) {
     const auto* source = ((U64(i) + uuid_source_offset) & 1) == 0
@@ -71,7 +72,7 @@ VALIDATION_BENCHMARK(CoreUuid, deserialize_dashed_x1024) {
   Benchmark::prevent_optimization(value);
 }
 
-VALIDATION_BENCHMARK(CoreUuid, deserialize_packed_x1024) {
+VALIDATION_BENCHMARK(SerializationUuid, deserialize_packed_x1024) {
   Count value = 0;
   for (Count i = 0; i < uuid_batch; i++) {
     const auto* source = ((U64(i) + uuid_source_offset) & 1) == 0
@@ -86,7 +87,7 @@ VALIDATION_BENCHMARK(CoreUuid, deserialize_packed_x1024) {
   Benchmark::prevent_optimization(value);
 }
 
-VALIDATION_BENCHMARK(CoreUuid, validate_dashed_x1024) {
+VALIDATION_BENCHMARK(SerializationUuid, validate_dashed_x1024) {
   Count value = 0;
   for (Count i = 0; i < uuid_batch; i++) {
     const auto* source = ((U64(i) + uuid_source_offset) & 1) == 0
@@ -101,7 +102,7 @@ VALIDATION_BENCHMARK(CoreUuid, validate_dashed_x1024) {
   Benchmark::prevent_optimization(value);
 }
 
-VALIDATION_BENCHMARK(CoreUuid, validate_packed_x1024) {
+VALIDATION_BENCHMARK(SerializationUuid, validate_packed_x1024) {
   Count value = 0;
   for (Count i = 0; i < uuid_batch; i++) {
     const auto* source = ((U64(i) + uuid_source_offset) & 1) == 0

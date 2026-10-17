@@ -8,6 +8,7 @@
 #include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Serialization;
 using namespace Toolchain::Validation;
 
 // The public C records remain plain values that C++ can copy without invoking

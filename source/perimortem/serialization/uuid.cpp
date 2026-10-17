@@ -1,11 +1,12 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/uuid.h"
+#include "perimortem/serialization/uuid.h"
 
 #include "perimortem/core/data.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Serialization;
 
 #ifdef PERI_AVX2
 
