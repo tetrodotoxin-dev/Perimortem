@@ -7,6 +7,7 @@
 
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
@@ -37,13 +38,13 @@ static Harness SystemArgs = {
 using Configs = Managed::Map<View::Bytes, View::Bytes>;
 
 static auto test_config(Allocator::Arena& arena) -> Configs {
-  Configs variables(arena);
-  variables.insert("fast"_view, "Enable fast path."_view);
-  variables.insert("output"_view, "Output file."_view);
-  variables.insert("dep"_view, "Dependency file."_view);
-  variables.insert("threads"_view, "Worker count."_view);
-  variables.insert("ratio"_view, "Ratio value."_view);
-  return variables;
+  Configs config(arena);
+  config.insert("fast"_view, "Enable fast path."_view);
+  config.insert("output"_view, "Output file."_view);
+  config.insert("dep"_view, "Dependency file."_view);
+  config.insert("threads"_view, "Thread count."_view);
+  config.insert("ratio"_view, "Ratio value."_view);
+  return config;
 }
 
 static auto parse(Allocator::Arena& arena, View::Vector<View::Bytes> arguments)
@@ -54,7 +55,7 @@ static auto parse(Allocator::Arena& arena, View::Vector<View::Bytes> arguments)
 static auto values_for(const Process::Args::Values& args, View::Bytes name)
     -> View::Vector<View::Bytes> {
   return args.find(name).visit(
-      [](const auto* values) { return values->get_view(); },
+      [](const auto& values) { return values.get_view(); },
       []() { return View::Vector<View::Bytes>(); });
 }
 
@@ -81,7 +82,7 @@ static constexpr View::Bytes help_prefix =
     "arguments:\n"_view;
 
 static constexpr Storage::Vector<View::Bytes, 6> help_entries = {
-  {"  -dep      Dependency file.\n"_view, "  -threads  Worker count.\n"_view,
+  {"  -dep      Dependency file.\n"_view, "  -threads  Thread count.\n"_view,
    "  -output   Output file.\n"_view, "  -ratio    Ratio value.\n"_view,
    "  -fast     Enable fast path.\n"_view,
    "  -help     Show this help.\n"_view}};
@@ -128,6 +129,7 @@ VALIDATION_TEST(SystemArgs, help_text) {
 
   Allocator::Arena arena;
   Configs config = test_config(arena);
+  config.insert("help"_view, "Ignored replacement."_view);
 
   Process::Args::Values parsed = Process::Args::parse(arena, config, raw);
   ASSERT(parsed.contains("help"_view));
@@ -214,13 +216,48 @@ VALIDATION_TEST(SystemArgs, repeated_values) {
   EXPECT_TEXT(value_at(parsed, "dep"_view, 1), "b.ttx"_view);
 }
 
+VALIDATION_TEST(SystemArgs, retains_authored_values) {
+  Storage::Bytes<13> output("-output=out.a"_view);
+  Storage::Vector<View::Bytes, 2> raw = {{"demo"_view, output.get_view()}};
+
+  Allocator::Arena arena;
+  Process::Args::Values parsed = parse(arena, raw);
+  for (Count index = 0; index < output.get_size(); index++) {
+    output[index] = U8('x');
+  }
+
+  EXPECT_TEXT(value_at(parsed, "output"_view), "out.a"_view);
+}
+
+VALIDATION_TEST(SystemArgs, positional_values) {
+  constexpr Storage::Vector<View::Bytes, 3> raw = {
+    {"demo"_view, "first.ttx"_view, "second.ttx"_view}};
+
+  Allocator::Arena arena;
+  Configs config(arena);
+  config.insert(""_view, "Source file."_view);
+
+  Process::Args::Values parsed = Process::Args::parse(arena, config, raw);
+  ASSERT_EQ(value_count(parsed, ""_view), Count(2));
+  EXPECT_TEXT(value_at(parsed, ""_view, 0), "first.ttx"_view);
+  EXPECT_TEXT(value_at(parsed, ""_view, 1), "second.ttx"_view);
+
+  Process::Args::log_help(arena, View::Bytes(), config, raw);
+  EXPECT(
+      Algorithm::Search::match(
+          Log::captured_message(), "  <value>  Source file.\n"_view) !=
+      Count(-1));
+}
+
 VALIDATION_TEST(SystemArgs, dash_only) {
   constexpr Storage::Vector<View::Bytes, 2> raw = {{"demo"_view, "--"_view}};
   Allocator::Arena arena;
+  Configs config = test_config(arena);
+  config.insert(""_view, "Source file."_view);
 
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
 
-  Process::Args::Values parsed = parse(arena, raw);
+  Process::Args::Values parsed = Process::Args::parse(arena, config, raw);
   ASSERT(parsed.is_empty());
   EXPECT(Log::error_contains("unrecognized arg --"_view));
 }

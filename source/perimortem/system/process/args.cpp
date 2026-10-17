@@ -33,10 +33,10 @@ static auto process_name() -> View::Bytes {
 
 #ifdef TOOLCHAIN_LINUX
 
-  static U8 path_buffer[512];
+  thread_local static U8 path_buffer[512];
   S64 size = readlink(
       "/proc/self/exe", Data::cast<char>(path_buffer), sizeof(path_buffer));
-  if (size > 0) {
+  if (size > 0 && Count(size) < sizeof(path_buffer)) {
     return basename(View::Bytes(path_buffer, Count(size)));
   }
 
@@ -55,27 +55,53 @@ static auto parse_argument(View::Bytes argument)
     return {View::Bytes(), argument};
   }
 
+  const View::Bytes authored = argument;
   while (!argument.is_empty() && argument[0] == '-') {
     argument = argument.slice(1);
+  }
+
+  if (argument.is_empty() || argument[0] == '=') {
+    return {authored, "true"_view};
   }
 
   Count equals = Algorithm::Search::match(argument, "="_view);
   if (equals == Count(-1)) {
     return {argument, "true"_view};
-  } else {
-    return {argument.slice(0, equals), argument.slice(equals + 1)};
   }
+
+  return {argument.slice(0, equals), argument.slice(equals + 1)};
+}
+
+static constexpr auto help_label_size(View::Bytes key) -> Count {
+  return key.is_empty() ? "<value>"_view.get_size() : key.get_size() + 1;
+}
+
+static auto append_help_label(Managed::Bytes& output, View::Bytes key) -> void {
+  output.concat("  "_view);
+  if (key.is_empty()) {
+    output.concat("<value>"_view);
+    return;
+  }
+
+  output.append(U8('-'));
+  output.concat(key);
 }
 
 static auto format_help(
     Allocator::Arena& arena,
     View::Bytes summary,
-    const Managed::Map<View::Bytes, View::Bytes>& variables,
+    const Managed::Map<View::Bytes, View::Bytes>& config,
     View::Bytes command) -> View::Bytes {
   Count label_width = "-help"_view.get_size();
-  variables.visit([&label_width](const View::Bytes& key, const View::Bytes&) {
-    label_width = Scalar::max(label_width, key.get_size() + 1);
-  });
+  const auto measure_label = [&label_width](const auto& key, const auto&) {
+    if (key == "help"_view) {
+      return;
+    }
+
+    label_width = Scalar::max(label_width, help_label_size(key));
+  };
+
+  config.visit(measure_label);
 
   label_width += 2;
 
@@ -89,14 +115,20 @@ static auto format_help(
   }
 
   output.concat("arguments:\n"_view);
-  variables.visit(
+
+  const auto append_config =
       [&output, label_width](const View::Bytes& key, const View::Bytes& value) {
-        output.concat("  -"_view);
-        output.concat(key);
-        output.append(U8(' '), label_width - key.get_size() - 1);
+        if (key == "help"_view) {
+          return;
+        }
+
+        append_help_label(output, key);
+        output.append(U8(' '), label_width - help_label_size(key));
         output.concat(value);
         output.append('\n');
-      });
+      };
+
+  config.visit(append_config);
 
   output.concat("  -help"_view);
   output.append(U8(' '), label_width - "-help"_view.get_size());
@@ -106,27 +138,33 @@ static auto format_help(
 
 auto Process::Args::parse(
     Allocator::Arena& arena,
-    const Managed::Map<View::Bytes, View::Bytes>& variables,
+    const Managed::Map<View::Bytes, View::Bytes>& config,
     View::Vector<View::Bytes> arguments) -> Values {
   Values values(arena);
   const auto* argument_data = arguments.get_data();
   for (Count i = 1; i < arguments.get_size(); i++) {
-    auto argument = parse_argument(argument_data[i]);
-    if (argument.key != "help"_view && !variables.contains(argument.key)) {
+    View::Bytes authored_argument = arena.copy(argument_data[i]);
+    auto argument = parse_argument(authored_argument);
+    if (argument.key != "help"_view && !config.contains(argument.key)) {
       Diagnostics::Log::Message<256> error_message(
           Diagnostics::Log::Level::Error);
-      error_message << "unrecognized arg"_view << ' ' << argument_data[i]
+      error_message << "unrecognized arg"_view << ' ' << authored_argument
                     << '\n';
       return Values(arena);
     }
 
-    auto& selected = values.find_or_create(argument.key);
-    if (!selected) {
-      selected = &arena.construct_from<Managed::Vector<View::Bytes>>(
-          [&arena] { return Managed::Vector<View::Bytes>(arena); });
-    }
+    const auto append_value =
+        [&argument](Managed::Vector<View::Bytes>& grouped_values) {
+          grouped_values.insert(argument.value);
+        };
 
-    selected->insert(argument.value);
+    const auto create_values = [&] {
+      Managed::Vector<View::Bytes> grouped_values(arena);
+      grouped_values.insert(argument.value);
+      values.insert(argument.key, Data::take(grouped_values));
+    };
+
+    values.find(argument.key).visit(append_value, create_values);
   }
 
   return values;
@@ -135,7 +173,7 @@ auto Process::Args::parse(
 auto Process::Args::log_help(
     Allocator::Arena& arena,
     View::Bytes summary,
-    const Managed::Map<View::Bytes, View::Bytes>& variables,
+    const Managed::Map<View::Bytes, View::Bytes>& config,
     View::Vector<View::Bytes> arguments) -> void {
   View::Bytes command{};
   if (!arguments.is_empty() && !arguments.get_data()[0].is_empty()) {
@@ -144,5 +182,5 @@ auto Process::Args::log_help(
     command = process_name();
   }
 
-  Diagnostics::Log::info(format_help(arena, summary, variables, command));
+  Diagnostics::Log::info(format_help(arena, summary, config, command));
 }

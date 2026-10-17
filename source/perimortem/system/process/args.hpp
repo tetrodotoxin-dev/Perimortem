@@ -11,33 +11,47 @@
 
 namespace Perimortem::System::Process {
 
-// Args parses one process invocation into named, positional and repeated
-// values retained by the caller's Arena.
+// Args safely extracts a raw process argument stream into a Map from each name
+// to its authored values. It validates option names and groups repeated options
+// and positional values without interpreting their contents. The same
+// configuration supplies matching diagnostic help.
 //
-// The configuration declares the accepted names and their help text. An empty
-// name accepts positional values, while `help` is always available. Parsing
-// establishes membership and leaves interpretation of each value with the
-// application that declared its argument.
+// Parsing copies every extracted argument into the supplied Arena. The returned
+// names, values and grouping containers remain accessible until that Arena
+// resets or is destroyed.
+//
+// Configuration names omit leading dashes. An empty name accepts positional
+// values and appears as `<value>` in help. `help` is always recognized and uses
+// the standard description.
 class Args {
  public:
   // Each accepted name maps to its values in authored order. The application
   // decides which names are required and how many values each accepts.
   using Values = Memory::Managed::
-      Map<Core::View::Bytes, Memory::Managed::Vector<Core::View::Bytes>*>;
+      Map<Core::View::Bytes, Memory::Managed::Vector<Core::View::Bytes>>;
 
-  // Groups authored values by a key declared in `config` while preserving their
-  // order. Parsing skips the executable name. The empty key collects positional
-  // values and `help` is always recognized. An unrecognized name logs an error
-  // and returns an empty Values map.
+  // Converts byte Views from argc/argv into structured Values. The first View
+  // is assumed to be `argv[0]` and is reserved as the process name. Every later
+  // View is treated as a positional value or named option. Repeated names group
+  // their values in authored order. The caller decides whether duplicates are
+  // valid for each name.
+  //
+  // Every parsed View is copied into the Arena rather than retaining the
+  // caller's argument storage. Leading dashes introduce an option, text after
+  // the first equals sign supplies its value and an option without an equals
+  // sign receives `true`. An unrecognized name logs an error and returns an
+  // empty Values map.
   static EXPORTED(PERIMORTEM) auto parse(
       Memory::Allocator::Arena& arena,
       const Memory::Managed::Map<Core::View::Bytes, Core::View::Bytes>& config,
       Core::View::Vector<Core::View::Bytes> arguments) -> Values;
 
-  // Formats the same declarations consumed by `parse`. The executable name
-  // comes from the invocation when available and otherwise from the current
-  // process. Diagnostics publishes the result using the current logger for the
-  // thread at log level `Info`.
+  // Publishes diagnostic help from a configuration in the same form consumed
+  // by `parse`. Passing the same configuration keeps accepted names and their
+  // descriptions aligned with validation. The command label uses the basename
+  // of `argv[0]`, the basename of the host process path when `argv[0]` is
+  // unavailable, or the fallback name `process`. Diagnostics publishes the
+  // result using the current thread logger at level `Info`.
   static EXPORTED(PERIMORTEM) auto log_help(
       Memory::Allocator::Arena& arena,
       Core::View::Bytes tool_summary,
