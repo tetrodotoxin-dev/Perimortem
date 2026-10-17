@@ -6,19 +6,23 @@
 #if defined(PERI_AVX2) || defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
 #include <immintrin.h>
 #endif
-#include <stdlib.h>
 #ifdef TOOLCHAIN_WINDOWS
+#include <intrin.h>
 #include <windows.h>
-#else
+#endif
+#ifdef TOOLCHAIN_LINUX
+#include <cpuid.h>
+#include <errno.h>
+#include <sys/random.h>
 #include <time.h>
 #endif
 #ifdef TOOLCHAIN_WASM
+#include <time.h>
 #include <unistd.h>
 #endif
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/view/null_terminated.hpp"
+#include "perimortem/core/diagnostics/time.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Serialization;
@@ -26,6 +30,12 @@ using namespace Perimortem::System;
 
 static constexpr Count channel_depth = 4;
 static constexpr Count max_index = 4 * channel_depth;
+static constexpr Count seed_word_count = 6;
+static U64 fallback_sequence = 0;
+
+struct PhiloxSeed {
+  U64 values[seed_word_count];
+};
 
 // UUID version 7 encodes Unix milliseconds as part of its wire format. Keeping
 // this wall clock read private prevents its stamp from being compared with the
@@ -95,35 +105,125 @@ struct PhiloxState {
   Count index;
 };
 
-auto Random::read_entropy() -> U64 {
+// Native x86 hosts use the hardware generator as the shortest seed path. The
+// feature check avoids executing RDRAND on older processors, while bounded
+// retries handle the instruction's documented transient failure.
+static auto read_hardware_seed(PhiloxSeed& seed) -> Bool {
 
-#ifdef TOOLCHAIN_WASM
+#if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
 
-  U64 value;
-  if (getentropy(&value, sizeof(value)) != 0) {
-    Diagnostics::Log::fatal("Unable to obtain runtime seed entropy."_view);
+#ifdef TOOLCHAIN_WINDOWS
+
+  S32 registers[4];
+  __cpuid(registers, 1);
+  if ((U32(registers[2]) & (U32(1) << 30)) == 0) {
+    return False;
   }
-
-  return value;
 
 #else
 
-  U64 value;
-  Count timeout = 100000;
-  while (!_rdrand64_step(&value) and timeout) {
-    timeout -= 1;
+  U32 eax, ebx, ecx, edx;
+  if (!__get_cpuid(1, &eax, &ebx, &ecx, &edx) || !(ecx & bit_RDRND)) {
+    return False;
   }
-
-  // RDRAND can transiently fail. The bounded retry avoids hanging startup. The
-  // C runtime fallback is only a last resort seed source and must not be
-  // treated as cryptographic entropy.
-  if (timeout == 0) {
-    return (Count(rand()) << 32) | Count(rand());
-  }
-
-  return value;
 
 #endif
+
+  for (Count word = 0; word < seed_word_count; word++) {
+    Bool read = False;
+    for (Count attempt = 0; attempt < 10; attempt++) {
+      if (_rdrand64_step(&seed.values[word])) {
+        read = True;
+        break;
+      }
+    }
+
+    if (!read) {
+      return False;
+    }
+  }
+
+  return True;
+
+#else
+
+  return False;
+
+#endif
+}
+
+// Platforms with a direct entropy syscall can still seed Philox when hardware
+// generation is unavailable. Keeping this operation private avoids presenting
+// Random as a general cryptographic entropy API.
+static auto read_host_seed(PhiloxSeed& seed) -> Bool {
+
+#ifdef TOOLCHAIN_LINUX
+
+  U8* output = Data::cast<U8>(&seed);
+  Count written = 0;
+  while (written < sizeof(seed)) {
+    const auto result =
+        getrandom(output + written, CppSize(sizeof(seed) - written), 0);
+    if (result > 0) {
+      written += Count(result);
+      continue;
+    }
+
+    if (result < 0 && errno == EINTR) {
+      continue;
+    }
+
+    return False;
+  }
+
+  return True;
+
+#elifdef TOOLCHAIN_WASM
+
+  return getentropy(&seed, sizeof(seed)) == 0;
+
+#else
+
+  return False;
+
+#endif
+}
+
+// The SplitMix64 avalanche diffuses every changing input bit across one seed
+// word without adding state to the Philox generator.
+static constexpr auto mix_seed(U64 value) -> U64 {
+  value ^= value >> 30;
+  value *= 0xBF58476D1CE4E5B9ULL;
+  value ^= value >> 27;
+  value *= 0x94D049BB133111EBULL;
+  return value ^ (value >> 31);
+}
+
+// Hardware and host entropy are always mixed with runtime noise. The process
+// sequence separates initialization attempts when clock samples repeat, while
+// monotonic time, Unix time and the stack address add variation across threads
+// and process starts.
+static auto mix_runtime_noise(PhiloxSeed& seed) -> void {
+  U64 state = Diagnostics::Time::now().get_nanoseconds();
+  state ^= unix_milliseconds() * 0x9E3779B97F4A7C15ULL;
+  state ^= U64(Data::address(&seed));
+  state ^= mix_seed(
+      __atomic_fetch_add(&fallback_sequence, U64(1), __ATOMIC_RELAXED));
+
+  for (Count index = 0; index < seed_word_count; index++) {
+    state += 0x9E3779B97F4A7C15ULL;
+    seed.values[index] ^= mix_seed(state);
+  }
+}
+
+static auto create_seed() -> PhiloxSeed {
+  PhiloxSeed seed = {};
+  if (!read_hardware_seed(seed)) {
+    read_host_seed(seed);
+  }
+
+  mix_runtime_noise(seed);
+  return seed;
 }
 
 // Advances four counter depths for each of the two vectorized Philox channels.
@@ -213,25 +313,23 @@ static constexpr auto bump_counter(PhiloxState& state) -> void {
 // generate() path.
 static auto create_prng() -> PhiloxState {
   PhiloxState state;
-
-  U64 keys[] = {Random::read_entropy(), Random::read_entropy()};
+  const PhiloxSeed seed = create_seed();
 
 #ifdef PERI_AVX2
 
   state.dual_channel_key = _mm256_set_epi32(
-      U32(keys[0] >> 32), 0, U32(keys[0]), 0, U32(keys[1] >> 32), 0,
-      U32(keys[1]), 0);
+      U32(seed.values[0] >> 32), 0, U32(seed.values[0]), 0,
+      U32(seed.values[1] >> 32), 0, U32(seed.values[1]), 0);
 
   state.dual_channel_counter = _mm256_set_epi64x(
-      Random::read_entropy(), Random::read_entropy(), Random::read_entropy(),
-      Random::read_entropy());
+      seed.values[2], seed.values[3], seed.values[4], seed.values[5]);
 
 #else
 
-  state.keys[0] = keys[1];
-  state.keys[1] = keys[0];
-  for (Count index = 4; index > 0; --index) {
-    state.counters[index - 1] = Random::read_entropy();
+  state.keys[0] = seed.values[1];
+  state.keys[1] = seed.values[0];
+  for (Count index = 0; index < 4; index++) {
+    state.counters[index] = seed.values[index + 2];
   }
 
 #endif

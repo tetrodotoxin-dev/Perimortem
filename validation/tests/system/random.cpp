@@ -16,6 +16,16 @@ static Harness SystemRandom = {
   .name = "System::Random",
 };
 
+VALIDATION_TEST(SystemRandom, generate_stream) {
+  const U64 first = Random::generate();
+  Bool changed = False;
+  for (Count index = 0; index < 64; index++) {
+    changed |= Random::generate() != first;
+  }
+
+  EXPECT(changed);
+}
+
 VALIDATION_TEST(SystemRandom, generate_uuid_v4) {
   Uuid uuid = Random::generate_uuid_v4();
 

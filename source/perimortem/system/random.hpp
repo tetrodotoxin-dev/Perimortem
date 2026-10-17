@@ -9,18 +9,18 @@
 
 namespace Perimortem::System {
 
-// Supplies fast thread local pseudorandom values and direct platform seed
-// entropy through separate calls. Normal runtime work should use `generate()`,
-// which advances one thread local Philox counter. `read_entropy()` crosses into
-// the platform entropy source for seeding and values whose unpredictability
-// matters more than throughput.
+// Random provides one fast Philox stream for each thread. The stream supports
+// simulations, identifiers and other work that values throughput over
+// cryptographic unpredictability. Native threads prefer RDRAND and fall back to
+// host entropy where a direct source is available. Every seed also mixes high
+// precision clock samples, local addresses and a process sequence. Generated
+// values remain unsuitable for secrets.
 class Random {
  public:
   static EXPORTED(PERIMORTEM) auto generate() -> U64;
 
-  static EXPORTED(PERIMORTEM) auto read_entropy() -> U64;
-
-  // Generates an RFC 4122 version 4 identifier from the thread local stream.
+  // Generates an RFC 4122 version 4 identifier from the noncryptographic thread
+  // local stream. Use it for identity rather than secrecy.
   static EXPORTED(PERIMORTEM) auto generate_uuid_v4() -> Serialization::Uuid;
 
   // The timestamp orders version 7 identifiers from different Unix
