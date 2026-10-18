@@ -21,7 +21,7 @@ constexpr Path literal_path = "[work]:/source/main.ttx"_path;
 static_assert(literal_path.get_anchor() == Path::Anchor::Work);
 static_assert(literal_path.get_components() == "source/main.ttx"_view);
 static_assert(literal_path.get_name() == "main.ttx"_view);
-static_assert(literal_path.get_extension() == ".ttx"_view);
+static_assert(literal_path.get_extension() == "ttx"_view);
 static_assert(Path::create(Path::Anchor::Work, "source/main.ttx"_view));
 static_assert(!Path::create(Path::Anchor::Work, "source/../main.ttx"_view));
 
@@ -161,7 +161,7 @@ VALIDATION_TEST(SystemPath, utf8) {
 VALIDATION_TEST(SystemPath, parent_and_name) {
   constexpr Path path = "[root]:/unit/source/main.ttx"_path;
   EXPECT_EQ(path.get_name(), "main.ttx"_view);
-  EXPECT_EQ(path.get_extension(), ".ttx"_view);
+  EXPECT_EQ(path.get_extension(), "ttx"_view);
 
   auto parent = path.get_parent();
   parent.visit(
@@ -174,6 +174,15 @@ VALIDATION_TEST(SystemPath, parent_and_name) {
 
   constexpr Path hidden = "[root]:/unit/.main"_path;
   EXPECT(hidden.get_extension().is_empty());
+
+  constexpr Path compound = "[root]:/unit/archive.tar.gz"_path;
+  EXPECT_EQ(compound.get_extension(), "gz"_view);
+
+  constexpr Path trailing = "[root]:/unit/main."_path;
+  EXPECT(trailing.get_extension().is_empty());
+
+  constexpr Path plain = "[root]:/unit/main"_path;
+  EXPECT(plain.get_extension().is_empty());
 
   constexpr Path root = "[root]:/"_path;
   EXPECT_NOT(root.get_parent());

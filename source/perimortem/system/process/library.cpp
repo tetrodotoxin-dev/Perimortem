@@ -51,8 +51,9 @@ Process::Library::~Library() {
 
 #ifdef TOOLCHAIN_WINDOWS
 
-  // Library stores one target-independent object pointer. Preserve its complete
-  // representation while supplying the Windows module type to the loader API.
+  // `open` stores LoadLibraryExW's HMODULE in Library's `void*` field. Recreate
+  // the Windows handle type only while returning that same value to
+  // FreeLibrary.
   if (handle && !FreeLibrary(Data::bit_cast<HMODULE>(handle))) {
     const U32 unload_error = GetLastError();
     Diagnostics::Log::Message<256> failure(Diagnostics::Log::Level::Error);

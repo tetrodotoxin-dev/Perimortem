@@ -25,9 +25,10 @@ constexpr Storage::Vector<U16, 30> distance_base = {{
   1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577,
 }};
 
-// Maps indexes to the correct code length alphabet ordering.
-// The order puts the most commonly nonzero lengths first so the transmitted
-// sequence can be truncated as soon as all trailing entries are zero.
+// RFC 1951 requires dynamic headers to transmit code length code lengths in
+// this order. The permutation places repeat symbols and central bit lengths
+// first so HCLEN can omit a zero suffix. Encoder and decoder must not
+// substitute numeric symbol order.
 constexpr Storage::Vector<U8, 19> code_length_order = {{
   16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
 }};
@@ -77,8 +78,9 @@ class BackReferenceEncoding {
     2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0,
   }};
 
-  // Precomputed O(1) encoding for every valid match length (3..258). Avoids the
-  // backward linear scan over 29 entries for every encoded match.
+  // Builds a table indexed by match length minus `Lz77::min_match`. Runtime
+  // encoding can then resolve every valid length from 3 through 258 with one
+  // lookup instead of scanning the 29 length codes.
   static constexpr auto build_length_encoding_table()
       -> Storage::Vector<BackReferenceEncoding, 256> {
     constexpr Count length_symbol_offset = 257;

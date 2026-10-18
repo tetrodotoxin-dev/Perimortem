@@ -235,14 +235,14 @@ class Path {
     return Path(anchor, components.slice(0, parent_size));
   }
 
-  // Extension is a lexical property of the final component. Its last interior
-  // period divides the name from the returned suffix. A period at either
-  // boundary does not establish an extension.
+  // Extension is a lexical property of the final component. The returned View
+  // begins after its last interior period and excludes that separator. A period
+  // at either boundary does not establish an extension.
   constexpr auto get_extension() const -> Core::View::Bytes {
     const Core::View::Bytes name = get_name();
     for (Count index = name.get_size(); index > 0; index--) {
       if (name[index - 1] == '.' && index - 1 > 0 && index < name.get_size()) {
-        return name.slice(index - 1);
+        return name.slice(index);
       }
     }
 

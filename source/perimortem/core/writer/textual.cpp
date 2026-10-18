@@ -50,8 +50,8 @@ static constexpr auto decimal_length(storage_type value) -> Count {
 
   unsigned_type magnitude = Math::Scalar::magnitude<unsigned_type>(value);
 
-  // Measurements show the comparison ladder about 20% faster than repeatedly
-  // dividing the value to derive its decimal length.
+  // Local x86-64 release measurements found the comparison ladder about 20%
+  // faster than repeatedly dividing the value to derive its decimal length.
   if (magnitude < 10ULL) {
     return sign + 1;
   } else if (magnitude < 100ULL) {
