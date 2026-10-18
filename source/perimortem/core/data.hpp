@@ -129,22 +129,6 @@ class Data {
     return __builtin_bit_cast(target_type, source);
   }
 
-  // Serializes a data or function pointer through the compiler address width.
-  // The value can be restored only within the process that supplied it.
-  template <typename pointer_type>
-    requires(__is_pointer(pointer_type))
-  static auto address(pointer_type source) -> CppSize {
-    return reinterpret_cast<CppSize>(source);
-  }
-
-  // Restores a pointer serialized by `address`. No storage or lifetime is
-  // created, so the original pointer contract still governs dereferencing.
-  template <typename pointer_type>
-    requires(__is_pointer(pointer_type))
-  static auto restore(CppSize source) -> pointer_type {
-    return reinterpret_cast<pointer_type>(source);
-  }
-
   template <typename storage_type>
   static constexpr auto compare(
       const storage_type* dest,

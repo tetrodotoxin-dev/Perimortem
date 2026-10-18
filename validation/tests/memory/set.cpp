@@ -350,9 +350,7 @@ VALIDATION_TEST(ThreadSet, pointer_keys) {
    public:
     StableObjectKey(const StableObject* object) : object(object) {}
 
-    auto hash() const -> U64 {
-      return Algorithm::Hash(U64(Data::address(object))).get_value();
-    }
+    auto hash() const -> U64 { return Algorithm::Hash(object).get_value(); }
 
     constexpr auto operator==(const StableObjectKey& rhs) const -> Bool {
       return object == rhs.object;

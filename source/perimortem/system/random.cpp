@@ -217,12 +217,10 @@ static constexpr auto mix_seed(U64 value) -> U64 {
 
 // Hardware and host entropy are always mixed with runtime noise. The process
 // sequence separates initialization attempts when clock samples repeat, while
-// monotonic time, Unix time and the stack address add variation across threads
-// and process starts.
+// monotonic and Unix time add variation across threads and process starts.
 static auto mix_runtime_noise(PhiloxSeed& seed) -> void {
   U64 state = Diagnostics::Time::now().get_nanoseconds();
   state ^= unix_milliseconds() * 0x9E3779B97F4A7C15ULL;
-  state ^= U64(Data::address(&seed));
   state ^=
       mix_seed(__atomic_fetch_add(&seed_sequence, U64(1), __ATOMIC_RELAXED));
 

@@ -201,9 +201,11 @@ class Hash {
   constexpr Hash(U16 numeric) : value(hash_numeric(U64(numeric))) {}
   constexpr Hash(U32 numeric) : value(hash_numeric(U64(numeric))) {}
   constexpr Hash(U64 numeric) : value(hash_numeric(U64(numeric))) {}
+  // Pointer identity is hashed from its complete object representation. No
+  // numeric address escapes this operation or becomes a serializable value.
   template <typename pointer_type>
   Hash(pointer_type* pointer)
-      : value(hash_numeric(U64(Data::address(pointer)))) {}
+      : Hash(View::Bytes(Data::cast<const U8>(&pointer), sizeof(pointer))) {}
 
   // Nonpointer types can supply a type specific hash without exposing a byte
   // representation.

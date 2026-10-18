@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "perimortem/core/data.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/core/view/vector.hpp"
 
@@ -44,10 +43,12 @@ class Search {
   // `predicate`. Evaluation stops at that value. Rejecting every value returns
   // the terminal Count value.
   template <typename value_type, typename predicate_type>
+    requires requires(predicate_type candidate, const value_type& value) {
+      Bool(candidate(value));
+    }
   static constexpr auto match(
       View::Vector<value_type> source,
-      predicate_type predicate)
-      -> decltype(Bool(predicate(*Data::restore<const value_type*>(0))), Count()) {
+      predicate_type predicate) -> Count {
     const auto* data = source.get_data();
     for (Count index = 0; index < source.get_size(); index++) {
       if (predicate(data[index])) {

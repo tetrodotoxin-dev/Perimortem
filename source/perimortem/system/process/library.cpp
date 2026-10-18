@@ -51,7 +51,9 @@ Process::Library::~Library() {
 
 #ifdef TOOLCHAIN_WINDOWS
 
-  if (handle && !FreeLibrary(Data::restore<HMODULE>(Data::address(handle)))) {
+  // Library stores one target-independent object pointer. Preserve its complete
+  // representation while supplying the Windows module type to the loader API.
+  if (handle && !FreeLibrary(Data::bit_cast<HMODULE>(handle))) {
     const U32 unload_error = GetLastError();
     Diagnostics::Log::Message<256> failure(Diagnostics::Log::Level::Error);
     failure << "Process::Library could not release its native module handle. "
@@ -125,9 +127,11 @@ auto Process::Library::symbol(View::Bytes name, Allocator::Arena& errors) const
 
 #ifdef TOOLCHAIN_WINDOWS
 
-  auto* address = Data::restore<void*>(Data::address(GetProcAddress(
-      Data::restore<HMODULE>(Data::address(handle)),
-      Data::cast<const char>(terminated.get_view().get_data()))));
+  // Windows declares all exported addresses as FARPROC even when the export is
+  // data. Convert that loader result only at the untyped Library boundary.
+  auto* address = Data::bit_cast<void*>(GetProcAddress(
+      Data::bit_cast<HMODULE>(handle),
+      Data::cast<const char>(terminated.get_view().get_data())));
   if (!address) {
     return library_error(errors);
   }

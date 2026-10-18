@@ -243,7 +243,10 @@ auto Process::Thread::join() -> void {
 
 #ifdef TOOLCHAIN_WINDOWS
 
-  HANDLE native_thread = Data::restore<HANDLE>(CppSize(handle));
+  // `_beginthreadex` returns a thread HANDLE through `uintptr_t`. Thread
+  // retains that exact representation until join supplies it to
+  // WaitForSingleObject and CloseHandle. No other operation interprets it.
+  HANDLE native_thread = Data::bit_cast<HANDLE>(handle);
   const auto waited = WaitForSingleObject(native_thread, INFINITE);
   const Bool joined = waited == WAIT_OBJECT_0;
   if (joined && !CloseHandle(native_thread)) {

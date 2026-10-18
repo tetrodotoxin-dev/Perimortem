@@ -136,9 +136,13 @@ static auto inspect_path(const Filesystem::Path::Native& path) -> FileKind {
 #endif
 }
 
-// Metadata comes from the open stream, not a second lookup of its pathname.
-// Windows supplies a volume and file index instead of device and inode, and
-// its timestamp units are converted to the same seconds and nanoseconds form.
+// Converts metadata from one open regular stream into the common Fingerprint
+// fields. Reading the handle instead of its pathname keeps identity, size,
+// timestamps and later content bound to one filesystem object when the path is
+// replaced concurrently. Linux supplies device and inode values directly.
+// Windows supplies a volume and file index and converts its timestamps to the
+// same seconds and nanoseconds form. A host error or nonregular stream returns
+// None while supplying an errno value for the transaction diagnostic.
 static auto inspect_stream(FILE* file)
     -> Storage::Option<Filesystem::File::Fingerprint> {
 
@@ -161,8 +165,11 @@ static auto inspect_stream(FILE* file)
 
 #elifdef TOOLCHAIN_WINDOWS
 
-  const auto handle =
-      Data::restore<HANDLE>(CppSize(_get_osfhandle(_fileno(file))));
+  // `_get_osfhandle` returns the stream HANDLE through `intptr_t`. Preserve
+  // that complete representation for the following Windows metadata calls.
+  // The handle's bit cast form is used only in this function in order to
+  // support the required Windows behavior.
+  const auto handle = Data::bit_cast<HANDLE>(_get_osfhandle(_fileno(file)));
   BY_HANDLE_FILE_INFORMATION identity;
   FILE_BASIC_INFO times;
   if (!GetFileInformationByHandle(handle, &identity) ||

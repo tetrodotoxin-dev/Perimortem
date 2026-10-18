@@ -25,9 +25,12 @@ class NullTerminated {
 
   auto get_view() const -> View::Bytes { return View::Bytes(source, size); }
 
-  // Literal stores every authored byte except C++'s implicit terminator.
-  // Authors include an explicit null when it belongs to the resulting byte
-  // view.
+  // Literal makes authored bytes a structural template argument for `_view`
+  // and `_bytes`. The `_view` template parameter object has static storage
+  // duration, so its returned View remains accessible for the program.
+  // `_bytes` instead copies those values into its fixed storage. Both forms
+  // preserve authored null bytes and exclude only C++'s implicit final
+  // terminator.
   template <CppSize size_including_null>
   struct Literal {
     U8 content[size_including_null - 1]{};
