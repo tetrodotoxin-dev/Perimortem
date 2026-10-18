@@ -11,21 +11,48 @@
 
 namespace Perimortem::Serialization::Formats::Json {
 
-// Blueprint collects a temporary JSON tree and materializes every Node in the
-// caller's Arena. Resetting that Arena ends access to the complete tree.
+// Blueprint describes a temporary JSON tree without allocating and materializes
+// that complete tree in the caller's Arena. Container construction names array
+// or object shape explicitly, so no child name or ordering selects the shape.
+// Object children use their authored names, including an empty name. Array
+// children use only their values. A selected shape remains intact when it has
+// no children.
 //
-// Stack provided scalars, objects, arrays, and existing Nodes are supported.
-// The value Union keeps each payload paired with its type without exposing a
-// parallel tag or inactive fields.
+// Child descriptor ranges remain accessible until materialization completes.
+// Materialization recursively copies string values, object member names, and an
+// existing Node tree into the destination Arena. The resulting Node therefore
+// depends only on that Arena, and resetting the Arena ends access to its
+// complete tree. An existing Node must represent an acyclic JSON tree because
+// every child is visited recursively.
 class Blueprint {
  private:
-  using Value = Core::Storage::Union<
-      Core::View::Bytes,
-      Core::View::Vector<Blueprint>,
-      Node,
-      S64,
-      R64,
-      Bool>;
+  class Array {
+   public:
+    constexpr Array(Core::View::Vector<Blueprint> values) : values(values) {}
+
+    constexpr auto get_values() const -> Core::View::Vector<Blueprint> {
+      return values;
+    }
+
+   private:
+    Core::View::Vector<Blueprint> values;
+  };
+
+  class Object {
+   public:
+    constexpr Object(Core::View::Vector<Blueprint> members)
+        : members(members) {}
+
+    constexpr auto get_members() const -> Core::View::Vector<Blueprint> {
+      return members;
+    }
+
+   private:
+    Core::View::Vector<Blueprint> members;
+  };
+
+  using Value = Core::Storage::
+      Union<Core::View::Bytes, Array, Object, Node, S64, R64, Bool>;
 
  public:
   Blueprint() = default;
@@ -54,42 +81,58 @@ class Blueprint {
       : name(member_name), value(flag) {}
   Blueprint(Core::View::Bytes member_name, const Node& node)
       : name(member_name), value(node) {}
+  Blueprint(Core::View::Bytes member_name, Blueprint child)
+      : name(member_name), value(child.value) {}
 
-  static auto empty_array(Core::View::Bytes member_name = {}) -> Blueprint {
-    return Blueprint(member_name, nullptr, 0);
+  static constexpr auto array() -> Blueprint;
+  static constexpr auto array(Core::View::Vector<Blueprint> values)
+      -> Blueprint;
+
+  template <Count N>
+  static constexpr auto array(const Blueprint (&values)[N]) -> Blueprint {
+    return array(Core::View::Vector<Blueprint>(values));
   }
 
-  template <Count N>
-  Blueprint(Core::View::Bytes member_name, const Blueprint (&children)[N])
-      : name(member_name), value(Core::View::Vector<Blueprint>(children)) {}
+  static constexpr auto object() -> Blueprint;
+  static constexpr auto object(Core::View::Vector<Blueprint> members)
+      -> Blueprint;
 
   template <Count N>
-  Blueprint(const Blueprint (&children)[N])
-      : value(Core::View::Vector<Blueprint>(children)) {}
+  static constexpr auto object(const Blueprint (&members)[N]) -> Blueprint {
+    return object(Core::View::Vector<Blueprint>(members));
+  }
 
   constexpr auto get_name() const -> Core::View::Bytes { return name; }
 
-  // Recursively materializes the temporary tree into the caller's arena.
-  // Named children become object members and unnamed children become array
-  // elements.
+  // Copies every described value into the supplied Arena. Arrays and objects
+  // retain their explicit factory shape, including when they contain no values.
   EXPORTED(PERIMORTEM) auto construct(Memory::Allocator::Arena& arena) const
       -> Node;
 
-  template <typename... Cases>
-  auto visit(Cases... cases) const -> decltype(auto) {
-    return value.visit(Core::Data::take(cases)...);
-  }
-
  private:
-  Blueprint(
-      Core::View::Bytes member_name,
-      const Blueprint* children,
-      Count child_count)
-      : name(member_name),
-        value(Core::View::Vector<Blueprint>(children, child_count)) {}
+  constexpr Blueprint(Array array) : value(array) {}
+  constexpr Blueprint(Object object) : value(object) {}
 
   Core::View::Bytes name{};
   Value value;
 };
+
+constexpr auto Blueprint::array() -> Blueprint {
+  return array(Core::View::Vector<Blueprint>());
+}
+
+constexpr auto Blueprint::array(Core::View::Vector<Blueprint> values)
+    -> Blueprint {
+  return Blueprint(Array(values));
+}
+
+constexpr auto Blueprint::object() -> Blueprint {
+  return object(Core::View::Vector<Blueprint>());
+}
+
+constexpr auto Blueprint::object(Core::View::Vector<Blueprint> members)
+    -> Blueprint {
+  return Blueprint(Object(members));
+}
 
 }  // namespace Perimortem::Serialization::Formats::Json

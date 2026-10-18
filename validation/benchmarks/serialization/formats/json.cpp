@@ -53,16 +53,19 @@ VALIDATION_BENCHMARK(JsonBlueprint, blueprint_x1024) {
   Count size = 0;
   Allocator::Arena arena;
   for (Count i = 0; i < json_batch; i++) {
-    Formats::Json::Node node = Formats::Json::Blueprint{
-      {
-        {"jsonrpc"_view, "2.0"_view},
-        {"id"_view, 1},
-        {"result"_view,
-         {
-           {"name"_view, "ttx"_view},
-           {"version"_view, "1.0"_view},
-         }},
-      }}.construct(arena);
+    const Formats::Json::Blueprint result_members[] = {
+      {"name"_view, "ttx"_view},
+      {"version"_view, "1.0"_view},
+    };
+
+    const Formats::Json::Blueprint members[] = {
+      {"jsonrpc"_view, "2.0"_view},
+      {"id"_view, 1},
+      {"result"_view, Formats::Json::Blueprint::object(result_members)},
+    };
+
+    Formats::Json::Node node =
+        Formats::Json::Blueprint::object(members).construct(arena);
 
     size += node.get_size();
     arena.reset();

@@ -3,6 +3,7 @@
 
 #include "toolchain/validation/test.hpp"
 
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/serialization/formats/json/blueprint.hpp"
 #include "perimortem/serialization/formats/json/node.hpp"
@@ -304,10 +305,8 @@ VALIDATION_TEST(SerializationJson, construct_string) {
   constexpr auto expected = "\"Test String\""_view;
 
   Allocator::Arena arena;
-  Formats::Json::Node value = Formats::Json::Blueprint{
-    {
-      "Test String"_view,
-    }}.construct(arena);
+  Formats::Json::Node value =
+      Formats::Json::Blueprint("Test String"_view).construct(arena);
 
   auto formated = value.format(arena);
   ASSERT_TEXT(formated, expected);
@@ -319,7 +318,7 @@ VALIDATION_TEST(SerializationJson, construct_array) {
 
   Allocator::Arena arena;
   Formats::Json::Node value =
-      Formats::Json::Blueprint(elements).construct(arena);
+      Formats::Json::Blueprint::array(elements).construct(arena);
 
   auto formated = value.format(arena);
   ASSERT_TEXT(formated, expected);
@@ -329,26 +328,24 @@ VALIDATION_TEST(SerializationJson, construct_nested) {
   constexpr auto expected =
       "{\"root\":[1,2,true,false,\"Test\"],\"flag\":true,\"config\":{"
       "\"version\":\"1.0.2\",\"sub_flag\":true}}"_view;
+  const Formats::Json::Blueprint root_values[] = {
+    1, 2, True, False, "Test"_view,
+  };
+
+  const Formats::Json::Blueprint config_members[] = {
+    {"version"_view, "1.0.2"_view},
+    {"sub_flag"_view, True},
+  };
+
+  const Formats::Json::Blueprint members[] = {
+    {"root"_view, Formats::Json::Blueprint::array(root_values)},
+    {"flag"_view, True},
+    {"config"_view, Formats::Json::Blueprint::object(config_members)},
+  };
 
   Allocator::Arena arena;
-  Formats::Json::Node value = Formats::Json::Blueprint{
-    {
-      {"root"_view,
-       {
-         1,
-         2,
-         True,
-         False,
-         "Test"_view,
-       }},
-
-      {"flag"_view, True},
-      {"config"_view,
-       {
-         {"version"_view, "1.0.2"_view},
-         {"sub_flag"_view, True},
-       }},
-    }}.construct(arena);
+  Formats::Json::Node value =
+      Formats::Json::Blueprint::object(members).construct(arena);
 
   auto formated = value.format(arena);
   ASSERT_TEXT(formated, expected);
@@ -380,52 +377,82 @@ VALIDATION_TEST(SerializationJson, round_trip_init_rpc) {
 #endif
 
 VALIDATION_TEST(SerializationJson, format_number_zero) {
+  const Formats::Json::Blueprint members[] = {
+    {"a"_view, 0},
+    {"b"_view, 1},
+    {"c"_view, 10},
+  };
+
   Allocator::Arena arena;
-  auto value = Formats::Json::Blueprint{
-    {
-      {"a"_view, 0},
-      {"b"_view, 1},
-      {"c"_view, 10},
-    }}.construct(arena);
+  auto value = Formats::Json::Blueprint::object(members).construct(arena);
 
   constexpr auto expected = "{\"a\":0,\"b\":1,\"c\":10}"_view;
   auto formated = value.format(arena);
   ASSERT_TEXT(formated, expected);
 }
 
-VALIDATION_TEST(SerializationJson, empty_array) {
-  Allocator::Arena arena;
-  auto value = Formats::Json::Blueprint{
-    {
-      {"name"_view, "items"_view},
-      Formats::Json::Blueprint::empty_array("items"_view),
-    }}.construct(arena);
+VALIDATION_TEST(SerializationJson, explicit_container_shape) {
+  const Formats::Json::Blueprint members[] = {
+    {"name"_view, "items"_view},
+    {"items"_view, Formats::Json::Blueprint::array()},
+    {""_view, 1},
+    {"config"_view, Formats::Json::Blueprint::object()},
+  };
 
-  constexpr auto expected = "{\"name\":\"items\",\"items\":[]}"_view;
+  Allocator::Arena arena;
+  auto value = Formats::Json::Blueprint::object(members).construct(arena);
+
+  constexpr auto expected =
+      "{\"name\":\"items\",\"items\":[],\"\":1,\"config\":{}}"_view;
   auto formated = value.format(arena);
   ASSERT_TEXT(formated, expected);
 }
 
-VALIDATION_TEST(SerializationJson, existing_node) {
+VALIDATION_TEST(SerializationJson, copies_descriptor_storage) {
+  U8 member_name[] = {'n', 'a', 'm', 'e'};
+  U8 string_value[] = {'v', 'a', 'l', 'u', 'e'};
+  const Formats::Json::Blueprint members[] = {
+    {View::Bytes(member_name, sizeof(member_name)),
+     View::Bytes(string_value, sizeof(string_value))},
+  };
+
   Allocator::Arena arena;
+  auto value = Formats::Json::Blueprint::object(members).construct(arena);
+  member_name[0] = 'x';
+  string_value[0] = 'x';
 
-  const Formats::Json::Node inner_node = Formats::Json::Blueprint{
-    {
-      {"name"_view, "ttx-server"_view},
-      {"version"_view, "1.0"_view},
-    }}.construct(arena);
+  EXPECT(value.contains("name"_view));
+  EXPECT_TEXT(value["name"_view].get_string(), "value"_view);
+}
 
-  auto value = Formats::Json::Blueprint{
-    {
-      {"jsonrpc"_view, "2.0"_view},
-      {"id"_view, 1},
-      {"result"_view, inner_node},
-    }}.construct(arena);
+VALIDATION_TEST(SerializationJson, existing_node) {
+  Allocator::Arena source_arena;
+  const Formats::Json::Blueprint inner_members[] = {
+    {"name"_view, "ttx-server"_view},
+    {"version"_view, "1.0"_view},
+  };
+
+  const Formats::Json::Node inner_node =
+      Formats::Json::Blueprint::object(inner_members).construct(source_arena);
+
+  const Formats::Json::Blueprint outer_members[] = {
+    {"jsonrpc"_view, "2.0"_view},
+    {"id"_view, 1},
+    {"result"_view, inner_node},
+  };
+
+  Allocator::Arena destination_arena;
+  auto value = Formats::Json::Blueprint::object(outer_members)
+                   .construct(destination_arena);
+  source_arena.reset();
+
+  auto overwritten = source_arena.allocate(1024);
+  Data::set(overwritten.get_data(), 0xAA, overwritten.get_size());
 
   constexpr auto expected =
       "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"name\":\"ttx-server\","
       "\"version\":\"1.0\"}}"_view;
-  auto formated = value.format(arena);
+  auto formated = value.format(destination_arena);
   ASSERT_TEXT(formated, expected);
 }
 
@@ -460,15 +487,18 @@ VALIDATION_TEST(SerializationJson, rpc_from_parsed) {
   ASSERT(parsed["jsonrpc"_view].is_string());
   ASSERT(parsed["id"_view].is_integer());
 
-  auto response = Formats::Json::Blueprint{
-    {
-      {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
-      {"id"_view, parsed["id"_view].get_integer()},
-      {"result"_view,
-       {
-         {"serverInfo"_view, "ttx"_view},
-       }},
-    }}.construct(arena);
+  const Formats::Json::Blueprint result_members[] = {
+    {"serverInfo"_view, "ttx"_view},
+  };
+
+  const Formats::Json::Blueprint response_members[] = {
+    {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
+    {"id"_view, parsed["id"_view].get_integer()},
+    {"result"_view, Formats::Json::Blueprint::object(result_members)},
+  };
+
+  auto response =
+      Formats::Json::Blueprint::object(response_members).construct(arena);
 
   auto formated = response.format(arena);
 
