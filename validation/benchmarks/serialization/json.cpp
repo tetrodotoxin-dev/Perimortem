@@ -23,16 +23,26 @@ static Writer::Textual json_text(json_data);
 static constexpr Count json_batch = 1024;
 
 static auto load_json(View::Bytes source_path) -> void {
-  auto source = Filesystem::File::read(source_path);
-  source.visit(
-      [](const Global::Bytes& contents) {
-        json_text.set_pointer(0);
-        json_text << contents;
-      },
+  auto path =
+      Filesystem::Path::create(Filesystem::Path::Anchor::Work, source_path);
+  const auto load_source = [](const Filesystem::Path& selected) {
+    auto source = Filesystem::File::read(selected);
+    source.visit(
+        [](const Global::Bytes& contents) {
+          json_text.set_pointer(0);
+          json_text << contents;
+        },
 
-      [] {
-        Diagnostics::Log::fatal("Unable to load JSON benchmark source."_view);
-      });
+        [] {
+          Diagnostics::Log::fatal("Unable to load JSON benchmark source."_view);
+        });
+  };
+
+  const auto invalid_path = [] {
+    Diagnostics::Log::fatal("JSON benchmark source path is invalid."_view);
+  };
+
+  path.visit(load_source, invalid_path);
 }
 
 static Harness JsonBlueprint = {

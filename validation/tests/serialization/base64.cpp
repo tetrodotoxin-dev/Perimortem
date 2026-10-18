@@ -96,10 +96,10 @@ VALIDATION_TEST(SerializationBase64, padded_vector_tail) {
 }
 
 VALIDATION_TEST(SerializationBase64, decode_image) {
-  auto source =
-      Filesystem::File::read("validation/data/pngs/perimortem_icon.png"_view);
+  auto source = Filesystem::File::read(
+      "[work]:/validation/data/pngs/perimortem_icon.png"_path);
   auto base64 = Filesystem::File::read(
-      "validation/data/base64/perimortem_icon.base64"_view);
+      "[work]:/validation/data/base64/perimortem_icon.base64"_path);
   ASSERT(source);
   ASSERT(base64);
   source.visit(
@@ -143,10 +143,10 @@ VALIDATION_TEST(SerializationBase64, encode_simple) {
 }
 
 VALIDATION_TEST(SerializationBase64, encode_image) {
-  auto source =
-      Filesystem::File::read("validation/data/pngs/perimortem_icon.png"_view);
+  auto source = Filesystem::File::read(
+      "[work]:/validation/data/pngs/perimortem_icon.png"_path);
   auto base64 = Filesystem::File::read(
-      "validation/data/base64/perimortem_icon.base64"_view);
+      "[work]:/validation/data/base64/perimortem_icon.base64"_path);
   ASSERT(source);
   ASSERT(base64);
   source.visit(

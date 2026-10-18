@@ -341,7 +341,7 @@ VALIDATION_TEST(SerializationJson, construct_nested) {
 
 VALIDATION_TEST(SerializationJson, round_trip_init_rpc) {
   auto source =
-      Filesystem::File::read("validation/data/json/init_rpc.json"_view);
+      Filesystem::File::read("[work]:/validation/data/json/init_rpc.json"_path);
   ASSERT(source);
 
   View::Bytes source_view;
@@ -423,7 +423,7 @@ VALIDATION_TEST(SerializationJson, format_null) {
 
 VALIDATION_TEST(SerializationJson, rpc_from_parsed) {
   auto source =
-      Filesystem::File::read("validation/data/json/init_rpc.json"_view);
+      Filesystem::File::read("[work]:/validation/data/json/init_rpc.json"_path);
   ASSERT(source);
 
   View::Bytes source_view;

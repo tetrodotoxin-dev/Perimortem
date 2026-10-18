@@ -25,10 +25,18 @@ static Harness SerializationPng = {
 };
 
 static auto read_fixture(View::Bytes path) -> Global::Bytes {
-  auto result = Filesystem::File::read(path);
+  auto canonical =
+      Filesystem::Path::create(Filesystem::Path::Anchor::Work, path);
   Global::Bytes bytes;
-  result.visit(
-      [&](Global::Bytes& source) { bytes = Data::take(source); }, []() {});
+  canonical.visit(
+      [&](const Filesystem::Path& selected) {
+        auto result = Filesystem::File::read(selected);
+        result.visit(
+            [&](Global::Bytes& source) { bytes = Data::take(source); },
+            []() {});
+      },
+
+      []() {});
   return bytes;
 }
 

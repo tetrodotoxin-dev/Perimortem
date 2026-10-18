@@ -6,114 +6,250 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/storage/bytes.hpp"
-#include "perimortem/core/view/null_terminated.hpp"
-#include "perimortem/memory/thread/bytes.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Toolchain::Validation;
+
+using Path = Filesystem::Path;
+
+static_assert(__is_trivially_copyable(Path));
+static_assert(!__is_constructible(Path));
+static_assert(!__is_constructible(Path::Native, const Path::Native&));
+
+constexpr Path literal_path = "[work]:/source/main.ttx"_path;
+static_assert(literal_path.get_anchor() == Path::Anchor::Work);
+static_assert(literal_path.get_components() == "source/main.ttx"_view);
+static_assert(literal_path.get_name() == "main.ttx"_view);
+static_assert(literal_path.get_extension() == ".ttx"_view);
+static_assert(Path::create(Path::Anchor::Work, "source/main.ttx"_view));
+static_assert(!Path::create(Path::Anchor::Work, "source/../main.ttx"_view));
 
 static Harness SystemPath = {
   .name = "System::Filesystem::Path",
 };
 
-VALIDATION_TEST(SystemPath, normalize) {
-  Filesystem::Path path("unit\\./folder//file.ttx"_view);
+VALIDATION_TEST(SystemPath, anchors) {
+  constexpr Path root = "[root]:/"_path;
+  constexpr Path temp = "[temp]:/cache"_path;
+  constexpr Path home = "[home]:/settings"_path;
+  constexpr Path work = "[work]:/source"_path;
+  constexpr Path exec = "[exec]:/resources"_path;
 
-  EXPECT_NOT(path.get_view().is_empty());
-  EXPECT_TEXT(path.get_view(), "unit/folder/file.ttx"_view);
-  EXPECT_NOT(path.is_rooted());
+  EXPECT(root.get_anchor() == Path::Anchor::Root);
+  EXPECT(temp.get_anchor() == Path::Anchor::Temp);
+  EXPECT(home.get_anchor() == Path::Anchor::Home);
+  EXPECT(work.get_anchor() == Path::Anchor::Work);
+  EXPECT(exec.get_anchor() == Path::Anchor::Exec);
+  EXPECT(root.get_components().is_empty());
 }
 
-VALIDATION_TEST(SystemPath, normalize_in_arena) {
-  Allocator::Arena arena;
-  Thread::Bytes authored("unit\\./folder//file.ttx"_view);
-  auto normalized = Filesystem::Path::normalize(arena, authored);
-  auto rooted = Filesystem::Path::normalize(arena, "/usr//local/./bin"_view);
-  ASSERT(normalized);
-  ASSERT(rooted);
+VALIDATION_TEST(SystemPath, create) {
+  auto selected = Path::create(Path::Anchor::Temp, "folder/file"_view);
+  selected.visit(
+      [&](const Path& path) {
+        EXPECT(path.get_anchor() == Path::Anchor::Temp);
+        EXPECT_EQ(path.get_components(), "folder/file"_view);
+      },
 
-  // Mutating the source distinguishes the Arena copy from a View that merely
-  // happened to contain the expected bytes during the call.
-  authored.set('x');
+      [&] { EXPECT(false); });
 
-  normalized.visit(
-      [&](View::Bytes path) { EXPECT_TEXT(path, "unit/folder/file.ttx"_view); },
-      []() {});
-  rooted.visit(
-      [&](View::Bytes path) { EXPECT_TEXT(path, "/usr/local/bin"_view); },
-      []() {});
+  const auto invalid_anchor = Path::Anchor(U8(-1));
+  EXPECT_NOT(Path::create(invalid_anchor, "file"_view));
 }
 
-VALIDATION_TEST(SystemPath, normalize_invalid) {
-  Allocator::Arena arena;
-  Storage::Bytes<3> embedded_nul = {{'a', '\0', 'b'}};
-  Storage::Bytes<Filesystem::Path::max_size + 1> oversized;
-  for (Count i = 0; i < oversized.get_size(); i++) {
-    oversized[i] = 'a';
+VALIDATION_TEST(SystemPath, parse_and_serialize) {
+  auto parsed = Path::parse("[home]:/project/data.bin"_view);
+  parsed.visit(
+      [&](const Path& path) {
+        Storage::Bytes<64> output;
+        auto serialized = path.serialize(output);
+        serialized.visit(
+            [&](View::Bytes text) {
+              EXPECT_EQ(text, "[home]:/project/data.bin"_view);
+            },
+
+            [&] { EXPECT(false); });
+      },
+
+      [&](Path::Failure) { EXPECT(false); });
+}
+
+VALIDATION_TEST(SystemPath, serialization_capacity) {
+  constexpr Path path = "[exec]:/data"_path;
+  Storage::Bytes<9> output;
+  output = "unchanged"_view;
+
+  EXPECT_NOT(path.serialize(output));
+  EXPECT_EQ(output, "unchanged"_view);
+}
+
+VALIDATION_TEST(SystemPath, invalid_anchor) {
+  auto missing = Path::parse("work/source"_view);
+  auto unsupported = Path::parse("[data]:/source"_view);
+
+  const auto expects_invalid_anchor = [&](const auto& result_value) {
+    return result_value.visit(
+        [](const Path&) { return False; },
+        [](Path::Failure failure) {
+          return Bool(failure == Path::Failure::InvalidAnchor);
+        });
+  };
+
+  EXPECT(expects_invalid_anchor(missing));
+  EXPECT(expects_invalid_anchor(unsupported));
+}
+
+VALIDATION_TEST(SystemPath, invalid_components) {
+  constexpr View::Bytes invalid[] = {
+    "/file"_view,
+    "file/"_view,
+    "folder//file"_view,
+    "."_view,
+    ".."_view,
+    "folder/./file"_view,
+    "folder/../file"_view,
+    "folder\\file"_view,
+  };
+
+  for (View::Bytes components : invalid) {
+    EXPECT_NOT(Path::create(Path::Anchor::Work, components));
   }
 
-  // The oversized case uses one segment so failure proves the capacity bound
-  // rather than an unrelated parent or separator rule.
-  EXPECT_NOT(Filesystem::Path::normalize(arena, View::Bytes()));
-  EXPECT_NOT(Filesystem::Path::normalize(arena, "."_view));
-  EXPECT_NOT(Filesystem::Path::normalize(arena, "../file.ttx"_view));
-  EXPECT_NOT(Filesystem::Path::normalize(arena, embedded_nul));
-  EXPECT_NOT(Filesystem::Path::normalize(arena, oversized));
+  U8 embedded_null[] = {'f', 'i', 'l', 'e', 0, 'x'};
+  EXPECT_NOT(
+      Path::create(
+          Path::Anchor::Work,
+          View::Bytes(embedded_null, sizeof(embedded_null))));
 }
 
-VALIDATION_TEST(SystemPath, relative) {
-  Filesystem::Path path("unit/source/main.ttx"_view, "../shared/a.ttx"_view);
+VALIDATION_TEST(SystemPath, utf8) {
+  const U8 valid_text[] = {'c', 'a', 'f', 0xC3, 0xA9};
+  const U8 overlong[] = {0xC0, 0xAF};
+  const U8 surrogate[] = {0xED, 0xA0, 0x80};
+  const U8 truncated[] = {0xF0, 0x9F, 0x92};
 
-  EXPECT_NOT(path.get_view().is_empty());
-  EXPECT_TEXT(path.get_view(), "unit/shared/a.ttx"_view);
+  EXPECT(
+      Path::create(
+          Path::Anchor::Home, View::Bytes(valid_text, sizeof(valid_text))));
+  EXPECT_NOT(
+      Path::create(
+          Path::Anchor::Home, View::Bytes(overlong, sizeof(overlong))));
+  EXPECT_NOT(
+      Path::create(
+          Path::Anchor::Home, View::Bytes(surrogate, sizeof(surrogate))));
+  EXPECT_NOT(
+      Path::create(
+          Path::Anchor::Home, View::Bytes(truncated, sizeof(truncated))));
+
+  auto parsed = Path::parse(View::Bytes(overlong, sizeof(overlong)));
+  parsed.visit(
+      [&](const Path&) { EXPECT(false); },
+      [&](Path::Failure failure) {
+        EXPECT(failure == Path::Failure::InvalidAnchor);
+      });
+
+  U8 canonical[] = {'[', 'w', 'o', 'r', 'k', ']', ':', '/', 0xC0, 0xAF};
+  auto invalid = Path::parse(View::Bytes(canonical, sizeof(canonical)));
+  invalid.visit(
+      [&](const Path&) { EXPECT(false); },
+      [&](Path::Failure failure) {
+        EXPECT(failure == Path::Failure::InvalidEncoding);
+      });
 }
 
-VALIDATION_TEST(SystemPath, rooted) {
-  Filesystem::Path path("/usr/local/bin"_view);
+VALIDATION_TEST(SystemPath, parent_and_name) {
+  constexpr Path path = "[root]:/unit/source/main.ttx"_path;
+  EXPECT_EQ(path.get_name(), "main.ttx"_view);
+  EXPECT_EQ(path.get_extension(), ".ttx"_view);
 
-  EXPECT_NOT(path.get_view().is_empty());
-  EXPECT_TEXT(path.get_view(), "/usr/local/bin"_view);
-  EXPECT(path.is_rooted());
-}
+  auto parent = path.get_parent();
+  parent.visit(
+      [&](const Path& selected) {
+        EXPECT(selected.get_anchor() == Path::Anchor::Root);
+        EXPECT_EQ(selected.get_components(), "unit/source"_view);
+      },
 
-VALIDATION_TEST(SystemPath, escape) {
-  Filesystem::Path path("../file.ttx"_view);
-  Filesystem::Path relative_path("unit/main.ttx"_view, "../../file.ttx"_view);
+      [&] { EXPECT(false); });
 
-  EXPECT(path.get_view().is_empty());
-  EXPECT(relative_path.get_view().is_empty());
-}
-
-VALIDATION_TEST(SystemPath, root_parent) {
-  Filesystem::Path path("/usr/.."_view);
-
-  EXPECT_NOT(path.get_view().is_empty());
-  EXPECT_TEXT(path.get_view(), "/"_view);
-  EXPECT(path.is_rooted());
-}
-
-VALIDATION_TEST(SystemPath, file) {
-  Filesystem::Path path("unit/source/main.ttx"_view);
-
-  EXPECT_TEXT(path.get_file(), "main.ttx"_view);
-}
-
-VALIDATION_TEST(SystemPath, directory) {
-  Filesystem::Path path("unit/source/main.ttx"_view);
-  Filesystem::Path root_child("/main.ttx"_view);
-
-  EXPECT_TEXT(path.get_directory(), "unit/source"_view);
-  EXPECT_TEXT(root_child.get_directory(), "/"_view);
-}
-
-VALIDATION_TEST(SystemPath, extension) {
-  Filesystem::Path path("unit/source/main.ttx"_view);
-  Filesystem::Path no_extension("unit/source/main"_view);
-  Filesystem::Path hidden("unit/source/.main"_view);
-
-  EXPECT_TEXT(path.get_extension(), ".ttx"_view);
-  EXPECT(no_extension.get_extension().is_empty());
+  constexpr Path hidden = "[root]:/unit/.main"_path;
   EXPECT(hidden.get_extension().is_empty());
+
+  constexpr Path root = "[root]:/"_path;
+  EXPECT_NOT(root.get_parent());
+}
+
+VALIDATION_TEST(SystemPath, native_emission) {
+  constexpr Path path = "[work]:/validation"_path;
+  auto emitted = path.emit();
+  emitted.visit(
+      [&](const Path::Native& native) {
+        ASSERT(native.get_data());
+        EXPECT(native.get_data()[native.get_size()] == Path::NativeUnit());
+
+#ifdef TOOLCHAIN_LINUX
+
+        EXPECT(native.get_size() > 0);
+        EXPECT(native.get_data()[0] == '/');
+
+#elifdef TOOLCHAIN_WINDOWS
+
+        ASSERT(native.get_size() >= 4);
+        EXPECT(native.get_data()[0] == L'\\');
+        EXPECT(native.get_data()[1] == L'\\');
+        EXPECT(native.get_data()[2] == L'?');
+        EXPECT(native.get_data()[3] == L'\\');
+
+#endif
+      },
+
+      [&](Path::EmissionFailure) { EXPECT(false); });
+}
+
+VALIDATION_TEST(SystemPath, native_anchors) {
+  constexpr Path::Anchor anchors[] = {
+    Path::Anchor::Root, Path::Anchor::Temp, Path::Anchor::Home,
+    Path::Anchor::Work, Path::Anchor::Exec,
+  };
+
+  for (Path::Anchor anchor : anchors) {
+    auto path = Path::create(anchor, {});
+    path.visit(
+        [&](const Path& selected) {
+          auto emitted = selected.emit();
+          emitted.visit(
+              [&](const Path::Native& native) {
+                EXPECT(native.get_size() > 0);
+                EXPECT(
+                    native.get_data()[native.get_size()] == Path::NativeUnit());
+              },
+
+              [&](Path::EmissionFailure) { EXPECT(false); });
+        },
+
+        [&] { EXPECT(false); });
+  }
+}
+
+VALIDATION_TEST(SystemPath, unbounded_native_emission) {
+  Storage::Bytes<1024> components;
+  for (Count index = 0; index < components.get_size(); index++) {
+    components[index] = 'a';
+  }
+
+  auto path = Path::create(Path::Anchor::Temp, components);
+  path.visit(
+      [&](const Path& selected) {
+        auto emitted = selected.emit();
+        emitted.visit(
+            [&](const Path::Native& native) {
+              EXPECT(native.get_size() > components.get_size());
+              EXPECT(
+                  native.get_data()[native.get_size()] == Path::NativeUnit());
+            },
+
+            [&](Path::EmissionFailure) { EXPECT(false); });
+      },
+
+      [&] { EXPECT(false); });
 }
