@@ -21,15 +21,15 @@ namespace Perimortem::Core::Storage {
 // makes Table suitable for small vocabularies known at compile time rather than
 // mutable data.
 //
-// Keyword benchmarks with low hit rates measured more than twice the throughput
-// of `Thread::Map`. `cache_line_size` can keep a complete length bucket within
-// one cache line when its packed bytes fit.
+// Keyword benchmarks exercise the same vocabulary against `Thread::Map`. The
+// packed table avoids allocation and hashing and retains lower lookup time for
+// both hit heavy and miss heavy workloads, justifying a dedicated static layout
+// when the vocabulary does not need mutation.
 //
 // The compact coordinates support from 1 through 255 entries and at most 65535
-// bytes of packed storage. Every key contains at least one byte. Bucket
-// alignment counts toward storage. Sources outside those limits fail during
-// compilation.
-template <typename value_type, const auto& source, U64 cache_line_size = 1>
+// bytes of packed storage. Every key contains at least one byte. Sources
+// outside those limits fail during compilation.
+template <typename value_type, const auto& source>
 class Table {
  private:
   // Normalize both supported source forms during constant evaluation so the
@@ -54,7 +54,6 @@ class Table {
     return False;
   }
 
-  static_assert(cache_line_size > 0, "Table cache line size cannot be zero.");
   static_assert(source_count > 0, "Table requires at least one entry.");
   static_assert(
       source_count <= U8(-1),
@@ -62,20 +61,9 @@ class Table {
   static_assert(!has_empty_key(), "Table does not support empty keys.");
 
   static consteval auto required_storage() -> Count {
-    Count buckets[max_length()] = {0};
-    for (Count i = 0; i < get_source_count(); i++) {
-      buckets[source[i].key.get_size()] += source[i].key.get_size();
-    }
-
     Count total = 0;
-    for (Count i = 0; i < max_length(); i++) {
-      const auto cache_alignment = (total % cache_line_size);
-      if (cache_alignment != 0 &&
-          cache_alignment + buckets[i] > cache_line_size) {
-        total += cache_line_size - cache_alignment;
-      }
-
-      total += buckets[i];
+    for (Count i = 0; i < get_source_count(); i++) {
+      total += source[i].key.get_size();
     }
 
     return total;
@@ -104,7 +92,7 @@ class Table {
   struct Storage {
     consteval Storage() {
       // Length buckets must be counted before coordinates are assigned because
-      // aligning one bucket changes the start of every later bucket.
+      // each bucket begins after the complete bytes of every shorter key.
       Count buckets[max_length()] = {0};
       for (Count i = 0; i < get_source_count(); i++) {
         buckets[source[i].key.get_size()] += source[i].key.get_size();
@@ -112,15 +100,6 @@ class Table {
 
       Count total = 0;
       for (Count i = 0; i < max_length(); i++) {
-        // Advance a bucket that would straddle `cache_line_size` to the next
-        // boundary. A bucket no larger than that boundary can then be scanned
-        // from one cache line.
-        const auto cache_alignment = (total % cache_line_size);
-        if (cache_alignment != 0 &&
-            cache_alignment + buckets[i] > cache_line_size) {
-          total += cache_line_size - cache_alignment;
-        }
-
         buffer_coordinates[i].byte_index = total;
         total += buckets[i];
 
@@ -151,7 +130,7 @@ class Table {
       U16 byte_index = 0;
     };
 
-    alignas(64) Core::Storage::Vector<U8, storage_size> buffer = {};
+    Core::Storage::Vector<U8, storage_size> buffer = {};
     Core::Storage::Vector<Coord, max_range + 1> buffer_coordinates = {};
     Core::Storage::Vector<value_type, source_count> mappings = {};
   };
