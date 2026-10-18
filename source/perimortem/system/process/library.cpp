@@ -45,17 +45,29 @@ Process::Library::Library(Library&& source) : handle(source.handle) {
 
 Process::Library::~Library() {
 
+  // Every Library use has ended before destruction requests unload. A host
+  // rejection can retain native module resources, but it cannot leave a caller
+  // executing through this Library, so report those resources without aborting.
+
 #ifdef TOOLCHAIN_WINDOWS
 
   if (handle && !FreeLibrary(Data::restore<HMODULE>(Data::address(handle)))) {
-    Diagnostics::Log::fatal("Unable to release a Windows library."_view);
+    const U32 unload_error = GetLastError();
+    Diagnostics::Log::Message<256> failure(Diagnostics::Log::Level::Error);
+    failure << "Process::Library could not release its native module handle. "
+               "The module may remain loaded until process exit. error="_view
+            << unload_error;
   }
 
 #else
 
   if (handle && dlclose(handle) != 0) {
-    Diagnostics::Log::fatal(
-        View::NullTerminated(dlerror(), max_loader_message_size).get_view());
+    Diagnostics::Log::Message<max_loader_message_size + 192> failure(
+        Diagnostics::Log::Level::Error);
+    failure
+        << "Process::Library could not release its native module handle. "
+           "The module may remain loaded until process exit. error="_view
+        << View::NullTerminated(dlerror(), max_loader_message_size).get_view();
   }
 
 #endif

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "perimortem/core/storage/result.hpp"
 #include "perimortem/core/view/bytes.h"
 
 namespace Perimortem::System::Process {
@@ -19,7 +20,11 @@ namespace Perimortem::System::Process {
 // leaving the source in its default state.
 class Thread {
  public:
-  using Function = void (*)(void* context);
+  using Function = void(void* context);
+
+  enum class StartFailure : U8 {
+    HostRejected,
+  };
 
   Thread() = default;
   EXPORTED(PERIMORTEM) ~Thread();
@@ -29,13 +34,20 @@ class Thread {
   Thread(const Thread&) = delete;
   auto operator=(const Thread&) -> Thread& = delete;
 
-  // Starts one native thread and invokes `function` once. The complete name is
-  // retained for diagnostics while the host receives the platform-supported
-  // prefix. An empty name skips native naming and allocation.
+  // Starts one native thread and invokes `function` once. Taking a function
+  // reference makes a callable callback an input invariant rather than a
+  // runtime failure. `StartFailure::HostRejected` reports that the native
+  // thread could not be created, including resource exhaustion, without
+  // invoking the callback.
+  //
+  // The complete name is retained for diagnostics while the host receives the
+  // platform-supported prefix. An empty name skips native naming and
+  // allocation. The new thread begins with the spawning thread's diagnostic
+  // sink, level and header policy.
   static EXPORTED(PERIMORTEM) auto start(
       Core::View::Bytes name,
-      Function function,
-      void* context = nullptr) -> Thread;
+      Function& function,
+      void* context = nullptr) -> Core::Storage::Result<Thread, StartFailure>;
 
   // Blocks until the callback returns, then releases the native handle. A
   // default Thread and the source of a completed move hold no handle, so

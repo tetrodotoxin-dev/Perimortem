@@ -13,7 +13,9 @@ namespace Perimortem::System {
 // simulations, identifiers and other work that values throughput over
 // cryptographic unpredictability. Native threads prefer RDRAND and fall back to
 // host entropy where a direct source is available. Every seed also mixes high
-// precision clock samples, local addresses and a process sequence. Generated
+// precision clock samples, local addresses and a process sequence. A process
+// emits at most one warning for each fallback source so the seed source remains
+// observable without repeating the same diagnostic for every thread. Generated
 // values remain unsuitable for secrets.
 class Random {
  public:

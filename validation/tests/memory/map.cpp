@@ -733,9 +733,11 @@ VALIDATION_TEST(GlobalMap, capability_contract) {
 VALIDATION_TEST(GlobalMap, cross_thread_reallocation) {
   global_map_counts = {};
 
-  Process::Thread thread =
-      Process::Thread::start("global.map"_view, create_global_map);
-  thread.join();
+  auto started = Process::Thread::start("global.map"_view, create_global_map);
+  started.visit(
+      [](Process::Thread& thread) { thread.join(); },
+
+      [&](Process::Thread::StartFailure) { EXPECT(false); });
 
   EXPECT_EQ(transferred_map.get_size(), Count(128));
   EXPECT_EQ(global_map_counts.copies, Count(0));

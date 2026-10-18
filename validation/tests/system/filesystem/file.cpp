@@ -31,7 +31,6 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/system/filesystem/directory.hpp"
 #include "perimortem/system/filesystem/path.hpp"
-#include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -55,6 +54,7 @@ constexpr auto test_contents = "{\"value\":42}"_view;
 constexpr auto replacement_contents = "{\"other\":24}"_view;
 static constexpr CppSize temporary_path_capacity = 512;
 static constexpr Count captured_file_log_capacity = 1024;
+static U64 temporary_path_sequence = 0;
 
 template <typename value_type, typename visitor_type>
 static auto expect_selected(
@@ -75,21 +75,42 @@ static auto expect_contents(
 }
 
 static Diagnostics::Log::Level captured_file_log_level;
+static Diagnostics::Source captured_file_log_source;
 static Storage::Bytes<captured_file_log_capacity> captured_file_log;
 static Count captured_file_log_size = 0;
+static Count captured_file_log_count = 0;
+static Diagnostics::Log::Sink previous_file_log_sink;
 
 static auto capture_file_log(
     Diagnostics::Log::Level level,
     View::Bytes message,
-    const Diagnostics::Source&) -> void {
+    const Diagnostics::Source& source) -> void {
+  constexpr View::Bytes file_diagnostic = "System::Filesystem::File "_view;
+  if (Algorithm::Search::match(message, file_diagnostic) != 0) {
+    return;
+  }
+
   captured_file_log_level = level;
+  captured_file_log_source = source;
   captured_file_log_size = message.get_size();
   captured_file_log = message;
+  ++captured_file_log_count;
 }
 
-static auto capture_next_file_log() -> void {
+static auto reset_file_logs() -> void {
   captured_file_log_size = 0;
+  captured_file_log_count = 0;
+  captured_file_log_source = Diagnostics::Source();
+}
+
+static auto begin_file_logs() -> void {
+  reset_file_logs();
+  previous_file_log_sink = Diagnostics::Log::get_sink();
   Diagnostics::Log::set_sink(capture_file_log);
+}
+
+static auto end_file_logs() -> void {
+  Diagnostics::Log::set_sink(previous_file_log_sink);
 }
 
 static auto file_warning_contains(View::Bytes message) -> Bool {
@@ -247,14 +268,29 @@ static auto native_resize_file(const char* path, U64 size) -> Bool {
 
 #endif
 
+static auto native_process_id() -> U64 {
+
+#ifdef TOOLCHAIN_WINDOWS
+
+  return GetCurrentProcessId();
+
+#else
+
+  return U64(getpid());
+
+#endif
+}
+
 static auto create_temporary_directory(
     char* native_path,
     CppSize native_capacity,
     char* component,
     CppSize component_capacity) -> Bool {
+  const U64 sequence =
+      __atomic_fetch_add(&temporary_path_sequence, U64(1), __ATOMIC_RELAXED);
   const S32 component_size = snprintf(
-      component, component_capacity, "perimortem_file_%llx",
-      Random::generate());
+      component, component_capacity, "perimortem_file_%llx_%llx",
+      native_process_id(), sequence);
   if (component_size <= 0 || CppSize(component_size) >= component_capacity) {
     return False;
   }
@@ -356,6 +392,8 @@ class TemporaryRoot {
 
 static Harness SystemFile = {
   .name = "System::Filesystem::File",
+  .setup = begin_file_logs,
+  .teardown = end_file_logs,
 };
 
 VALIDATION_TEST(SystemFile, read_and_write) {
@@ -397,6 +435,8 @@ VALIDATION_TEST(SystemFile, read_and_write) {
       },
 
       [&] { EXPECT(false); });
+
+  EXPECT_EQ(captured_file_log_count, Count(0));
 }
 
 VALIDATION_TEST(SystemFile, missing_and_directory) {
@@ -427,6 +467,9 @@ VALIDATION_TEST(SystemFile, missing_and_directory) {
       },
 
       [&] { EXPECT(false); });
+
+  EXPECT_EQ(captured_file_log_count, Count(2));
+  EXPECT(file_warning_contains("stage=metadata errno="_view));
 }
 
 VALIDATION_TEST(SystemFile, replace_remove_and_exists) {
@@ -466,6 +509,8 @@ VALIDATION_TEST(SystemFile, replace_remove_and_exists) {
       },
 
       [&] { EXPECT(false); });
+
+  EXPECT_EQ(captured_file_log_count, Count(0));
 }
 
 VALIDATION_TEST(SystemFile, fingerprint_cache_validation) {
@@ -511,6 +556,8 @@ VALIDATION_TEST(SystemFile, fingerprint_cache_validation) {
       },
 
       [&] { EXPECT(false); });
+
+  EXPECT_EQ(captured_file_log_count, Count(0));
 }
 
 VALIDATION_TEST(SystemFile, fingerprint_exceeds_read_limit) {
@@ -543,6 +590,9 @@ VALIDATION_TEST(SystemFile, fingerprint_exceeds_read_limit) {
       },
 
       [&] { EXPECT(false); });
+
+  EXPECT_EQ(captured_file_log_count, Count(1));
+  EXPECT(file_warning_contains("stage=size value="_view));
 }
 
 VALIDATION_TEST(SystemFile, canonical_diagnostic_path) {
@@ -552,7 +602,7 @@ VALIDATION_TEST(SystemFile, canonical_diagnostic_path) {
   char storage[temporary_path_capacity];
   auto missing = temporary.path("missing", storage, sizeof(storage));
   ASSERT(missing);
-  capture_next_file_log();
+  reset_file_logs();
   missing.visit(
       [&](const Path& selected) {
         EXPECT_NOT(Filesystem::File::read(selected));
@@ -562,17 +612,43 @@ VALIDATION_TEST(SystemFile, canonical_diagnostic_path) {
 
   EXPECT(file_warning_contains("path=[temp]:/"_view));
   EXPECT(file_warning_contains("stage=open errno="_view));
+  EXPECT_EQ(captured_file_log_count, Count(1));
+  EXPECT(captured_file_log_source.is_set());
+  EXPECT(captured_file_log_source.get_line() > 0);
+  EXPECT(
+      Algorithm::Search::match(
+          captured_file_log_source.get_file(),
+          "source/perimortem/system/filesystem/file.cpp"_view) != Count(-1));
+
+  constexpr Diagnostics::Source caller_source(
+      "caller.cpp"_view, Count(42), Count(7));
+  reset_file_logs();
+  {
+    auto caller_attribution = Diagnostics::Log::set_attribution(caller_source);
+    missing.visit(
+        [&](const Path& selected) {
+          EXPECT_NOT(Filesystem::File::read(selected));
+        },
+
+        [&] { EXPECT(false); });
+  }
+
+  EXPECT_EQ(captured_file_log_source.get_file(), "caller.cpp"_view);
+  EXPECT_EQ(captured_file_log_source.get_line(), Count(42));
+  EXPECT_EQ(captured_file_log_source.get_column(), Count(7));
+  EXPECT_EQ(captured_file_log_count, Count(1));
 }
 
 #ifdef TOOLCHAIN_LINUX
 
 VALIDATION_TEST(SystemFile, close_failure) {
   constexpr Path full = "[root]:/dev/full"_path;
-  capture_next_file_log();
+  reset_file_logs();
   EXPECT_NOT(Filesystem::File::write(test_contents, full));
   EXPECT(file_warning_contains(
       "System::Filesystem::File write failed. path=[root]:/dev/full "
       "stage=close errno="_view));
+  EXPECT_EQ(captured_file_log_count, Count(1));
 }
 
 enum class TraceMutation {
@@ -733,6 +809,7 @@ VALIDATION_TEST(SystemFile, opened_stream_identity) {
   EXPECT(trace_read(
       path, components, test_contents, True, TraceMutation::ReplacePath,
       replacement));
+  EXPECT_EQ(captured_file_log_count, Count(0));
 }
 
 VALIDATION_TEST(SystemFile, changed_open_stream_size) {
@@ -747,6 +824,7 @@ VALIDATION_TEST(SystemFile, changed_open_stream_size) {
 
   EXPECT(trace_read(
       path, components, {}, False, TraceMutation::TruncateAfterMetadata));
+  EXPECT_EQ(captured_file_log_count, Count(0));
 }
 
 #endif

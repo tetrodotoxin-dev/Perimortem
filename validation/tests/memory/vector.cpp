@@ -639,9 +639,12 @@ VALIDATION_TEST(GlobalVector, capability_contract) {
 }
 
 VALIDATION_TEST(GlobalVector, cross_thread_transfer) {
-  Process::Thread thread =
+  auto started =
       Process::Thread::start("global.vector"_view, create_global_vector);
-  thread.join();
+  started.visit(
+      [](Process::Thread& thread) { thread.join(); },
+
+      [&](Process::Thread::StartFailure) { EXPECT(false); });
 
   EXPECT_EQ(transferred_values.get_size(), Count(2));
   EXPECT_EQ(transferred_values.get_data()[0], U32(4));
@@ -661,9 +664,12 @@ VALIDATION_TEST(GlobalVector, cross_thread_transfer) {
 VALIDATION_TEST(GlobalVector, resource_cross_thread_reallocation) {
   global_vector_counts = {};
 
-  Process::Thread thread =
+  auto started =
       Process::Thread::start("global.resources"_view, create_global_resources);
-  thread.join();
+  started.visit(
+      [](Process::Thread& thread) { thread.join(); },
+
+      [&](Process::Thread::StartFailure) { EXPECT(false); });
 
   EXPECT_EQ(transferred_resources.get_size(), Count(128));
   EXPECT_EQ(global_vector_counts.copies, Count(0));

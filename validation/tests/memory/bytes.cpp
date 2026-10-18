@@ -327,9 +327,12 @@ VALIDATION_TEST(GlobalBytes, capability_contract) {
 }
 
 VALIDATION_TEST(GlobalBytes, cross_thread_transfer) {
-  Process::Thread thread =
+  auto started =
       Process::Thread::start("global.bytes"_view, create_global_bytes);
-  thread.join();
+  started.visit(
+      [](Process::Thread& thread) { thread.join(); },
+
+      [&](Process::Thread::StartFailure) { EXPECT(false); });
 
   EXPECT_EQ(transferred_bytes.get_view(), "thread owned"_view);
   transferred_bytes.append(U8('!'));

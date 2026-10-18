@@ -10,7 +10,9 @@
 namespace Perimortem::System::Process {
 
 // Library retains one native loader handle in the current process. Each
-// successful open returns a distinct handle, and destruction releases it.
+// successful open returns a distinct handle, and destruction asks the host to
+// release it. A rejected release logs an error and leaves final module cleanup
+// to the process rather than aborting otherwise valid execution.
 //
 // A symbol address remains valid while its Library lives. The caller converts
 // that address to the function or data type declared by the loaded interface.

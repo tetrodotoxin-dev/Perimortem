@@ -22,7 +22,9 @@
 #endif
 
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/diagnostics/time.hpp"
+#include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Serialization;
@@ -31,10 +33,24 @@ using namespace Perimortem::System;
 static constexpr Count channel_depth = 4;
 static constexpr Count max_index = 4 * channel_depth;
 static constexpr Count seed_word_count = 6;
-static U64 fallback_sequence = 0;
+static U64 seed_sequence = 0;
+
+#if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
+
+static U8 host_fallback_reported = 0;
+
+#endif
+
+static U8 runtime_fallback_reported = 0;
 
 struct PhiloxSeed {
   U64 values[seed_word_count];
+};
+
+enum class HardwareSeedResult : U8 {
+  Complete,
+  Unsupported,
+  Failed,
 };
 
 // UUID version 7 encodes Unix milliseconds as part of its wire format. Keeping
@@ -108,7 +124,7 @@ struct PhiloxState {
 // Native x86 hosts use the hardware generator as the shortest seed path. The
 // feature check avoids executing RDRAND on older processors, while bounded
 // retries handle the instruction's documented transient failure.
-static auto read_hardware_seed(PhiloxSeed& seed) -> Bool {
+static auto read_hardware_seed(PhiloxSeed& seed) -> HardwareSeedResult {
 
 #if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
 
@@ -117,14 +133,14 @@ static auto read_hardware_seed(PhiloxSeed& seed) -> Bool {
   S32 registers[4];
   __cpuid(registers, 1);
   if ((U32(registers[2]) & (U32(1) << 30)) == 0) {
-    return False;
+    return HardwareSeedResult::Unsupported;
   }
 
 #else
 
   U32 eax, ebx, ecx, edx;
   if (!__get_cpuid(1, &eax, &ebx, &ecx, &edx) || !(ecx & bit_RDRND)) {
-    return False;
+    return HardwareSeedResult::Unsupported;
   }
 
 #endif
@@ -139,15 +155,15 @@ static auto read_hardware_seed(PhiloxSeed& seed) -> Bool {
     }
 
     if (!read) {
-      return False;
+      return HardwareSeedResult::Failed;
     }
   }
 
-  return True;
+  return HardwareSeedResult::Complete;
 
 #else
 
-  return False;
+  return HardwareSeedResult::Unsupported;
 
 #endif
 }
@@ -207,8 +223,8 @@ static auto mix_runtime_noise(PhiloxSeed& seed) -> void {
   U64 state = Diagnostics::Time::now().get_nanoseconds();
   state ^= unix_milliseconds() * 0x9E3779B97F4A7C15ULL;
   state ^= U64(Data::address(&seed));
-  state ^= mix_seed(
-      __atomic_fetch_add(&fallback_sequence, U64(1), __ATOMIC_RELAXED));
+  state ^=
+      mix_seed(__atomic_fetch_add(&seed_sequence, U64(1), __ATOMIC_RELAXED));
 
   for (Count index = 0; index < seed_word_count; index++) {
     state += 0x9E3779B97F4A7C15ULL;
@@ -216,10 +232,44 @@ static auto mix_runtime_noise(PhiloxSeed& seed) -> void {
   }
 }
 
+// A fallback changes which external source contributes seed bytes but does not
+// make the noncryptographic generator unusable. Report host entropy and runtime
+// noise once per process so diagnostics preserve that change without one
+// warning per thread.
+static auto report_seed_fallback(U8& reported, View::Bytes message) -> void {
+  if (__atomic_exchange_n(&reported, U8(1), __ATOMIC_RELAXED) == 0) {
+    Diagnostics::Log::warning(message);
+  }
+}
+
 static auto create_seed() -> PhiloxSeed {
   PhiloxSeed seed = {};
-  if (!read_hardware_seed(seed)) {
-    read_host_seed(seed);
+  const HardwareSeedResult hardware = read_hardware_seed(seed);
+  if (hardware != HardwareSeedResult::Complete) {
+    if (read_host_seed(seed)) {
+
+#if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
+
+      const View::Bytes message =
+          hardware == HardwareSeedResult::Failed
+              ? "System::Random seed uses host entropy because RDRAND failed "
+                "after bounded retries."_view
+              : "System::Random seed uses host entropy because RDRAND is "
+                "unavailable."_view;
+      report_seed_fallback(host_fallback_reported, message);
+
+#endif
+
+    } else {
+      const View::Bytes message =
+          hardware == HardwareSeedResult::Failed
+              ? "System::Random seed uses runtime process noise because "
+                "RDRAND failed after bounded retries and host entropy is "
+                "unavailable."_view
+              : "System::Random seed uses runtime process noise because "
+                "hardware and host entropy are unavailable."_view;
+      report_seed_fallback(runtime_fallback_reported, message);
+    }
   }
 
   mix_runtime_noise(seed);

@@ -222,7 +222,7 @@ static auto log_file_warning(
   const View::Bytes components =
       path.get_components().slice(0, max_logged_path_size);
   Diagnostics::Log::Message<max_warning_size> warning(
-      Diagnostics::Log::Level::Warning, Diagnostics::Source());
+      Diagnostics::Log::Level::Warning);
   warning << operation << " failed. path=["_view << path.get_anchor_name()
           << "]:/"_view << components;
   if (components.get_size() != path.get_components().get_size()) {
@@ -368,6 +368,7 @@ static auto read_file(
 
 auto Filesystem::File::read(const Path& path)
     -> Storage::Option<Global::Bytes> {
+  auto operation_attribution = Diagnostics::Log::set_attribution();
   Global::Bytes data;
   Fingerprint fingerprint;
   if (!read_file(path, data, fingerprint)) {
@@ -379,6 +380,7 @@ auto Filesystem::File::read(const Path& path)
 
 auto Filesystem::File::fingerprint(const Path& path)
     -> Storage::Option<Fingerprint> {
+  auto operation_attribution = Diagnostics::Log::set_attribution();
   const auto inspect_native =
       [&](const Path::Native& native) -> Storage::Option<Fingerprint> {
     FILE* file = open_stream(native, "rb");
@@ -409,6 +411,7 @@ auto Filesystem::File::fingerprint(const Path& path)
 
 auto Filesystem::File::read(Allocator::Arena& arena, const Path& path)
     -> Storage::Option<View::Bytes> {
+  auto operation_attribution = Diagnostics::Log::set_attribution();
   // The caller selects Arena storage when file values join an existing
   // transaction lifetime. Reading directly into that Arena avoids a second
   // process heap allocation.
@@ -422,6 +425,7 @@ auto Filesystem::File::read(Allocator::Arena& arena, const Path& path)
 }
 
 auto Filesystem::File::write(View::Bytes data, const Path& path) -> Bool {
+  auto operation_attribution = Diagnostics::Log::set_attribution();
   const auto write_native = [&](const Path::Native& native) {
     // Open once for replacement, write through that stream, then treat closure
     // as part of the operation result.
@@ -450,6 +454,7 @@ auto Filesystem::File::write(View::Bytes data, const Path& path) -> Bool {
 
 auto Filesystem::File::replace(const Path& source, const Path& destination)
     -> Bool {
+  auto operation_attribution = Diagnostics::Log::set_attribution();
   const auto replace_source = [&](const Path::Native& native_source) {
     auto emitted_destination = destination.emit();
     const auto replace_destination =

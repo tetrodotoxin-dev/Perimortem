@@ -32,7 +32,10 @@ namespace Perimortem::System::Filesystem {
 // A host without filesystem access rejects every transaction through its
 // ordinary failure result. Reads and metadata return None, while boolean
 // operations return False. Reads, metadata, writes and replacements log the
-// failed transaction stage.
+// failed transaction stage. Logged transactions establish attribution at the
+// public File operation. An existing caller attribution remains authoritative,
+// while an unattributed call identifies the File operation instead of a shared
+// stage helper.
 class File {
  public:
   // Fingerprint uses constant storage to sample host metadata before deciding

@@ -7,13 +7,19 @@
 
 #include "toolchain/validation/test.hpp"
 
+#include "perimortem/core/view/null_terminated.hpp"
+#include "validation/tests/log.hpp"
+
 using namespace Perimortem::Core;
 using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
+using namespace Perimortem::Tests;
 using namespace Toolchain::Validation;
 
 static Harness SystemRandom = {
   .name = "System::Random",
+  .setup = Log::begin,
+  .teardown = Log::end,
 };
 
 VALIDATION_TEST(SystemRandom, generate_stream) {
@@ -24,6 +30,12 @@ VALIDATION_TEST(SystemRandom, generate_stream) {
   }
 
   EXPECT(changed);
+
+  const View::Bytes diagnostic = Log::captured_message();
+  EXPECT(Log::captured_count() <= Count(1));
+  EXPECT(
+      diagnostic.is_empty() ||
+      Log::warning_contains("System::Random seed "_view));
 }
 
 VALIDATION_TEST(SystemRandom, generate_uuid_v4) {

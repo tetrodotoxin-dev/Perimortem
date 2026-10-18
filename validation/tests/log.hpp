@@ -12,6 +12,8 @@ namespace Perimortem::Tests::Log {
 auto begin() -> void;
 auto end() -> void;
 auto captured_message() -> Core::View::Bytes;
+auto captured_count() -> Count;
+auto warning_contains(Core::View::Bytes message) -> bool;
 auto error_contains(Core::View::Bytes message) -> bool;
 
 }  // namespace Perimortem::Tests::Log

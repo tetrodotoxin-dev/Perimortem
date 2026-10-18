@@ -3,6 +3,7 @@
 
 #include "toolchain/validation/test.hpp"
 
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/system/process/thread.hpp"
 #include "perimortem/system/synchronization/mutex.hpp"
@@ -43,8 +44,12 @@ VALIDATION_TEST(SystemMutex, serializes_threads) {
 
   Process::Thread threads[thread_count];
   for (Count index = 0; index < thread_count; index++) {
-    threads[index] =
+    auto started =
         Process::Thread::start("mutex.validation"_view, increment_counter);
+    started.visit(
+        [&](Process::Thread& thread) { threads[index] = Data::take(thread); },
+
+        [&](Process::Thread::StartFailure) { EXPECT(false); });
   }
 
   for (Count index = 0; index < thread_count; index++) {

@@ -327,10 +327,14 @@ auto Diagnostics::Log::format_entry(
   writer << elapsed_100_microseconds % 10 << ' ';
   writer << "["_view << thread_name << "] "_view;
 
-  writer << location.get_file();
-  writer << ':' << location.get_line();
-  writer << ':' << location.get_column();
-  writer << ": "_view << message << '\n';
+  if (location.is_set()) {
+    writer << location.get_file();
+    writer << ':' << location.get_line();
+    writer << ':' << location.get_column();
+    writer << ": "_view;
+  }
+
+  writer << message << '\n';
   return writer.get_location();
 }
 

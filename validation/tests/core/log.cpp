@@ -136,6 +136,17 @@ VALIDATION_TEST(DiagnosticsLog, authored_source) {
   EXPECT_EQ(source.get_column(), Count(7));
 }
 
+VALIDATION_TEST(DiagnosticsLog, source_less_entry) {
+  Diagnostics::Log::log(
+      Diagnostics::Log::Level::Info, "source less diagnostic"_view,
+      Diagnostics::Source());
+
+  const View::Bytes entry = last_entry();
+  EXPECT(contains(entry, "[main] source less diagnostic"_view));
+  EXPECT_NOT(contains(entry, ":0:0:"_view));
+  EXPECT(has_valid_header(entry));
+}
+
 VALIDATION_TEST(DiagnosticsLog, message_raii_guard) {
   Count events_before = total_events;
 

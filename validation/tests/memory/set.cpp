@@ -479,9 +479,11 @@ VALIDATION_TEST(GlobalSet, capability_contract) {
 VALIDATION_TEST(GlobalSet, cross_thread_reallocation) {
   global_set_counts = {};
 
-  Process::Thread thread =
-      Process::Thread::start("global.set"_view, create_global_set);
-  thread.join();
+  auto started = Process::Thread::start("global.set"_view, create_global_set);
+  started.visit(
+      [](Process::Thread& thread) { thread.join(); },
+
+      [&](Process::Thread::StartFailure) { EXPECT(false); });
 
   EXPECT_EQ(transferred_set.get_size(), Count(1024));
   EXPECT_EQ(global_set_counts.copies, Count(0));
