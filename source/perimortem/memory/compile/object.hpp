@@ -9,8 +9,13 @@
 
 namespace Perimortem::Memory::Compile {
 
-// Stores one value in Toolchain allocation during constant evaluation. Copies
-// create independent values and moves transfer the allocation.
+// Object gives constant evaluated containers one separately allocated value
+// whose address survives container growth. Every constructor is consteval, so
+// neither the allocation nor a pointer into it can escape into runtime code.
+//
+// Default construction has no allocation. Copying a populated Object creates
+// independent storage. Moving transfers the exact allocation so existing
+// pointers retain their target and leaves the source empty and reusable.
 template <typename type>
 class Object {
  public:
