@@ -18,7 +18,7 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
@@ -74,7 +74,8 @@ class alignas(64) Slab {
 
 #elifdef TOOLCHAIN_WINDOWS
 
-    size = Data::align<megabytes_2>(Scalar::max(block_size, allocator_size));
+    size =
+        Data::align<megabytes_2>(Math::Scalar::max(block_size, allocator_size));
     mapped_memory = VirtualAlloc(
         nullptr, CppSize(size), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     if (!mapped_memory) [[unlikely]] {

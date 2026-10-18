@@ -3,7 +3,6 @@
 
 #include "perimortem/compression/huffman.hpp"
 
-#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/storage/vector.hpp"
 
 using namespace Perimortem::Core;

@@ -5,7 +5,7 @@
 
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/storage/vector.hpp"
 
 namespace Perimortem::Core::Algorithm {
@@ -162,10 +162,10 @@ class Sort {
       }
     };
 
-    // Twice `log2(size)` bounds the number of nested quicksort partitions.
+    // Twice the bit width bounds the number of nested quicksort partitions.
     // Exhausting that budget switches the remaining partition to heap sort,
     // preserving the worst case O(n log n) bound.
-    introsort(data, size, 2 * Core::Scalar::log2(size));
+    introsort(data, size, 2 * Core::Math::Scalar::bit_width(size));
 
     insertion_sort(data, size);
     return access;

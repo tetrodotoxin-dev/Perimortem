@@ -5,18 +5,24 @@
 
 #include "toolchain/toolchain.hpp"
 
-namespace Perimortem::Core {
+namespace Perimortem::Core::Math {
 
+// Scalar provides mathematics over individual numeric values. Its constexpr
+// ordering and modular operations preserve the input type. Integer magnitude
+// and bit width make representation boundaries explicit. Runtime square root
+// and rounding preserve R64 so conversion to a discrete domain remains a
+// caller decision. Compiler intrinsics keep the real operations behind the
+// same public numeric boundary on every target.
 class Scalar {
  public:
   template <typename type>
-  static constexpr auto max(type left, type right) -> type {
-    return left > right ? left : right;
+  static constexpr auto min(type left, type right) -> type {
+    return left < right ? left : right;
   }
 
   template <typename type>
-  static constexpr auto min(type left, type right) -> type {
-    return left < right ? left : right;
+  static constexpr auto max(type left, type right) -> type {
+    return left > right ? left : right;
   }
 
   template <typename type>
@@ -25,6 +31,7 @@ class Scalar {
     return max(min(value, max_value), min_value);
   }
 
+  // Returns the equivalent value in [0, modulo). Modulo must be positive.
   template <typename type>
   static constexpr auto wrap(type value, type modulo) -> type {
     value %= modulo;
@@ -53,48 +60,17 @@ class Scalar {
     }
   }
 
-  // Full width values skip the terminal shift because C++ does not define a
-  // shift by the size of the value. Smaller widths compare against the first
-  // excluded value which avoids manufacturing host minimum and maximum values.
-  static constexpr auto is_representable(S64 value, Count byte_width) -> Bool {
-    if (byte_width == 0 || byte_width > sizeof(S64)) {
-      return False;
-    }
-
-    if (byte_width == sizeof(S64)) {
-      return True;
-    }
-
-    S64 limit = S64(1) << (byte_width * 8 - 1);
-    return value >= -limit && value < limit;
-  }
-
-  static constexpr auto is_representable(U64 value, Count byte_width) -> Bool {
-    if (byte_width == 0 || byte_width > sizeof(U64)) {
-      return False;
-    }
-
-    if (byte_width == sizeof(U64)) {
-      return True;
-    }
-
-    U64 limit = U64(1) << (byte_width * 8);
-    return value < limit;
-  }
-
-  static constexpr auto log2(U64 value) -> U64 {
+  // Returns the number of bits required to represent `value`. Zero requires no
+  // bits, while every other value includes its highest set bit.
+  static constexpr auto bit_width(U64 value) -> U64 {
     return 64 - __builtin_clzg(value, S32(sizeof(U64) * 8));
   }
 
-  static constexpr auto sqrt(R64 value) -> R64 { return __builtin_sqrt(value); }
+  static auto sqrt(R64 value) -> R64 { return __builtin_sqrt(value); }
 
-  static constexpr auto floor(R64 value) -> Count {
-    return Count(__builtin_floor(value));
-  }
+  static auto floor(R64 value) -> R64 { return __builtin_floor(value); }
 
-  static constexpr auto ceil(R64 value) -> Count {
-    return Count(__builtin_ceil(value));
-  }
+  static auto ceil(R64 value) -> R64 { return __builtin_ceil(value); }
 };
 
-}  // namespace Perimortem::Core
+}  // namespace Perimortem::Core::Math

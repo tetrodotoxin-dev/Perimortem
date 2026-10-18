@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/view/vector.hpp"
 
@@ -43,7 +43,8 @@ class Vector {
     }
 
     return Access::Vector<data_type>(
-        source_block + start, Core::Scalar::min(size, get_size() - start));
+        source_block + start,
+        Core::Math::Scalar::min(size, get_size() - start));
   };
 
   constexpr auto is_empty() const -> Bool { return size == 0; };

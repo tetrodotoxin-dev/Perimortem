@@ -6,7 +6,7 @@
 #include "perimortem/core/access/bytes.h"
 #include "perimortem/core/algorithm/hash.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/view/bytes.h"
 
 namespace Perimortem::Core::Storage {
@@ -38,7 +38,7 @@ class Bytes {
   // Copies as many source bytes as fit in the fixed extent and zero fills the
   // remaining bytes.
   constexpr Bytes(const View::Bytes& source) {
-    const Count size = Core::Scalar::min(literal_size, source.get_size());
+    const Count size = Core::Math::Scalar::min(literal_size, source.get_size());
     if consteval {
       Count i = 0;
       for (; i < size; i++) {
@@ -110,7 +110,7 @@ class Bytes {
 
     return View::Bytes(
         values.source_block + start,
-        Core::Scalar::min(size, get_size() - start));
+        Core::Math::Scalar::min(size, get_size() - start));
   }
 
   constexpr auto get_size() const -> Count { return literal_size; }

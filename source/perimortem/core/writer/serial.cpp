@@ -4,7 +4,7 @@
 #include "perimortem/core/writer/serial.hpp"
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 
 using namespace Perimortem::Core;
 
@@ -23,7 +23,7 @@ constexpr auto
     flags |= negate_flag;
   }
 
-  U64 magnitude = Scalar::magnitude<U64>(value);
+  U64 magnitude = Math::Scalar::magnitude<U64>(value);
 
   // The low type nibble records payload width. Select the narrowest width that
   // preserves the magnitude so small values and blob lengths do not carry

@@ -9,7 +9,7 @@
 #include "perimortem/compression/lz77.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
@@ -324,7 +324,7 @@ constexpr auto inflate_symbols(
     for (Count i = 0; i < match_length; i += match_offset) {
       Data::copy(
           bytes + write_start + i, bytes + copy_start,
-          Scalar::min(match_offset, match_length - i));
+          Math::Scalar::min(match_offset, match_length - i));
     }
   }
 
@@ -681,7 +681,7 @@ constexpr auto deflate_stored(View::Bytes source) -> Thread::Bytes {
   write_header(output);
   for (Count i = 0; i <= source.get_size();) {
     const Count block_size =
-        Scalar::min(source.get_size() - i, max_stored_block_size);
+        Math::Scalar::min(source.get_size() - i, max_stored_block_size);
     const U8 is_final_block =
         (i + block_size >= source.get_size()) ? 0x01 : 0x00;
 

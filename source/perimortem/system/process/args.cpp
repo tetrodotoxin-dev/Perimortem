@@ -10,7 +10,7 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/storage/pair.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
@@ -98,7 +98,7 @@ static auto format_help(
       return;
     }
 
-    label_width = Scalar::max(label_width, help_label_size(key));
+    label_width = Math::Scalar::max(label_width, help_label_size(key));
   };
 
   config.visit(measure_label);

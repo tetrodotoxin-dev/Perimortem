@@ -5,9 +5,9 @@
 
 #include "perimortem/core/math/boundary.hpp"
 #include "perimortem/core/math/point.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/math/size.hpp"
 #include "perimortem/core/math/volume.hpp"
-#include "perimortem/core/scalar.hpp"
 #include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/storage/vector.hpp"
 
@@ -149,13 +149,13 @@ class Domain {
 
         selected = coordinate;
       } else if constexpr (boundary_at<axis>() == Boundary::Saturate) {
-        selected = Core::Scalar::clamp(coordinate, S64{}, limit - 1);
+        selected = Scalar::clamp(coordinate, S64{}, limit - 1);
       } else if constexpr (boundary_at<axis>() == Boundary::Mirror) {
         const S64 period = limit * 2;
-        const S64 phase = Core::Scalar::wrap(coordinate, period);
+        const S64 phase = Scalar::wrap(coordinate, period);
         selected = phase < limit ? phase : period - 1 - phase;
       } else {
-        selected = Core::Scalar::wrap(coordinate, limit);
+        selected = Scalar::wrap(coordinate, limit);
       }
 
       mapped[axis] = selected;

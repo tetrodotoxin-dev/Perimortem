@@ -5,7 +5,7 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/global/bytes.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
@@ -152,14 +152,15 @@ auto Container::Bytes<policy_type>::reframe(S64 start, Count new_size) -> void {
   Count source_start = 0;
   Count destination_start = 0;
   if (start < 0) {
-    destination_start = Scalar::min(Scalar::magnitude<Count>(start), new_size);
+    destination_start =
+        Math::Scalar::min(Math::Scalar::magnitude<Count>(start), new_size);
   } else {
-    source_start = Scalar::min(Count(start), old_size);
+    source_start = Math::Scalar::min(Count(start), old_size);
   }
 
   const Count source_size = old_size - source_start;
   const Count destination_size = new_size - destination_start;
-  const Count copied_size = Scalar::min(source_size, destination_size);
+  const Count copied_size = Math::Scalar::min(source_size, destination_size);
 
   ensure_capacity(new_size);
   if (copied_size) {

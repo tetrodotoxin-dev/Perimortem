@@ -7,7 +7,7 @@
 
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
@@ -36,7 +36,7 @@ static auto capture_sink(
       level, message, location, formatted.get_access());
   Count index = total_events++ % event_log_size;
   log_events[index].message_size =
-      Scalar::min(max_message_length, formatted_size);
+      Math::Scalar::min(max_message_length, formatted_size);
   log_events[index].message = formatted;
 }
 

@@ -3,7 +3,7 @@
 
 #include "perimortem/core/writer/textual.hpp"
 
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
@@ -48,7 +48,7 @@ static constexpr auto decimal_length(storage_type value) -> Count {
     }
   }
 
-  unsigned_type magnitude = Scalar::magnitude<unsigned_type>(value);
+  unsigned_type magnitude = Math::Scalar::magnitude<unsigned_type>(value);
 
   // Measurements show the comparison ladder about 20% faster than repeatedly
   // dividing the value to derive its decimal length.
@@ -123,7 +123,7 @@ constexpr auto write_decimal(
     }
   }
 
-  storage_type magnitude = Scalar::magnitude<storage_type>(value);
+  storage_type magnitude = Math::Scalar::magnitude<storage_type>(value);
 
   Count digit_position = digits - 1;
   while (magnitude >= 10) {

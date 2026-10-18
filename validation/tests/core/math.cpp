@@ -4,12 +4,56 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/math/domain.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/math/volume.hpp"
 
 using namespace Perimortem::Core;
 using namespace Toolchain::Validation;
 
 static Harness CoreMath = {.name = "Core::Math"};
+
+VALIDATION_TEST(CoreMath, scalar_ordering) {
+  EXPECT_EQ(Math::Scalar::min(S32(4), S32(7)), S32(4));
+  EXPECT_EQ(Math::Scalar::max(S32(4), S32(7)), S32(7));
+  EXPECT_EQ(Math::Scalar::clamp(S32(9), S32(2), S32(6)), S32(6));
+}
+
+VALIDATION_TEST(CoreMath, scalar_wrap) {
+  EXPECT_EQ(Math::Scalar::wrap(S32(5), S32(3)), S32(2));
+  EXPECT_EQ(Math::Scalar::wrap(S32(-1), S32(3)), S32(2));
+}
+
+VALIDATION_TEST(CoreMath, scalar_magnitude) {
+  constexpr S64 signed_minimum = -9223372036854775807LL - 1;
+
+  EXPECT_EQ(Math::Scalar::magnitude<U8>(S8(-1)), U8(1));
+  EXPECT_EQ(Math::Scalar::magnitude<U8>(S8(-128)), U8(128));
+  EXPECT_EQ(Math::Scalar::magnitude<U64>(signed_minimum), U64(1) << 63);
+  EXPECT_EQ(Math::Scalar::magnitude<U64>(S8(-128)), U64(128));
+  EXPECT_EQ(Math::Scalar::magnitude<U64>(U16(65535)), U64(65535));
+}
+
+VALIDATION_TEST(CoreMath, scalar_bit_width) {
+  EXPECT_EQ(Math::Scalar::bit_width(U64(0)), U64(0));
+  EXPECT_EQ(Math::Scalar::bit_width(U64(1)), U64(1));
+  EXPECT_EQ(Math::Scalar::bit_width(U64(2)), U64(2));
+  EXPECT_EQ(Math::Scalar::bit_width(U64(3)), U64(2));
+  EXPECT_EQ(Math::Scalar::bit_width(U64(-1)), U64(64));
+}
+
+VALIDATION_TEST(CoreMath, scalar_reals) {
+  const R64 root = Math::Scalar::sqrt(9.0);
+  const R64 floor_positive = Math::Scalar::floor(1.75);
+  const R64 floor_negative = Math::Scalar::floor(-1.25);
+  const R64 ceil_positive = Math::Scalar::ceil(1.25);
+  const R64 ceil_negative = Math::Scalar::ceil(-1.25);
+
+  EXPECT_EQ(root, 3.0);
+  EXPECT_EQ(floor_positive, 1.0);
+  EXPECT_EQ(floor_negative, -2.0);
+  EXPECT_EQ(ceil_positive, 2.0);
+  EXPECT_EQ(ceil_negative, -1.0);
+}
 
 VALIDATION_TEST(CoreMath, clipped_size) {
   Math::Size<R32, 2> size({{-3.0f, 4.0f}});

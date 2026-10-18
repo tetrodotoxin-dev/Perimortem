@@ -3,8 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/scalar.hpp"
-#include "perimortem/core/view/selection.hpp"
+#include "perimortem/core/math/scalar.hpp"
 
 namespace Perimortem::Core::View {
 
@@ -55,19 +54,13 @@ class Vector {
     }
 
     return View::Vector<data_type>(
-        source_block + start, Core::Scalar::min(size, get_size() - start));
+        source_block + start,
+        Core::Math::Scalar::min(size, get_size() - start));
   };
 
   constexpr auto is_empty() const -> Bool { return size == 0; };
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_data() const -> const data_type* { return source_block; }
-  constexpr auto begin() const -> Selection<Vector> {
-    return Selection<Vector>(*this);
-  }
-
-  constexpr auto end() const -> Selection<Vector> {
-    return Selection<Vector>(*this, get_size());
-  }
 
  private:
   const type* source_block = nullptr;

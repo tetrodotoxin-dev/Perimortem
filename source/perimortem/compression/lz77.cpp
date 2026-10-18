@@ -8,7 +8,7 @@
 #endif
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 
 using namespace Perimortem::Core;
@@ -154,7 +154,7 @@ auto Lz77::find_match_and_insert(
 
   Count best_length = min_match - 1;
   Count best_distance = 0;
-  const Count scan_limit = Scalar::min(max_match, remaining);
+  const Count scan_limit = Math::Scalar::min(max_match, remaining);
   for (Count i = 0; i < depth && candidate != null_entry; i++) {
     const Count distance = position - candidate;
     if (distance > window_size) {
@@ -197,7 +197,7 @@ auto Lz77::find_match(View::Bytes source, Count position, Count depth) const
   Count best_length = min_match - 1;
   Count best_distance = 0;
   U32 candidate = hash_table.get_data()[hash];
-  const Count scan_limit = Scalar::min(max_match, remaining);
+  const Count scan_limit = Math::Scalar::min(max_match, remaining);
   for (Count i = 0; i < depth && candidate != null_entry; i++) {
     const Count distance = position - candidate;
     if (distance > window_size) {

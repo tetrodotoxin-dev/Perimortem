@@ -4,7 +4,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 
@@ -50,7 +50,7 @@ auto Allocator::Arena::fetch_page(Count bytes_requested) -> void {
   }
 
   const Count alloc_size =
-      Scalar::max(page_size, bytes_requested + arena_alignment);
+      Math::Scalar::max(page_size, bytes_requested + arena_alignment);
   auto alloc = Allocator::Bibliotheca::check_out(alloc_size);
 
   // The aligned prefix stores a link to the former page. Reset and destruction

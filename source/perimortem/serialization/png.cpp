@@ -7,7 +7,7 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/scalar.hpp"
+#include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/storage/vector.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
@@ -253,10 +253,10 @@ constexpr auto paeth_predictor(U8 left, U8 up, U8 upper_left) -> U8 {
   S16 signed_upper_left = S16(upper_left);
   S16 predictor = signed_left + signed_up - signed_upper_left;
 
-  U16 score_left = Scalar::magnitude<U16>(S16(predictor - signed_left));
-  U16 score_up = Scalar::magnitude<U16>(S16(predictor - signed_up));
+  U16 score_left = Math::Scalar::magnitude<U16>(S16(predictor - signed_left));
+  U16 score_up = Math::Scalar::magnitude<U16>(S16(predictor - signed_up));
   U16 score_upper_left =
-      Scalar::magnitude<U16>(S16(predictor - signed_upper_left));
+      Math::Scalar::magnitude<U16>(S16(predictor - signed_upper_left));
   if (score_left <= score_up && score_left <= score_upper_left) {
     return left;
   }
@@ -275,7 +275,7 @@ template <Bool first_row>
 auto score_row(View::Bytes current_row, View::Bytes previous_row)
     -> FilterType {
   constexpr auto residual_magnitude = [](U8 residual) -> U8 {
-    return Scalar::magnitude<U8>(Data::bit_cast<S8>(residual));
+    return Math::Scalar::magnitude<U8>(Data::bit_cast<S8>(residual));
   };
 
   constexpr auto filter_count = first_row ? 2 : 5;
