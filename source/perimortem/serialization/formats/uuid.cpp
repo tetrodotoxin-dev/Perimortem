@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/serialization/uuid.h"
+#include "perimortem/serialization/formats/uuid.h"
 
 #include "perimortem/core/data.hpp"
 
@@ -124,20 +124,21 @@ static constexpr auto deserialize_ascii(
 
 #endif
 
-auto Uuid::parse(const Storage::Bytes<36>& uuid_string) -> Uuid {
-  Uuid result;
+auto Formats::Uuid::parse(const Storage::Bytes<36>& uuid_string)
+    -> Formats::Uuid {
+  Formats::Uuid result;
 
 #ifdef PERI_AVX2
 
   const auto* source = uuid_string.get_data();
   if (source[8] != '-' || source[13] != '-' || source[18] != '-' ||
       source[23] != '-') {
-    return Uuid();
+    return Formats::Uuid();
   }
 
   const auto ascii = load_dashed_ascii(source);
   if (!valid_hexadecimal(ascii)) {
-    return Uuid();
+    return Formats::Uuid();
   }
 
   deserialize_ascii(ascii, result.value);
@@ -153,14 +154,14 @@ auto Uuid::parse(const Storage::Bytes<36>& uuid_string) -> Uuid {
   for (Count index = 0; index < uuid_string.get_size(); ++index) {
     if (index == 8 || index == 13 || index == 18 || index == 23) {
       if (uuid_string[index] != '-') {
-        return Uuid();
+        return Formats::Uuid();
       }
 
       continue;
     }
 
     if (!is_hex(uuid_string[index])) {
-      return Uuid();
+      return Formats::Uuid();
     }
 
     U64& word = digits++ < 16 ? result.value.high : result.value.low;
@@ -172,7 +173,7 @@ auto Uuid::parse(const Storage::Bytes<36>& uuid_string) -> Uuid {
   return result;
 }
 
-auto Uuid::validate(View::Bytes source) -> Bool {
+auto Formats::Uuid::validate(View::Bytes source) -> Bool {
 
 #ifdef PERI_AVX2
 
@@ -228,15 +229,16 @@ auto Uuid::validate(View::Bytes source) -> Bool {
 #endif
 }
 
-auto Uuid::parse(const Storage::Bytes<32>& uuid_string) -> Uuid {
-  Uuid result;
+auto Formats::Uuid::parse(const Storage::Bytes<32>& uuid_string)
+    -> Formats::Uuid {
+  Formats::Uuid result;
 
 #ifdef PERI_AVX2
 
   const auto ascii_buffer =
       _mm256_loadu_si256(Data::cast<const __m256i_u>(uuid_string.get_data()));
   if (!valid_hexadecimal(ascii_buffer)) {
-    return Uuid();
+    return Formats::Uuid();
   }
 
   deserialize_ascii(ascii_buffer, result.value);
@@ -250,7 +252,7 @@ auto Uuid::parse(const Storage::Bytes<32>& uuid_string) -> Uuid {
 
   for (Count index = 0; index < uuid_string.get_size(); ++index) {
     if (!is_hex(uuid_string[index])) {
-      return Uuid();
+      return Formats::Uuid();
     }
 
     U64& word = index < 16 ? result.value.high : result.value.low;
@@ -262,7 +264,7 @@ auto Uuid::parse(const Storage::Bytes<32>& uuid_string) -> Uuid {
   return result;
 }
 
-auto Uuid::serialize() const -> const Storage::Bytes<36> {
+auto Formats::Uuid::serialize() const -> const Storage::Bytes<36> {
   Storage::Bytes<36> uuid_string;
   auto byte_buffer = uuid_string.get_access().get_data();
 

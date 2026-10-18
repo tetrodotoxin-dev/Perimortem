@@ -8,8 +8,8 @@
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/serialization/json/blueprint.hpp"
-#include "perimortem/serialization/json/node.hpp"
+#include "perimortem/serialization/formats/json/blueprint.hpp"
+#include "perimortem/serialization/formats/json/node.hpp"
 #include "perimortem/system/filesystem/file.hpp"
 
 using namespace Perimortem::Core;
@@ -53,7 +53,7 @@ VALIDATION_BENCHMARK(JsonBlueprint, blueprint_x1024) {
   Count size = 0;
   Allocator::Arena arena;
   for (Count i = 0; i < json_batch; i++) {
-    Json::Node node = Json::Blueprint{
+    Formats::Json::Node node = Formats::Json::Blueprint{
       {
         {"jsonrpc"_view, "2.0"_view},
         {"id"_view, 1},
@@ -81,7 +81,7 @@ VALIDATION_BENCHMARK(JsonSmall, small_x1024) {
 
   Allocator::Arena arena;
   for (Count i = 0; i < json_batch; i++) {
-    Json::Node node;
+    Formats::Json::Node node;
     node.parse(arena, json_text);
     size += node.get_size();
     arena.reset();
@@ -100,7 +100,7 @@ VALIDATION_BENCHMARK(JsonTokenizeRpc, tokenize_rpc_x1024) {
 
   Allocator::Arena arena;
   for (Count i = 0; i < json_batch; i++) {
-    Json::Node node;
+    Formats::Json::Node node;
     node.parse(arena, json_text);
     size += node.get_size();
     arena.reset();
@@ -119,7 +119,7 @@ VALIDATION_BENCHMARK(JsonInitRpc, jsonrpc_init_x1024) {
 
   Allocator::Arena arena;
   for (Count i = 0; i < json_batch; i++) {
-    Json::Node node;
+    Formats::Json::Node node;
     node.parse(arena, json_text);
     size += node.get_size();
     arena.reset();

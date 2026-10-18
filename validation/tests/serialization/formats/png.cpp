@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/serialization/png.hpp"
+#include "perimortem/serialization/formats/png.hpp"
 
 #include "toolchain/validation/test.hpp"
 
@@ -19,7 +19,7 @@ using namespace Perimortem::Tests;
 using namespace Toolchain::Validation;
 
 static Harness SerializationPng = {
-  .name = "Serialization::Png",
+  .name = "Serialization::Formats::Png",
   .setup = Log::begin,
   .teardown = Log::end,
 };
@@ -44,11 +44,11 @@ VALIDATION_TEST(SerializationPng, red_1x1_dimensions) {
   auto source = read_fixture("validation/data/pngs/red_1x1.png"_view);
   ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(source);
+  auto image = Formats::Png::decode(source);
 
   EXPECT_EQ(image.get_column_count(), U32(1));
   EXPECT_EQ(image.get_row_count(), U32(1));
-  EXPECT_EQ(Rgba8::get_bit_depth(), U8(8));
+  EXPECT_EQ(Formats::Rgba8::get_bit_depth(), U8(8));
 
   auto pixels = image.get_view().get_values();
   ASSERT_EQ(pixels.get_size(), Count(1));
@@ -62,7 +62,7 @@ VALIDATION_TEST(SerializationPng, checkerboard_2x2) {
   auto source = read_fixture("validation/data/pngs/checkerboard_2x2.png"_view);
   ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(source);
+  auto image = Formats::Png::decode(source);
   auto pixels = image.get_view().get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(4));
@@ -97,7 +97,7 @@ VALIDATION_TEST(SerializationPng, unaligned_input) {
       storage.get_data() + 1, source.get_view().get_data(), source.get_size());
 
   const View::Bytes shifted(storage.get_data() + 1, source.get_size());
-  auto image = Png::decode(shifted);
+  auto image = Formats::Png::decode(shifted);
   const auto pixels = image.get_view().get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(1));
@@ -111,7 +111,7 @@ VALIDATION_TEST(SerializationPng, decode_rgb_to_rgba) {
   auto source = read_fixture("validation/data/pngs/rgb_3x1.png"_view);
   ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(source);
+  auto image = Formats::Png::decode(source);
   auto pixels = image.get_view().get_values();
 
   // RGB source: alpha must be synthesized as fully opaque.
@@ -128,7 +128,7 @@ VALIDATION_TEST(SerializationPng, gray_to_rgba) {
   auto source = read_fixture("validation/data/pngs/gray_2x2.png"_view);
   ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(source);
+  auto image = Formats::Png::decode(source);
   auto pixels = image.get_view().get_values();
 
   // Greyscale source: gray value replicates to all three color channels.
@@ -158,7 +158,7 @@ VALIDATION_TEST(SerializationPng, decode_gradient_4x4) {
   auto source = read_fixture("validation/data/pngs/gradient_4x4.png"_view);
   ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(source);
+  auto image = Formats::Png::decode(source);
   auto pixels = image.get_view().get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(16));
@@ -174,7 +174,7 @@ VALIDATION_TEST(SerializationPng, decode_pattern_8x1) {
   auto source = read_fixture("validation/data/pngs/pattern_8x1.png"_view);
   ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(source);
+  auto image = Formats::Png::decode(source);
   auto pixels = image.get_view().get_values();
 
   ASSERT_EQ(pixels.get_size(), Count(8));
@@ -190,7 +190,7 @@ VALIDATION_TEST(SerializationPng, decode_invalid) {
   constexpr Storage::Bytes<8> garbage = {
     {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}};
 
-  auto image = Png::decode(garbage);
+  auto image = Formats::Png::decode(garbage);
   EXPECT_EQ(image.get_column_count(), U32(0));
   EXPECT_EQ(image.get_row_count(), U32(0));
 }
@@ -212,22 +212,22 @@ VALIDATION_TEST(SerializationPng, decoded_extent_overflow) {
   bytes.get_data()[31] = 0x2E;
   bytes.get_data()[32] = 0x3E;
 
-  auto decoded = Png::decode(source.get_view());
+  auto decoded = Formats::Png::decode(source.get_view());
   EXPECT(decoded.is_empty());
   EXPECT(Log::error_contains("Png: Decoded extent exceeds address space"_view));
 }
 
 VALIDATION_TEST(SerializationPng, roundtrip_1x1) {
-  Thread::Vector<Rgba8> source_pixels;
-  source_pixels.insert(Rgba8::from_rgba(0x12, 0x34, 0x56, 0x78));
+  Thread::Vector<Formats::Rgba8> source_pixels;
+  source_pixels.insert(Formats::Rgba8::from_rgba(0x12, 0x34, 0x56, 0x78));
 
-  auto source_image = Matrix<Rgba8>::create(
+  auto source_image = Matrix<Formats::Rgba8>::create(
       Math::Domain<2>(Math::Size<U32, 2>({{1, 1}})), source_pixels.get_view());
 
-  auto encoded = Png::encode(source_image);
+  auto encoded = Formats::Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
 
-  auto decoded = Png::decode(encoded.get_view());
+  auto decoded = Formats::Png::decode(encoded.get_view());
   EXPECT_EQ(decoded.get_column_count(), U32(1));
   EXPECT_EQ(decoded.get_row_count(), U32(1));
 
@@ -240,18 +240,18 @@ VALIDATION_TEST(SerializationPng, roundtrip_1x1) {
 }
 
 VALIDATION_TEST(SerializationPng, encode_borrowed_matrix) {
-  const Rgba8 pixels[] = {
-    Rgba8::from_rgba(1, 2, 3, 4),
-    Rgba8::from_rgba(5, 6, 7, 8),
+  const Formats::Rgba8 pixels[] = {
+    Formats::Rgba8::from_rgba(1, 2, 3, 4),
+    Formats::Rgba8::from_rgba(5, 6, 7, 8),
   };
 
-  View::Matrix<Rgba8, 2> image(
-      Math::Size<U32, 2>({{2, 1}}), View::Vector<Rgba8>(pixels));
+  View::Matrix<Formats::Rgba8, 2> image(
+      Math::Size<U32, 2>({{2, 1}}), View::Vector<Formats::Rgba8>(pixels));
 
-  auto encoded = Png::encode(image);
+  auto encoded = Formats::Png::encode(image);
   ASSERT_NOT(encoded.is_empty());
 
-  auto decoded = Png::decode(encoded);
+  auto decoded = Formats::Png::decode(encoded);
   auto decoded_pixels = decoded.get_view().get_values();
   ASSERT_EQ(decoded_pixels.get_size(), Count(2));
   EXPECT_EQ(decoded_pixels[0].red, U8(1));
@@ -261,19 +261,19 @@ VALIDATION_TEST(SerializationPng, encode_borrowed_matrix) {
 }
 
 VALIDATION_TEST(SerializationPng, roundtrip_checker) {
-  Thread::Vector<Rgba8> source_pixels;
-  source_pixels.insert(Rgba8::from_rgba(0xFF, 0x00, 0x00, 0xFF));
-  source_pixels.insert(Rgba8::from_rgba(0x00, 0xFF, 0x00, 0xFF));
-  source_pixels.insert(Rgba8::from_rgba(0x00, 0x00, 0xFF, 0xFF));
-  source_pixels.insert(Rgba8::from_rgba(0xFF, 0xFF, 0xFF, 0xFF));
+  Thread::Vector<Formats::Rgba8> source_pixels;
+  source_pixels.insert(Formats::Rgba8::from_rgba(0xFF, 0x00, 0x00, 0xFF));
+  source_pixels.insert(Formats::Rgba8::from_rgba(0x00, 0xFF, 0x00, 0xFF));
+  source_pixels.insert(Formats::Rgba8::from_rgba(0x00, 0x00, 0xFF, 0xFF));
+  source_pixels.insert(Formats::Rgba8::from_rgba(0xFF, 0xFF, 0xFF, 0xFF));
 
-  auto source_image = Matrix<Rgba8>::create(
+  auto source_image = Matrix<Formats::Rgba8>::create(
       Math::Domain<2>(Math::Size<U32, 2>({{2, 2}})), source_pixels.get_view());
 
-  auto encoded = Png::encode(source_image);
+  auto encoded = Formats::Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
 
-  auto decoded = Png::decode(encoded.get_view());
+  auto decoded = Formats::Png::decode(encoded.get_view());
   EXPECT_EQ(decoded.get_column_count(), U32(2));
   EXPECT_EQ(decoded.get_row_count(), U32(2));
 
@@ -288,23 +288,23 @@ VALIDATION_TEST(SerializationPng, roundtrip_checker) {
 VALIDATION_TEST(SerializationPng, roundtrip_64x64) {
   constexpr Count width = 1 << 6;
   constexpr Count height = 1 << 6;
-  Thread::Vector<Rgba8> source_pixels;
+  Thread::Vector<Formats::Rgba8> source_pixels;
   source_pixels.resize(width * height);
   for (Count row = 0; row < height; row++) {
     for (Count col = 0; col < width; col++) {
       source_pixels.get_data()[row * width + col] =
-          Rgba8::from_rgba(U8(col * 8), U8(row * 8), U8(128), U8(255));
+          Formats::Rgba8::from_rgba(U8(col * 8), U8(row * 8), U8(128), U8(255));
     }
   }
 
-  auto source_image = Matrix<Rgba8>::create(
+  auto source_image = Matrix<Formats::Rgba8>::create(
       Math::Domain<2>(Math::Size<U32, 2>({{width, height}})),
       source_pixels.get_view());
 
-  auto encoded = Png::encode(source_image);
+  auto encoded = Formats::Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
 
-  auto decoded = Png::decode(encoded.get_view());
+  auto decoded = Formats::Png::decode(encoded.get_view());
   auto source_view = source_image.get_view().get_values();
   auto decoded_pixels = decoded.get_view().get_values();
   const auto* source_data = source_view.get_data();
@@ -319,7 +319,7 @@ VALIDATION_TEST(SerializationPng, roundtrip_64x64) {
 }
 
 VALIDATION_TEST(SerializationPng, empty_image) {
-  auto encoded = Png::encode(Matrix<Rgba8>());
+  auto encoded = Formats::Png::encode(Matrix<Formats::Rgba8>());
   EXPECT(encoded.is_empty());
 }
 
@@ -330,7 +330,7 @@ VALIDATION_TEST(SerializationPng, chunk_header_trunc) {
       read_fixture("validation/data/pngs/error_truncated_header.png"_view);
   ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(source);
+  auto image = Formats::Png::decode(source);
 
   EXPECT_EQ(image.get_column_count(), 0);
   EXPECT(
@@ -343,7 +343,7 @@ VALIDATION_TEST(SerializationPng, chunk_length_overrun) {
   auto source = read_fixture("validation/data/pngs/error_overrun.png"_view);
   ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(source);
+  auto image = Formats::Png::decode(source);
 
   EXPECT_EQ(image.get_column_count(), 0);
   EXPECT(
@@ -355,17 +355,17 @@ VALIDATION_TEST(SerializationPng, roundtrip_icon) {
   auto source = read_fixture("validation/data/pngs/perimortem_icon.png"_view);
   ASSERT_NOT(source.is_empty());
 
-  auto original = Png::decode(source);
+  auto original = Formats::Png::decode(source);
   ASSERT_EQ(original.get_column_count(), 128);
   ASSERT_EQ(original.get_row_count(), 128);
 
   auto original_pixels = original.get_view().get_values();
   ASSERT_EQ(original_pixels.get_size(), Count(128 * 128));
 
-  auto encoded = Png::encode(original);
+  auto encoded = Formats::Png::encode(original);
   ASSERT(encoded.get_size() > 0);
 
-  auto decoded = Png::decode(encoded.get_view());
+  auto decoded = Formats::Png::decode(encoded.get_view());
   ASSERT_EQ(decoded.get_column_count(), 128);
   ASSERT_EQ(decoded.get_row_count(), 128);
 
@@ -390,7 +390,7 @@ VALIDATION_TEST(SerializationPng, crc_mismatch) {
       read_fixture("validation/data/pngs/error_crc_mismatch.png"_view);
   ASSERT_NOT(source.is_empty());
 
-  auto image = Png::decode(source);
+  auto image = Formats::Png::decode(source);
 
   EXPECT_EQ(image.get_column_count(), 0);
   EXPECT(

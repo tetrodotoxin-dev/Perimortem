@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/serialization/base64.hpp"
+#include "perimortem/serialization/encodings/base64.hpp"
 
 #ifdef PERI_AVX2
 #include <immintrin.h>
@@ -34,6 +34,52 @@ constexpr U8 encode_lookup[64] = {
   'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
   'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
   '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
+
+static constexpr auto is_base64_character(U8 byte) -> Bool {
+  return Bool(
+      (byte >= 'A' && byte <= 'Z') || (byte >= 'a' && byte <= 'z') ||
+      (byte >= '0' && byte <= '9') || byte == '+' || byte == '/');
+}
+
+static auto validate_decode(View::Bytes source) -> Bool {
+  if (source.is_empty()) {
+    return True;
+  }
+
+  if (source.get_size() % 4 != 0) {
+    return False;
+  }
+
+  Count padding = 0;
+  if (source[source.get_size() - 1] == '=') {
+    padding++;
+  }
+
+  if (source[source.get_size() - 2] == '=') {
+    padding++;
+  }
+
+  const Count content_size = source.get_size() - padding;
+  for (Count index = 0; index < content_size; index++) {
+    if (source[index] == '=') {
+      return False;
+    }
+
+    if (!is_base64_character(source[index])) {
+      return False;
+    }
+  }
+
+  if (padding == 2 && (decode_lookup[source[content_size - 1]] & 0x0F) != 0) {
+    return False;
+  }
+
+  if (padding == 1 && (decode_lookup[source[content_size - 1]] & 0x03) != 0) {
+    return False;
+  }
+
+  return True;
+}
 
 // Extra bytes needed after the true output size for vectorized working space.
 
@@ -435,10 +481,13 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
   }
 }
 
-auto Base64::decode(View::Bytes source) -> Thread::Bytes {
-  // Decoding consumes complete four byte groups. Reject a partial group before
-  // output allocation or vector reads.
-  if (source.get_size() < 4 || source.get_size() % 4 != 0) {
+auto Encodings::Base64::decode(View::Bytes source)
+    -> Storage::Option<Thread::Bytes> {
+  if (!validate_decode(source)) {
+    return Storage::Option<Thread::Bytes>();
+  }
+
+  if (source.is_empty()) {
     return Thread::Bytes();
   }
 
@@ -455,9 +504,13 @@ auto Base64::decode(View::Bytes source) -> Thread::Bytes {
   return bytes;
 }
 
-auto Base64::decode(Allocator::Arena& arena, View::Bytes source)
-    -> View::Bytes {
-  if (source.get_size() < 4 || source.get_size() % 4 != 0) {
+auto Encodings::Base64::decode(Allocator::Arena& arena, View::Bytes source)
+    -> Storage::Option<View::Bytes> {
+  if (!validate_decode(source)) {
+    return Storage::Option<View::Bytes>();
+  }
+
+  if (source.is_empty()) {
     return View::Bytes();
   }
 
@@ -469,20 +522,20 @@ auto Base64::decode(Allocator::Arena& arena, View::Bytes source)
   return View::Bytes(text, actual_size);
 }
 
-auto Base64::encode(View::Bytes source) -> Thread::Bytes {
+auto Encodings::Base64::encode(View::Bytes source) -> Thread::Bytes {
   if (source.is_empty()) {
     return Thread::Bytes();
   }
 
   const Count left_over = source.get_size() % 3;
   const Count output_size = (source.get_size() / 3) * 4 + (left_over ? 4 : 0);
-  Thread::Bytes bytes{};
+  Thread::Bytes bytes;
   bytes.forgetful_resize(output_size);
   vectorize_encode(bytes.get_access(), source);
   return bytes;
 }
 
-auto Base64::encode(Allocator::Arena& arena, View::Bytes source)
+auto Encodings::Base64::encode(Allocator::Arena& arena, View::Bytes source)
     -> View::Bytes {
   if (source.is_empty()) {
     return View::Bytes();

@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/serialization/base64.hpp"
+#include "perimortem/serialization/encodings/base64.hpp"
 
 #include "toolchain/toolchain.hpp"
 #include "toolchain/validation/benchmark.hpp"
@@ -9,6 +9,7 @@
 #include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 using namespace Toolchain::Validation;
 
@@ -50,14 +51,17 @@ static constexpr auto source_1kb =
 static constexpr Count base64_batch = 1024;
 
 static Harness Base64Bench = {
-  .name = "Base64",
+  .name = "Serialization::Encodings::Base64",
 };
 
 VALIDATION_BENCHMARK(Base64Bench, decode_1k_x1024) {
   Count size = 0;
   for (Count i = 0; i < base64_batch; i++) {
-    auto decoded = Base64::decode(base64_1kb);
-    size += decoded.get_size();
+    auto decoded = Encodings::Base64::decode(base64_1kb);
+    decoded.visit(
+        [&](Thread::Bytes& bytes) { size += bytes.get_size(); },
+
+        [] {});
   }
 
   Benchmark::prevent_optimization(size);
@@ -66,7 +70,7 @@ VALIDATION_BENCHMARK(Base64Bench, decode_1k_x1024) {
 VALIDATION_BENCHMARK(Base64Bench, encode_1k_x1024) {
   Count size = 0;
   for (Count i = 0; i < base64_batch; i++) {
-    auto encoded = Base64::encode(source_1kb);
+    auto encoded = Encodings::Base64::encode(source_1kb);
     size += encoded.get_size();
   }
 

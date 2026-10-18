@@ -6,7 +6,7 @@
 
 #include "perimortem/core/access/bytes.h"
 #include "perimortem/core/view/bytes.h"
-#include "perimortem/serialization/uuid.h"
+#include "perimortem/serialization/formats/uuid.h"
 
 C_LINKAGE perimortem_view_bytes
     perimortem_test_view(const U8* data, Count size);

@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/serialization/uuid.h"
+#include "perimortem/serialization/formats/uuid.h"
 
 #include "toolchain/toolchain.hpp"
 #include "toolchain/validation/benchmark.hpp"
@@ -15,10 +15,10 @@ using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 
 static constexpr Count uuid_batch = 1024;
-static constexpr Uuid serialize_source_a{
+static constexpr Formats::Uuid serialize_source_a{
   0x550e8400e29b41d4ULL, 0xa716446655440000ULL};
 
-static constexpr Uuid serialize_source_b{
+static constexpr Formats::Uuid serialize_source_b{
   0x123e4567e89b42d3ULL, 0xa456426614174000ULL};
 
 static constexpr auto dashed_source_a =
@@ -65,7 +65,7 @@ VALIDATION_BENCHMARK(SerializationUuid, deserialize_dashed_x1024) {
                              : &dashed_source_b;
     Benchmark::prevent_optimization(source);
 
-    const Uuid uuid = Uuid::deserialize(*source);
+    const Formats::Uuid uuid = Formats::Uuid::deserialize(*source);
     value ^= uuid.get_value().high;
   }
 
@@ -80,7 +80,7 @@ VALIDATION_BENCHMARK(SerializationUuid, deserialize_packed_x1024) {
                              : &packed_source_b;
     Benchmark::prevent_optimization(source);
 
-    const Uuid uuid = Uuid::deserialize(*source);
+    const Formats::Uuid uuid = Formats::Uuid::deserialize(*source);
     value ^= uuid.get_value().high;
   }
 
@@ -95,7 +95,7 @@ VALIDATION_BENCHMARK(SerializationUuid, validate_dashed_x1024) {
                              : &dashed_source_b;
     Benchmark::prevent_optimization(source);
 
-    const Bool valid = Uuid::is_valid(*source);
+    const Bool valid = Formats::Uuid::is_valid(*source);
     value += valid.value;
   }
 
@@ -110,7 +110,7 @@ VALIDATION_BENCHMARK(SerializationUuid, validate_packed_x1024) {
                              : &packed_source_b;
     Benchmark::prevent_optimization(source);
 
-    const Bool valid = Uuid::is_valid(*source);
+    const Bool valid = Formats::Uuid::is_valid(*source);
     value += valid.value;
   }
 

@@ -4,8 +4,8 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/view/null_terminated.hpp"
-#include "perimortem/serialization/json/blueprint.hpp"
-#include "perimortem/serialization/json/node.hpp"
+#include "perimortem/serialization/formats/json/blueprint.hpp"
+#include "perimortem/serialization/formats/json/node.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 #include "perimortem/system/filesystem/file.hpp"
 
@@ -17,56 +17,68 @@ using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 
 static Harness SerializationJson = {
-  .name = "Serialization::Json",
+  .name = "Serialization::Formats::Json",
 };
 
 VALIDATION_TEST(SerializationJson, empty_node) {
-  Json::Node empty;
+  Formats::Json::Node empty;
+  Allocator::Arena arena;
 
   EXPECT(empty.is_null());
 
-  EXPECT_NOT(empty.get_flag());
-  EXPECT_EQ(empty.get_number(), 0);
+  EXPECT_NOT(empty.get_boolean());
+  EXPECT_EQ(empty.get_integer(), 0);
   EXPECT_EQ(empty.get_real(), 0.0);
   EXPECT_EQ(empty.get_size(), 0);
   EXPECT_TEXT(empty.get_string(), View::Bytes());
+  EXPECT_TEXT(empty.decode_string(arena), View::Bytes());
+  EXPECT(empty.get_array().is_empty());
+  EXPECT(empty.get_object().is_empty());
 }
 
 VALIDATION_TEST(SerializationJson, value_node) {
-  Json::Node value;
+  Formats::Json::Node value;
   EXPECT(value.is_null());
 
   value = True;
-  EXPECT(value.get_flag());
-  EXPECT_EQ(value.get_number(), 0);
+  EXPECT(value.get_boolean());
+  EXPECT_EQ(value.get_integer(), 0);
   EXPECT_EQ(value.get_real(), 0.0);
   EXPECT_TEXT(value.get_string(), View::Bytes());
+  EXPECT(value.get_array().is_empty());
+  EXPECT(value.get_object().is_empty());
   EXPECT_EQ(value.get_size(), 0);
 
   value = 142ll;
-  EXPECT_NOT(value.get_flag());
-  EXPECT_EQ(value.get_number(), 142ll);
+  EXPECT_NOT(value.get_boolean());
+  EXPECT_EQ(value.get_integer(), 142ll);
   EXPECT_EQ(value.get_real(), 0.0);
   EXPECT_TEXT(value.get_string(), View::Bytes());
+  EXPECT(value.get_array().is_empty());
+  EXPECT(value.get_object().is_empty());
   EXPECT_EQ(value.get_size(), 0);
 
   value = 12.12;
-  EXPECT_NOT(value.get_flag());
-  EXPECT_EQ(value.get_number(), 0);
+  EXPECT_NOT(value.get_boolean());
+  EXPECT_EQ(value.get_integer(), 0);
   EXPECT_EQ(value.get_real(), 12.12);
   EXPECT_TEXT(value.get_string(), View::Bytes());
+  EXPECT(value.get_array().is_empty());
+  EXPECT(value.get_object().is_empty());
   EXPECT_EQ(value.get_size(), 0);
 
   value = "Test View"_view;
-  EXPECT_NOT(value.get_flag());
-  EXPECT_EQ(value.get_number(), 0);
+  EXPECT_NOT(value.get_boolean());
+  EXPECT_EQ(value.get_integer(), 0);
   EXPECT_EQ(value.get_real(), 0);
   EXPECT_TEXT(value.get_string(), "Test View"_view);
+  EXPECT(value.get_array().is_empty());
+  EXPECT(value.get_object().is_empty());
   EXPECT_EQ(value.get_size(), 9);
 }
 
 VALIDATION_TEST(SerializationJson, access_never_faults) {
-  Json::Node value;
+  Formats::Json::Node value;
   EXPECT(value.is_null());
 
   value = True;
@@ -75,15 +87,17 @@ VALIDATION_TEST(SerializationJson, access_never_faults) {
 
   value = value["invalid"_view]["access"_view];
 
-  EXPECT_NOT(value.get_flag());
-  EXPECT_EQ(value.get_number(), 0);
+  EXPECT_NOT(value.get_boolean());
+  EXPECT_EQ(value.get_integer(), 0);
   EXPECT_EQ(value.get_real(), 0.0);
   EXPECT_EQ(value.get_size(), 0);
   EXPECT_TEXT(value.get_string(), View::Bytes());
+  EXPECT(value.get_array().is_empty());
+  EXPECT(value.get_object().is_empty());
 }
 
 VALIDATION_TEST(SerializationJson, access_is_value_type) {
-  Json::Node value;
+  Formats::Json::Node value;
   EXPECT(value.is_null());
 
   auto new_node = value["invalid"_view];
@@ -99,21 +113,21 @@ VALIDATION_TEST(SerializationJson, access_is_value_type) {
 
 VALIDATION_TEST(SerializationJson, parse_values) {
   Allocator::Arena arena;
-  Json::Node value;
+  Formats::Json::Node value;
   value.parse(arena, ""_view);
   EXPECT(value.is_null());
 
   value.parse(arena, "true"_view);
-  EXPECT(value.get_flag());
+  EXPECT(value.get_boolean());
 
   value.parse(arena, "false"_view);
-  EXPECT_NOT(value.get_flag());
+  EXPECT_NOT(value.get_boolean());
 
   value.parse(arena, "12"_view);
-  EXPECT_EQ(value.get_number(), 12);
+  EXPECT_EQ(value.get_integer(), 12);
 
   value.parse(arena, "-9000"_view);
-  EXPECT_EQ(value.get_number(), -9000);
+  EXPECT_EQ(value.get_integer(), -9000);
 
   value.parse(arena, "12.06"_view);
   EXPECT_EQ(value.get_real(), 12.06);
@@ -130,22 +144,22 @@ VALIDATION_TEST(SerializationJson, parse_values) {
 
 VALIDATION_TEST(SerializationJson, string_boundaries) {
   Allocator::Arena arena;
-  Json::Node parsed;
+  Formats::Json::Node parsed;
   parsed.parse(
       arena,
       "{\"text\":\"state label : Text = \\\"Icon\\\";\",\"next\":1}"_view);
 
   ASSERT(parsed.is_object());
   EXPECT_NOT(parsed["text"_view].get_string().is_empty());
-  EXPECT_EQ(parsed["next"_view].get_number(), 1);
+  EXPECT_EQ(parsed["next"_view].get_integer(), 1);
 
-  Json::Node source("line\n\"title\"\\end"_view);
+  Formats::Json::Node source("line\n\"title\"\\end"_view);
   EXPECT_TEXT(source.format(arena), "\"line\\n\\\"title\\\"\\\\end\""_view);
 }
 
 VALIDATION_TEST(SerializationJson, string_escapes) {
   Allocator::Arena arena;
-  Json::Node value;
+  Formats::Json::Node value;
   value.parse(
       arena,
       "\"quote: \\\" slash: \\\\ solidus: \\/ controls: "
@@ -156,16 +170,16 @@ VALIDATION_TEST(SerializationJson, string_escapes) {
       "quote: \" slash: \\ solidus: / controls: \b\f\n\r\t unicode: "
       "AΩ😀"_view);
 
-  Json::Node malformed("kept \\uD800 and \\q"_view);
+  Formats::Json::Node malformed("kept \\uD800 and \\q"_view);
   EXPECT_TEXT(malformed.decode_string(arena), "kept \\uD800 and \\q"_view);
 
-  Json::Node not_a_string(S64(42));
+  Formats::Json::Node not_a_string(S64(42));
   EXPECT_TEXT(not_a_string.decode_string(arena), View::Bytes());
 }
 
 VALIDATION_TEST(SerializationJson, parse_arrays) {
   Allocator::Arena arena;
-  Json::Node value;
+  Formats::Json::Node value;
 
   value.parse(arena, "[]"_view);
   ASSERT(value.is_array());
@@ -174,23 +188,23 @@ VALIDATION_TEST(SerializationJson, parse_arrays) {
   value.parse(arena, "[1,2,3,4]"_view);
   ASSERT(value.is_array());
   EXPECT_EQ(value.get_size(), 4);
-  EXPECT_EQ(value[0].get_number(), 1);
-  EXPECT_EQ(value[1].get_number(), 2);
-  EXPECT_EQ(value[2].get_number(), 3);
-  EXPECT_EQ(value[3].get_number(), 4);
+  EXPECT_EQ(value[0].get_integer(), 1);
+  EXPECT_EQ(value[1].get_integer(), 2);
+  EXPECT_EQ(value[2].get_integer(), 3);
+  EXPECT_EQ(value[3].get_integer(), 4);
 
   value.parse(arena, "[1,true,\"test\",4]"_view);
   ASSERT(value.is_array());
   EXPECT_EQ(value.get_size(), 4);
-  EXPECT_EQ(value[0].get_number(), 1);
-  EXPECT(value[1].get_flag());
+  EXPECT_EQ(value[0].get_integer(), 1);
+  EXPECT(value[1].get_boolean());
   EXPECT_TEXT(value[2].get_string(), "test"_view);
-  EXPECT_EQ(value[3].get_number(), 4);
+  EXPECT_EQ(value[3].get_integer(), 4);
 }
 
 VALIDATION_TEST(SerializationJson, parse_nested_arrays) {
   Allocator::Arena arena;
-  Json::Node value;
+  Formats::Json::Node value;
 
   value.parse(arena, "[]"_view);
   ASSERT(value.is_array());
@@ -199,27 +213,27 @@ VALIDATION_TEST(SerializationJson, parse_nested_arrays) {
   value.parse(arena, "[1,[2],[[true],3,[\"value\"]],[[],[[4],[]]]]"_view);
   ASSERT(value.is_array());
   EXPECT_EQ(value.get_size(), 4);
-  EXPECT_EQ(value[0].get_number(), 1);
+  EXPECT_EQ(value[0].get_integer(), 1);
 
   EXPECT_EQ(value[1].get_size(), 1);
-  EXPECT_EQ(value[1][0].get_number(), 2);
+  EXPECT_EQ(value[1][0].get_integer(), 2);
 
   EXPECT_EQ(value[2].get_size(), 3);
   EXPECT_EQ(value[2][0].get_size(), 1);
   EXPECT_EQ(value[2][1].get_size(), 0);
   EXPECT_EQ(value[2][2].get_size(), 1);
-  EXPECT(value[2][0][0].get_flag());
-  EXPECT_EQ(value[2][1].get_number(), 3);
+  EXPECT(value[2][0][0].get_boolean());
+  EXPECT_EQ(value[2][1].get_integer(), 3);
   EXPECT_TEXT(value[2][2][0].get_string(), "value"_view);
 
-  EXPECT_EQ(value[3][1][0][0].get_number(), 4);
+  EXPECT_EQ(value[3][1][0][0].get_integer(), 4);
 }
 
 VALIDATION_TEST(SerializationJson, reject_truncated_arrays) {
   constexpr View::Bytes sources[] = {"["_view, "[1"_view, "[1   "_view};
   Allocator::Arena arena;
   for (View::Bytes source : sources) {
-    Json::Node value;
+    Formats::Json::Node value;
     EXPECT_EQ(value.parse(arena, source), Count(-1));
     EXPECT(value.is_null());
   }
@@ -227,7 +241,7 @@ VALIDATION_TEST(SerializationJson, reject_truncated_arrays) {
 
 VALIDATION_TEST(SerializationJson, parse_object) {
   Allocator::Arena arena;
-  Json::Node value;
+  Formats::Json::Node value;
 
   value.parse(arena, "{}"_view);
   ASSERT(value.is_object());
@@ -237,10 +251,10 @@ VALIDATION_TEST(SerializationJson, parse_object) {
       arena, "{\"value\":1,\"test\":2,\"another member\":3,\"final\":4}"_view);
   ASSERT(value.is_object());
   EXPECT_EQ(value.get_size(), 4);
-  EXPECT_EQ(value["value"_view].get_number(), 1);
-  EXPECT_EQ(value["test"_view].get_number(), 2);
-  EXPECT_EQ(value["another member"_view].get_number(), 3);
-  EXPECT_EQ(value["final"_view].get_number(), 4);
+  EXPECT_EQ(value["value"_view].get_integer(), 1);
+  EXPECT_EQ(value["test"_view].get_integer(), 2);
+  EXPECT_EQ(value["another member"_view].get_integer(), 3);
+  EXPECT_EQ(value["final"_view].get_integer(), 4);
 }
 
 VALIDATION_TEST(SerializationJson, reject_truncated_objects) {
@@ -252,7 +266,7 @@ VALIDATION_TEST(SerializationJson, reject_truncated_objects) {
 
   Allocator::Arena arena;
   for (View::Bytes source : sources) {
-    Json::Node value;
+    Formats::Json::Node value;
     EXPECT_EQ(value.parse(arena, source), Count(-1));
     EXPECT(value.is_null());
   }
@@ -260,7 +274,7 @@ VALIDATION_TEST(SerializationJson, reject_truncated_objects) {
 
 VALIDATION_TEST(SerializationJson, parse_null) {
   Allocator::Arena arena;
-  Json::Node value;
+  Formats::Json::Node value;
 
   value.parse(arena, "null"_view);
   EXPECT(value.is_null());
@@ -273,24 +287,24 @@ VALIDATION_TEST(SerializationJson, parse_null) {
   value.parse(arena, "{\"a\":1,\"b\":null,\"c\":3}"_view);
   ASSERT(value.is_object());
   EXPECT_EQ(value.get_size(), 3);
-  EXPECT_EQ(value["a"_view].get_number(), 1);
+  EXPECT_EQ(value["a"_view].get_integer(), 1);
   EXPECT(value["b"_view].is_null());
-  EXPECT_EQ(value["c"_view].get_number(), 3);
+  EXPECT_EQ(value["c"_view].get_integer(), 3);
 
   // An array retains a null element as a reachable null node.
   value.parse(arena, "[1,null,3]"_view);
   ASSERT(value.is_array());
   EXPECT_EQ(value.get_size(), 3);
-  EXPECT_EQ(value[0].get_number(), 1);
+  EXPECT_EQ(value[0].get_integer(), 1);
   EXPECT(value[1].is_null());
-  EXPECT_EQ(value[2].get_number(), 3);
+  EXPECT_EQ(value[2].get_integer(), 3);
 }
 
 VALIDATION_TEST(SerializationJson, construct_string) {
   constexpr auto expected = "\"Test String\""_view;
 
   Allocator::Arena arena;
-  Json::Node value = Json::Blueprint{
+  Formats::Json::Node value = Formats::Json::Blueprint{
     {
       "Test String"_view,
     }}.construct(arena);
@@ -301,10 +315,11 @@ VALIDATION_TEST(SerializationJson, construct_string) {
 
 VALIDATION_TEST(SerializationJson, construct_array) {
   constexpr auto expected = "[1,2,3,4]"_view;
-  const Json::Blueprint elements[] = {1, 2, 3, 4};
+  const Formats::Json::Blueprint elements[] = {1, 2, 3, 4};
 
   Allocator::Arena arena;
-  Json::Node value = Json::Blueprint(elements).construct(arena);
+  Formats::Json::Node value =
+      Formats::Json::Blueprint(elements).construct(arena);
 
   auto formated = value.format(arena);
   ASSERT_TEXT(formated, expected);
@@ -316,7 +331,7 @@ VALIDATION_TEST(SerializationJson, construct_nested) {
       "\"version\":\"1.0.2\",\"sub_flag\":true}}"_view;
 
   Allocator::Arena arena;
-  Json::Node value = Json::Blueprint{
+  Formats::Json::Node value = Formats::Json::Blueprint{
     {
       {"root"_view,
        {
@@ -351,7 +366,7 @@ VALIDATION_TEST(SerializationJson, round_trip_init_rpc) {
   ASSERT_NOT(source_view.is_empty());
 
   Allocator::Arena arena;
-  Json::Node value;
+  Formats::Json::Node value;
   value.parse(arena, source_view);
 
   auto formated = value.format(arena);
@@ -362,7 +377,7 @@ VALIDATION_TEST(SerializationJson, round_trip_init_rpc) {
 
 VALIDATION_TEST(SerializationJson, format_number_zero) {
   Allocator::Arena arena;
-  auto value = Json::Blueprint{
+  auto value = Formats::Json::Blueprint{
     {
       {"a"_view, 0},
       {"b"_view, 1},
@@ -376,10 +391,10 @@ VALIDATION_TEST(SerializationJson, format_number_zero) {
 
 VALIDATION_TEST(SerializationJson, empty_array) {
   Allocator::Arena arena;
-  auto value = Json::Blueprint{
+  auto value = Formats::Json::Blueprint{
     {
       {"name"_view, "items"_view},
-      Json::Blueprint::empty_array("items"_view),
+      Formats::Json::Blueprint::empty_array("items"_view),
     }}.construct(arena);
 
   constexpr auto expected = "{\"name\":\"items\",\"items\":[]}"_view;
@@ -390,13 +405,13 @@ VALIDATION_TEST(SerializationJson, empty_array) {
 VALIDATION_TEST(SerializationJson, existing_node) {
   Allocator::Arena arena;
 
-  const Json::Node inner_node = Json::Blueprint{
+  const Formats::Json::Node inner_node = Formats::Json::Blueprint{
     {
       {"name"_view, "ttx-server"_view},
       {"version"_view, "1.0"_view},
     }}.construct(arena);
 
-  auto value = Json::Blueprint{
+  auto value = Formats::Json::Blueprint{
     {
       {"jsonrpc"_view, "2.0"_view},
       {"id"_view, 1},
@@ -412,7 +427,7 @@ VALIDATION_TEST(SerializationJson, existing_node) {
 
 VALIDATION_TEST(SerializationJson, format_null) {
   Allocator::Arena arena;
-  Json::Node value;
+  Formats::Json::Node value;
 
   value.parse(arena, "null"_view);
   ASSERT_TEXT(value.format(arena), "null"_view);
@@ -433,16 +448,16 @@ VALIDATION_TEST(SerializationJson, rpc_from_parsed) {
   ASSERT_NOT(source_view.is_empty());
 
   Allocator::Arena arena;
-  Json::Node parsed;
+  Formats::Json::Node parsed;
   parsed.parse(arena, source_view);
 
   ASSERT(parsed["jsonrpc"_view].is_string());
-  ASSERT(parsed["id"_view].is_number());
+  ASSERT(parsed["id"_view].is_integer());
 
-  auto response = Json::Blueprint{
+  auto response = Formats::Json::Blueprint{
     {
       {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
-      {"id"_view, parsed["id"_view].get_number()},
+      {"id"_view, parsed["id"_view].get_integer()},
       {"result"_view,
        {
          {"serverInfo"_view, "ttx"_view},
@@ -454,5 +469,5 @@ VALIDATION_TEST(SerializationJson, rpc_from_parsed) {
   ASSERT(formated.get_size() > 0);
   ASSERT(response.is_object());
   EXPECT_TEXT(response["jsonrpc"_view].get_string(), "2.0"_view);
-  EXPECT_EQ(response["id"_view].get_number(), 10);
+  EXPECT_EQ(response["id"_view].get_integer(), 10);
 }

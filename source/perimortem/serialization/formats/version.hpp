@@ -10,7 +10,7 @@
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/core/view/vector.hpp"
 
-namespace Perimortem::Serialization {
+namespace Perimortem::Serialization::Formats {
 
 // Version represents an ordered sequence of exactly `component_extent` U16
 // components. The component count is part of the type and defaults to two.
@@ -177,4 +177,4 @@ class Version {
   Components components{};
 };
 
-}  // namespace Perimortem::Serialization
+}  // namespace Perimortem::Serialization::Formats

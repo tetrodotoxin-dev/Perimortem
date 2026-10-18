@@ -7,9 +7,9 @@
 #include "perimortem/core/storage/union.hpp"
 #include "perimortem/core/view/bytes.h"
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/serialization/json/node.hpp"
+#include "perimortem/serialization/formats/json/node.hpp"
 
-namespace Perimortem::Serialization::Json {
+namespace Perimortem::Serialization::Formats::Json {
 
 // Blueprint collects a temporary JSON tree and materializes every Node in the
 // caller's Arena. Resetting that Arena ends access to the complete tree.
@@ -92,4 +92,4 @@ class Blueprint {
   Value value;
 };
 
-}  // namespace Perimortem::Serialization::Json
+}  // namespace Perimortem::Serialization::Formats::Json

@@ -30,12 +30,12 @@ static_assert(sizeof(View::Bytes) == sizeof(perimortem_view_bytes));
 static_assert(alignof(View::Bytes) == alignof(perimortem_view_bytes));
 static_assert(sizeof(Access::Bytes) == sizeof(perimortem_access_bytes));
 static_assert(alignof(Access::Bytes) == alignof(perimortem_access_bytes));
-static_assert(sizeof(Uuid) == sizeof(perimortem_uuid));
-static_assert(alignof(Uuid) == alignof(perimortem_uuid));
+static_assert(sizeof(Formats::Uuid) == sizeof(perimortem_uuid));
+static_assert(alignof(Formats::Uuid) == alignof(perimortem_uuid));
 static_assert([] {
   View::Bytes view;
   Access::Bytes access;
-  Uuid uuid;
+  Formats::Uuid uuid;
   return view.is_empty() && access.is_empty() && !uuid.is_set();
 }());
 
@@ -58,7 +58,7 @@ static_assert([] {
 }());
 
 static_assert(
-    Uuid::deserialize("0123456789abcdeffedcba9876543210"_bytes)
+    Formats::Uuid::deserialize("0123456789abcdeffedcba9876543210"_bytes)
         .get_value()
         .high == 0x0123456789abcdefULL);
 
@@ -79,7 +79,7 @@ VALIDATION_TEST(CoreAbi, c_records) {
   selected.visit([](U8& value) { value = 4; }, []() {});
   EXPECT_EQ(data[1], 4);
 
-  Uuid uuid = perimortem_test_uuid(5, 6);
+  Formats::Uuid uuid = perimortem_test_uuid(5, 6);
   EXPECT_EQ(uuid.get_value().high, U64(5));
   EXPECT_EQ(uuid.get_value().low, U64(6));
 }

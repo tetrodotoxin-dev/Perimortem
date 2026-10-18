@@ -6,9 +6,9 @@
 #include "perimortem/core/view/matrix.hpp"
 #include "perimortem/memory/matrix.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
-#include "perimortem/serialization/rgba8.hpp"
+#include "perimortem/serialization/formats/rgba8.hpp"
 
-namespace Perimortem::Serialization {
+namespace Perimortem::Serialization::Formats {
 
 // Png decodes chunks into an owning Matrix of four byte Rgba8 samples and
 // encodes any exact two dimensional View of those samples. The codec expands
@@ -64,4 +64,4 @@ class Png {
       -> Memory::Thread::Bytes;
 };
 
-}  // namespace Perimortem::Serialization
+}  // namespace Perimortem::Serialization::Formats

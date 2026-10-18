@@ -1,8 +1,8 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#ifndef PERIMORTEM_SERIALIZATION_UUID_H
-#define PERIMORTEM_SERIALIZATION_UUID_H
+#ifndef PERIMORTEM_SERIALIZATION_FORMATS_UUID_H
+#define PERIMORTEM_SERIALIZATION_FORMATS_UUID_H
 
 #include "toolchain/toolchain.h"
 
@@ -19,7 +19,7 @@ typedef struct perimortem_uuid {
 
 #include "perimortem/core/storage/bytes.hpp"
 
-namespace Perimortem::Serialization {
+namespace Perimortem::Serialization::Formats {
 
 // A 128 bit UUID value with canonical hexadecimal serialization.
 //
@@ -193,7 +193,7 @@ static_assert(alignof(Uuid) == alignof(perimortem_uuid));
 static_assert(__is_standard_layout(Uuid));
 static_assert(__is_trivially_copyable(Uuid));
 
-}  // namespace Perimortem::Serialization
+}  // namespace Perimortem::Serialization::Formats
 
 #endif
 

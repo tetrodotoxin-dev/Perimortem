@@ -39,7 +39,7 @@ VALIDATION_TEST(SystemRandom, generate_stream) {
 }
 
 VALIDATION_TEST(SystemRandom, generate_uuid_v4) {
-  Uuid uuid = Random::generate_uuid_v4();
+  Formats::Uuid uuid = Random::generate_uuid_v4();
 
   EXPECT(uuid.is_set());
 
@@ -52,7 +52,7 @@ VALIDATION_TEST(SystemRandom, generate_uuid_v4) {
 
 VALIDATION_TEST(SystemRandom, generate_uuid_v7) {
   const U64 before = U64(time(nullptr)) * 1'000;
-  Uuid uuid = Random::generate_uuid_v7();
+  Formats::Uuid uuid = Random::generate_uuid_v7();
   const U64 after = U64(time(nullptr) + 1) * 1'000;
 
   auto output = uuid.serialize();

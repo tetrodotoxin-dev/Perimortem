@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/serialization/png.hpp"
+#include "perimortem/serialization/formats/png.hpp"
 
 #include "perimortem/compression/deflate.hpp"
 #include "perimortem/core/algorithm/search.hpp"
@@ -46,7 +46,7 @@ enum class FilterType : U8 {
 struct ImageInfo {
  public:
   constexpr ImageInfo() = default;
-  constexpr ImageInfo(View::Matrix<Rgba8, 2> image) {
+  constexpr ImageInfo(View::Matrix<Formats::Rgba8, 2> image) {
     Data::write<Data::ByteOrder::Big>(&width, image.get_extent(0));
     Data::write<Data::ByteOrder::Big>(&height, image.get_extent(1));
     bit_depth = 8;
@@ -279,7 +279,7 @@ auto score_row(View::Bytes current_row, View::Bytes previous_row)
   };
 
   constexpr auto filter_count = first_row ? 2 : 5;
-  constexpr auto channel_count = Rgba8::get_channel_count();
+  constexpr auto channel_count = Formats::Rgba8::get_channel_count();
   Storage::Vector<U64, filter_count> scores;
 
   auto current_row_data = current_row.get_data();
@@ -329,7 +329,7 @@ constexpr auto apply_row_filter(
     Access::Bytes output_row,
     View::Bytes current_row,
     View::Bytes previous_row) -> void {
-  constexpr auto channel_count = Rgba8::get_channel_count();
+  constexpr auto channel_count = Formats::Rgba8::get_channel_count();
   Count size = current_row.get_size();
 
   auto output_row_data = output_row.get_data();
@@ -424,9 +424,10 @@ constexpr auto apply_row_filter(
 
 // Applies adaptive PNG filtering to the source pixels, scoring all five filter
 // types per row and selecting the option with the lowest residual.
-constexpr auto apply_adaptive_filtering(View::Matrix<Rgba8, 2> image)
+constexpr auto apply_adaptive_filtering(View::Matrix<Formats::Rgba8, 2> image)
     -> Thread::Bytes {
-  const auto row_stride = Count(image.get_extent(0)) * Rgba8::get_byte_count();
+  const auto row_stride =
+      Count(image.get_extent(0)) * Formats::Rgba8::get_byte_count();
   const auto output_size = Count(image.get_extent(1)) * (1 + row_stride);
   const auto raw_bytes = Data::cast<U8>(image.get_values().get_data());
 
@@ -609,7 +610,7 @@ constexpr auto convert_to_pixels(
     Count height,
     ColorType color_type,
     View::Bytes palette,
-    Thread::Vector<Rgba8>& output) -> Bool {
+    Thread::Vector<Formats::Rgba8>& output) -> Bool {
   Count source_channels = number_of_color_channels(color_type);
   if (source_channels == 0) [[unlikely]] {
     return False;
@@ -624,14 +625,14 @@ constexpr auto convert_to_pixels(
     Count source_offset = pixel_index * source_channels;
     switch (color_type) {
     case ColorType::Greyscale:
-      output_data[pixel_index] = Rgba8::from_grey(data[source_offset]);
+      output_data[pixel_index] = Formats::Rgba8::from_grey(data[source_offset]);
       break;
     case ColorType::GreyscaleAlpha:
-      output_data[pixel_index] =
-          Rgba8::from_grey_alpha(data[source_offset], data[source_offset + 1]);
+      output_data[pixel_index] = Formats::Rgba8::from_grey_alpha(
+          data[source_offset], data[source_offset + 1]);
       break;
     case ColorType::Rgb:
-      output_data[pixel_index] = Rgba8::from_rgb(
+      output_data[pixel_index] = Formats::Rgba8::from_rgb(
           data[source_offset + 0], data[source_offset + 1],
           data[source_offset + 2]);
       break;
@@ -651,7 +652,7 @@ constexpr auto convert_to_pixels(
         return False;
       }
 
-      output_data[pixel_index] = Rgba8::from_rgb(
+      output_data[pixel_index] = Formats::Rgba8::from_rgb(
           palette[palette_offset + 0], palette[palette_offset + 1],
           palette[palette_offset + 2]);
       break;
@@ -706,7 +707,8 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
 
   // Rgba8 output supports only 8 bit samples. Other PNG depths require separate
   // unpacking and scaling before conversion.
-  if (image_info.get_bit_depth() != Rgba8::get_bit_depth()) [[unlikely]] {
+  if (image_info.get_bit_depth() != Formats::Rgba8::get_bit_depth())
+      [[unlikely]] {
     Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: Unsupported bit depth "_view
                   << U32(image_info.get_bit_depth())
@@ -733,7 +735,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
 constexpr auto process_data(
     const ImageInfo info,
     View::Bytes source,
-    View::Bytes palette) -> Storage::Option<Matrix<Rgba8>> {
+    View::Bytes palette) -> Storage::Option<Matrix<Formats::Rgba8>> {
   // Math::Domain checks the pixel count before either decode path allocates.
   // The filtered stream also carries one control byte per row, so its byte
   // extent needs a separate check before the inflater reserves that storage.
@@ -745,7 +747,8 @@ constexpr auto process_data(
   Count selected_pixel_count = 0;
   const Bool valid_extent = pixel_count.visit(
       [&](Count count) {
-        if (bytes_per_pixel == 0 || count > max_bytes / sizeof(Rgba8) ||
+        if (bytes_per_pixel == 0 ||
+            count > max_bytes / sizeof(Formats::Rgba8) ||
             count > (max_bytes - info.get_height()) / bytes_per_pixel) {
           return False;
         }
@@ -757,7 +760,7 @@ constexpr auto process_data(
       []() { return False; });
   if (!valid_extent) {
     Diagnostics::Log::error("Png: Decoded extent exceeds address space"_view);
-    return Storage::Option<Matrix<Rgba8>>();
+    return Storage::Option<Matrix<Formats::Rgba8>>();
   }
 
   const Count decompressed_capacity =
@@ -778,10 +781,10 @@ constexpr auto process_data(
 #endif
 
   if (filtered_rows.is_empty()) [[unlikely]] {
-    return Storage::Option<Matrix<Rgba8>>();
+    return Storage::Option<Matrix<Formats::Rgba8>>();
   }
 
-  Thread::Vector<Rgba8> pixels;
+  Thread::Vector<Formats::Rgba8> pixels;
 
   // PNG RGBA samples match the four byte Rgba8 layout, so reconstruction can
   // write final pixel storage without an intermediate conversion buffer.
@@ -792,10 +795,10 @@ constexpr auto process_data(
             bytes_per_pixel,
             Access::Bytes(
                 Data::cast<U8>(pixels.get_data()),
-                pixels.get_size() * sizeof(Rgba8)))) [[unlikely]] {
+                pixels.get_size() * sizeof(Formats::Rgba8)))) [[unlikely]] {
       Diagnostics::Log::error(
           "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
-      return Storage::Option<Matrix<Rgba8>>();
+      return Storage::Option<Matrix<Formats::Rgba8>>();
     }
 
   } else {
@@ -808,36 +811,38 @@ constexpr auto process_data(
             bytes_per_pixel, raw_pixels)) [[unlikely]] {
       Diagnostics::Log::error(
           "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
-      return Storage::Option<Matrix<Rgba8>>();
+      return Storage::Option<Matrix<Formats::Rgba8>>();
     }
 
     if (!convert_to_pixels(
             raw_pixels.get_view(), info.get_width(), info.get_height(),
             info.get_color_type(), palette, pixels)) [[unlikely]] {
       Diagnostics::Log::error("Png: Rgba8 conversion failed"_view);
-      return Storage::Option<Matrix<Rgba8>>();
+      return Storage::Option<Matrix<Formats::Rgba8>>();
     }
   }
 
-  return Matrix<Rgba8>::project(domain, Data::take(pixels))
+  return Matrix<Formats::Rgba8>::project(domain, Data::take(pixels))
       .visit(
-          [](Matrix<Rgba8>& matrix) -> Storage::Option<Matrix<Rgba8>> {
+          [](Matrix<Formats::Rgba8>& matrix)
+              -> Storage::Option<Matrix<Formats::Rgba8>> {
             return Data::take(matrix);
           },
 
-          [](Matrix<Rgba8>::Failure) -> Storage::Option<Matrix<Rgba8>> {
+          [](Matrix<Formats::Rgba8>::Failure)
+              -> Storage::Option<Matrix<Formats::Rgba8>> {
             Diagnostics::Log::error(
                 "Png: Decoded pixel count does not match dimensions"_view);
             return {};
           });
 }
 
-auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
+auto Formats::Png::decode(const View::Bytes source) -> Matrix<Formats::Rgba8> {
   // `read_header` uses zero dimensions as its failure state. PNG also forbids
   // an empty dimension, so both cases produce the same empty result.
   ImageInfo info = read_header(source);
   if (info.get_width() == 0 || info.get_height() == 0) [[unlikely]] {
-    return Matrix<Rgba8>();
+    return Matrix<Formats::Rgba8>();
   }
 
   // Keep the first IDAT payload as a source View to avoid an unconditional
@@ -851,7 +856,7 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
   while (chunk_offset < source.get_size()) {
     Chunk chunk = read_chunk(source, chunk_offset);
     if (!chunk.get_valid()) [[unlikely]] {
-      return Matrix<Rgba8>();
+      return Matrix<Formats::Rgba8>();
     }
 
     if (chunk.get_type() == "IEND"_view) {
@@ -883,17 +888,18 @@ auto Png::decode(const View::Bytes source) -> Matrix<Rgba8> {
 
   if (binary_data.is_empty()) [[unlikely]] {
     Diagnostics::Log::error("Png: No IDAT chunk found or chunk was empty"_view);
-    return Matrix<Rgba8>();
+    return Matrix<Formats::Rgba8>();
   }
 
   return process_data(info, binary_data, palette)
       .visit(
-          [](Matrix<Rgba8>& image) { return Data::take(image); },
-          [] { return Matrix<Rgba8>(); });
+          [](Matrix<Formats::Rgba8>& image) { return Data::take(image); },
+          [] { return Matrix<Formats::Rgba8>(); });
 }
 
-auto Png::encode(View::Matrix<Rgba8, 2> image) -> Thread::Bytes {
-  View::Vector<Rgba8> pixels = image.get_values();
+auto Formats::Png::encode(View::Matrix<Formats::Rgba8, 2> image)
+    -> Thread::Bytes {
+  View::Vector<Formats::Rgba8> pixels = image.get_values();
 
   // PNG requires at least one scanline, and adaptive filtering reads row zero.
   // An empty View therefore has no encodable representation here.
@@ -904,7 +910,7 @@ auto Png::encode(View::Matrix<Rgba8, 2> image) -> Thread::Bytes {
   // Each filtered row contains `row_stride` sample bytes plus one control byte.
   // Reject dimensions whose expanded row count exceeds the address range before
   // allocating that output.
-  const Count row_stride = Count(image.get_extent(0)) * sizeof(Rgba8);
+  const Count row_stride = Count(image.get_extent(0)) * sizeof(Formats::Rgba8);
   const Count max_bytes = ~CppSize{};
   if (row_stride >= max_bytes ||
       image.get_extent(1) > max_bytes / (row_stride + 1)) {

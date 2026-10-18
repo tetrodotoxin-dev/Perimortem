@@ -5,7 +5,7 @@
 
 #include "toolchain/toolchain.hpp"
 
-namespace Perimortem::Serialization {
+namespace Perimortem::Serialization::Formats {
 
 // Rgba8 stores four sample bytes in red, green, blue, alpha order. PNG expands
 // other channel layouts to this value before returning a decoded matrix. Color
@@ -68,4 +68,4 @@ static_assert(sizeof(Rgba8) == 4);
 static_assert(alignof(Rgba8) == alignof(U8));
 static_assert(__is_standard_layout(Rgba8));
 
-}  // namespace Perimortem::Serialization
+}  // namespace Perimortem::Serialization::Formats
