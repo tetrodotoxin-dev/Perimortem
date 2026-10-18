@@ -2,6 +2,7 @@
 
 load(
     "@tetro_toolchain//:defs.bzl",
+    "WEB",
     "format",
     "package",
     "snapshot",
@@ -35,10 +36,6 @@ load(
 #   bazel run :snapshot
 #
 
-format()
-snapshot()
-validation()
-
 # The component interfaces share Perimortem's runtime. Keeping that dependency
 # private makes each component expose only its declared header dependencies.
 package(
@@ -65,6 +62,19 @@ package(
     shared = "//source:perimortem_shared",
     static = "//source:perimortem",
 )
+
+format()
+
+snapshot()
+
+# Native validation links the shared runtime so a missing public export fails
+# before SDK publication. Web validation links the static runtime because the
+# hosted shared module requires an embedding application. The same suite
+# therefore exercises both supported linkage boundaries.
+validation(deps = select({
+    WEB: ["//source:perimortem"],
+    "//conditions:default": ["//source:perimortem_shared"],
+}))
 
 # Run `bazel run :vscode` to create a VSCode setup for the repository.
 vscode()

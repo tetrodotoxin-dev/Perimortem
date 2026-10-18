@@ -771,16 +771,23 @@ constexpr auto process_data(
   // throughput.
 #if PERI_DEBUG
 
-  Thread::Bytes filtered_rows = Deflate::inflate(source, decompressed_capacity);
+  auto inflated_rows = Deflate::inflate(source, decompressed_capacity);
 
 #else
 
-  Thread::Bytes filtered_rows =
+  auto inflated_rows =
       Deflate::inflate_without_checksum(source, decompressed_capacity);
 
 #endif
 
-  if (filtered_rows.is_empty()) [[unlikely]] {
+  View::Bytes filtered_rows;
+  const auto select_rows = [&](const Thread::Bytes& rows) {
+    filtered_rows = rows.get_view();
+    return True;
+  };
+
+  const auto reject_rows = [] { return False; };
+  if (!inflated_rows.visit(select_rows, reject_rows)) [[unlikely]] {
     return Storage::Option<Matrix<Formats::Rgba8>>();
   }
 
@@ -791,8 +798,7 @@ constexpr auto process_data(
   if (info.get_color_type() == ColorType::Rgba) {
     pixels.resize(selected_pixel_count);
     if (!reconstruct_filter(
-            filtered_rows.get_view(), info.get_width(), info.get_height(),
-            bytes_per_pixel,
+            filtered_rows, info.get_width(), info.get_height(), bytes_per_pixel,
             Access::Bytes(
                 Data::cast<U8>(pixels.get_data()),
                 pixels.get_size() * sizeof(Formats::Rgba8)))) [[unlikely]] {
@@ -807,8 +813,8 @@ constexpr auto process_data(
     Thread::Bytes raw_pixels{};
     raw_pixels.forgetful_resize(selected_pixel_count * bytes_per_pixel);
     if (!reconstruct_filter(
-            filtered_rows.get_view(), info.get_width(), info.get_height(),
-            bytes_per_pixel, raw_pixels)) [[unlikely]] {
+            filtered_rows, info.get_width(), info.get_height(), bytes_per_pixel,
+            raw_pixels)) [[unlikely]] {
       Diagnostics::Log::error(
           "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
       return Storage::Option<Matrix<Formats::Rgba8>>();

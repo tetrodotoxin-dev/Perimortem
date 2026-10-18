@@ -40,6 +40,12 @@ root so their test data is available. The SDK packages the component headers
 and static and shared libraries for independently built consumers. A snapshot
 archives the clean Git commit that reproduces the source and validation state.
 
+Run the same tests as a standalone WebAssembly program with:
+
+```sh
+bazel run :tests --config=web_tests
+```
+
 For VS Code tasks, debugging and header navigation, run `bazel run :vscode`.
 
 Perimortem is available under the [MIT license](LICENSE).

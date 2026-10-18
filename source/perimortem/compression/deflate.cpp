@@ -48,9 +48,10 @@ enum class Encodings : U16 {
   LongZeros = 18,
 };
 
-// A length or distance value mapped to its DEFLATE back reference encoding.
-// Uses a base symbol index into the literal/length or distance alphabet plus
-// an extra bits field that encodes the remainder.
+// DEFLATE represents a match length or distance as one alphabet symbol plus a
+// variable width remainder. Keeping that symbol, width and remainder together
+// lets the precomputed length table and distance conversion feed the bit writer
+// without repeating code specific arithmetic.
 class BackReferenceEncoding {
  public:
   constexpr BackReferenceEncoding()
@@ -902,9 +903,9 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
 static auto inflate_stream(
     const View::Bytes source,
     Count capacity_hint,
-    Bool checksum_required) -> Thread::Bytes {
+    Bool checksum_required) -> Storage::Option<Thread::Bytes> {
   if (!validate_header(source)) {
-    return Thread::Bytes();
+    return {};
   }
 
   BitStream::Reader reader{source.slice(2, source.get_size() - 6)};
@@ -922,7 +923,7 @@ static auto inflate_stream(
       if (!inflate_stored(reader, output)) {
         Diagnostics::Log::error(
             "Compression: stored block decompression failed"_view);
-        return Thread::Bytes();
+        return {};
       }
 
       break;
@@ -930,7 +931,7 @@ static auto inflate_stream(
       if (!inflate_fixed(reader, output)) {
         Diagnostics::Log::error(
             "Compression: fixed Huffman block decompression failed"_view);
-        return Thread::Bytes();
+        return {};
       }
 
       break;
@@ -938,36 +939,36 @@ static auto inflate_stream(
       if (!inflate_dynamic(reader, output)) {
         Diagnostics::Log::error(
             "Compression: dynamic Huffman block decompression failed"_view);
-        return Thread::Bytes();
+        return {};
       }
 
       break;
     default:
       Diagnostics::Log::error(
           "Compression: unknown block type in deflate stream"_view);
-      return Thread::Bytes();
+      return {};
     }
   }
 
   if (!reader.is_valid()) [[unlikely]] {
-    return Thread::Bytes();
+    return {};
   }
 
   if (checksum_required && !test_checksum(output, source)) {
-    return Thread::Bytes();
+    return {};
   }
 
-  return output;
+  return Data::take(output);
 }
 
 auto Deflate::inflate(const View::Bytes source, Count capacity_hint)
-    -> Thread::Bytes {
+    -> Storage::Option<Thread::Bytes> {
   return inflate_stream(source, capacity_hint, True);
 }
 
 auto Deflate::inflate_without_checksum(
     const View::Bytes source,
-    Count capacity_hint) -> Thread::Bytes {
+    Count capacity_hint) -> Storage::Option<Thread::Bytes> {
   return inflate_stream(source, capacity_hint, False);
 }
 
@@ -986,7 +987,7 @@ auto Deflate::deflate(View::Bytes source, Level level) -> Thread::Bytes {
         Diagnostics::Log::Level::Warning);
     warning_message << "Compression: unknown compression level "_view
                     << U8(level)
-                    << " requested, defaulting to Level::Default (2)"_view;
+                    << " requested, defaulting to Level::Default"_view;
     return deflate_dynamic(source, default_search_depth);
   }
   }

@@ -20,10 +20,10 @@ class Reader {
  public:
   constexpr Reader(Core::View::Bytes source) : data(source) {}
 
-  auto read_bit() -> Bool;
-  auto read_code(Count count) -> U32;
-  auto read_raw_bytes(Count count) -> Core::View::Bytes;
-  auto peek_code(Count count) -> U32;
+  EXPORTED(PERIMORTEM) auto read_bit() -> Bool;
+  EXPORTED(PERIMORTEM) auto read_code(Count count) -> U32;
+  EXPORTED(PERIMORTEM) auto read_raw_bytes(Count count) -> Core::View::Bytes;
+  EXPORTED(PERIMORTEM) auto peek_code(Count count) -> U32;
 
   // Advances only through bits already loaded into the buffer. A request past
   // that boundary invalidates the stream without underflowing `buffered_bits`.

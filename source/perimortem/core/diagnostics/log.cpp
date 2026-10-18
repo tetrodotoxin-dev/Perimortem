@@ -21,6 +21,9 @@
 
 using namespace Perimortem::Core;
 
+const Diagnostics::Log::Sink Diagnostics::Log::default_sink =
+    Diagnostics::Log::file_sink;
+
 constexpr Count max_message_capacity = 1 << 11;
 static thread_local View::Bytes thread_name = "main"_view;
 

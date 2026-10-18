@@ -231,8 +231,21 @@ auto Container::Bytes<policy_type>::ensure_capacity(Count required_size)
 }
 
 // Explicit instantiation closes the capability over Perimortem's supported
-// policies. Exported member declarations publish the resulting symbols while
-// the template implementation remains private to the library.
+// policies while the template implementation remains private to the library.
+#ifdef TOOLCHAIN_WINDOWS
+
+// Windows applies dllexport to each declared operation and rejects a second
+// annotation on the enclosing specialization.
 template class Container::Bytes<Thread::Bytes>;
 template class Container::Bytes<Global::Bytes>;
 template class Container::Bytes<Managed::Bytes>;
+
+#else
+
+// ELF needs default visibility on the complete specialization to publish the
+// instantiated operations from a library built with hidden visibility.
+template class EXPORTED(PERIMORTEM) Container::Bytes<Thread::Bytes>;
+template class EXPORTED(PERIMORTEM) Container::Bytes<Global::Bytes>;
+template class EXPORTED(PERIMORTEM) Container::Bytes<Managed::Bytes>;
+
+#endif

@@ -3,10 +3,16 @@
 
 #pragma once
 
+#include "perimortem/core/storage/option.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
 
 namespace Perimortem::Compression {
 
+// Deflate converts arbitrary bytes to and from zlib wrapped DEFLATE streams.
+// Compression accepts every byte sequence, including an empty sequence.
+// Inflation selects Bytes only after validating the wrapper and complete block
+// structure, allowing a valid empty payload to remain distinct from malformed
+// input.
 class Deflate {
  public:
   // None writes stored blocks without LZ77 or Huffman coding. Default examines
@@ -18,24 +24,28 @@ class Deflate {
     Best = 2,
   };
 
-  // Decompresses a zlib wrapped Deflate stream and validates its Adler32
-  // trailer. Returns empty bytes on malformed input or checksum failure.
-  // `capacity_hint` reserves in advance the output buffer when the decompressed
-  // size is known ahead of time, eliminating reallocation cascades on large
-  // inputs.
+  // Decompresses a zlib wrapped DEFLATE stream and validates its Adler32
+  // trailer. A valid stream selects its complete payload, including selected
+  // allocation free empty Bytes. Malformed input or checksum failure returns
+  // None after logging the rejected stream condition.
+  //
+  // `capacity_hint` reserves output storage when the decompressed size is known
+  // ahead of time, eliminating reallocation cascades on large inputs without
+  // changing the accepted stream extent.
   static EXPORTED(PERIMORTEM) auto inflate(
       Core::View::Bytes source,
-      Count capacity_hint = 0) -> Memory::Thread::Bytes;
+      Count capacity_hint = 0) -> Core::Storage::Option<Memory::Thread::Bytes>;
 
   // Applies the same structural validation as `inflate` without computing
   // Adler32 over the decompressed payload. Callers explicitly accept undetected
   // payload corruption in exchange for avoiding that additional pass.
   static EXPORTED(PERIMORTEM) auto inflate_without_checksum(
       Core::View::Bytes source,
-      Count capacity_hint = 0) -> Memory::Thread::Bytes;
+      Count capacity_hint = 0) -> Core::Storage::Option<Memory::Thread::Bytes>;
 
-  // Compresses data to a deflate stream (RFC 1950 + RFC 1951).
-  // Level::None stores raw blocks. Higher levels apply LZ77 + Huffman coding.
+  // Compresses every source value into a zlib wrapped DEFLATE stream. Even an
+  // empty source produces the required wrapper and final block. `Level::None`
+  // stores raw blocks while higher levels apply LZ77 and Huffman coding.
   static EXPORTED(PERIMORTEM) auto deflate(
       Core::View::Bytes source,
       Level level = Level::Default) -> Memory::Thread::Bytes;

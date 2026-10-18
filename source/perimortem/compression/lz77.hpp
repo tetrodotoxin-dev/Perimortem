@@ -33,15 +33,18 @@ class Lz77 {
     Count distance;
   };
 
-  Lz77();
+  EXPORTED(PERIMORTEM) Lz77();
 
-  auto reset() -> void;
-  auto find_match(Core::View::Bytes source, Count position, Count depth) const
-      -> Match;
-  auto insert(Core::View::Bytes source, Count position) -> void;
+  EXPORTED(PERIMORTEM) auto reset() -> void;
+  EXPORTED(PERIMORTEM) auto find_match(
+      Core::View::Bytes source,
+      Count position,
+      Count depth) const -> Match;
+  EXPORTED(PERIMORTEM) auto insert(Core::View::Bytes source, Count position)
+      -> void;
   // Inserts the position and searches from the previous chain head in one pass.
   // Starting from that old head prevents the new entry from matching itself.
-  auto find_match_and_insert(
+  EXPORTED(PERIMORTEM) auto find_match_and_insert(
       Core::View::Bytes source,
       Count position,
       Count depth) -> Match;

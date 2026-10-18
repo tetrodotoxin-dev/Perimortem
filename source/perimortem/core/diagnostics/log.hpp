@@ -173,7 +173,7 @@ class Log {
 
   // Names the file sink installed for each thread so a caller that temporarily
   // replaces its sink can restore the default routing.
-  static constexpr Sink default_sink = file_sink;
+  static EXPORTED(PERIMORTEM) const Sink default_sink;
 
   // Logging calls are thread safe
   // Each thread writes to a separate buffer and file.

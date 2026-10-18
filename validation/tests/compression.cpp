@@ -146,8 +146,23 @@ static constexpr Storage::Bytes<10> invalid_dynamic_symbol = {{
   0x01,
 }};
 
+static auto select_inflated(
+    Storage::Option<Thread::Bytes> inflated,
+    Thread::Bytes& output) -> Bool {
+  Bool selected = False;
+  const auto select_output = [&](Thread::Bytes& value) {
+    selected = True;
+    output = Data::take(value);
+  };
+
+  const auto reject_output = [] {};
+  inflated.visit(select_output, reject_output);
+  return selected;
+}
+
 VALIDATION_TEST(CompressionTests, dynamic_huffman) {
-  auto out = Deflate::inflate(hello_compressed);
+  Thread::Bytes out;
+  ASSERT(select_inflated(Deflate::inflate(hello_compressed), out));
 
   ASSERT_EQ(out.get_size(), hello_raw.get_size());
   EXPECT_HEX(out.get_view(), hello_raw.get_view());
@@ -159,22 +174,27 @@ VALIDATION_TEST(CompressionTests, unaligned_input) {
       storage.get_data() + 1, hello_compressed.get_data(),
       hello_compressed.get_size());
 
-  auto out = Deflate::inflate(
-      View::Bytes(storage.get_data() + 1, hello_compressed.get_size()));
+  Thread::Bytes out;
+  ASSERT(select_inflated(
+      Deflate::inflate(
+          View::Bytes(storage.get_data() + 1, hello_compressed.get_size())),
+      out));
 
   ASSERT_EQ(out.get_size(), hello_raw.get_size());
   EXPECT_HEX(out.get_view(), hello_raw.get_view());
 }
 
 VALIDATION_TEST(CompressionTests, stored_blocks) {
-  auto out = Deflate::inflate(stored_compressed);
+  Thread::Bytes out;
+  ASSERT(select_inflated(Deflate::inflate(stored_compressed), out));
 
   ASSERT_EQ(out.get_size(), stored_raw.get_size());
   EXPECT_HEX(out.get_view(), stored_raw.get_view());
 }
 
 VALIDATION_TEST(CompressionTests, back_references) {
-  auto out = Deflate::inflate(repeat_compressed);
+  Thread::Bytes out;
+  ASSERT(select_inflated(Deflate::inflate(repeat_compressed), out));
 
   ASSERT_EQ(out.get_size(), 100);
   for (Count i = 0; i < 100; i += 2) {
@@ -184,12 +204,14 @@ VALIDATION_TEST(CompressionTests, back_references) {
 }
 
 VALIDATION_TEST(CompressionTests, empty_content) {
-  auto out = Deflate::inflate(empty_compressed);
+  Thread::Bytes out;
+  ASSERT(select_inflated(Deflate::inflate(empty_compressed), out));
   EXPECT_EQ(out.get_size(), 0);
 }
 
 VALIDATION_TEST(CompressionTests, inflate_single_byte) {
-  auto out = Deflate::inflate(single_compressed);
+  Thread::Bytes out;
+  ASSERT(select_inflated(Deflate::inflate(single_compressed), out));
 
   ASSERT_EQ(out.get_size(), 1);
   EXPECT_EQ(out.get_data()[0], U8(0x42));
@@ -198,7 +220,7 @@ VALIDATION_TEST(CompressionTests, inflate_single_byte) {
 VALIDATION_TEST(CompressionTests, truncated_input) {
   // Exercise the boundary immediately below the minimum zlib stream size.
   auto out = Deflate::inflate(hello_compressed.slice(0, 6));
-  EXPECT_EQ(out.get_size(), 0);
+  EXPECT_NOT(out);
   EXPECT(
       Log::error_contains(
           "Compression: Input too short to be a valid deflate stream"_view));
@@ -211,7 +233,7 @@ VALIDATION_TEST(CompressionTests, bad_method) {
   bad_cm[0] = (bad_cm[0] & 0xF0) | 0x09;
 
   auto out = Deflate::inflate(bad_cm);
-  EXPECT_EQ(out.get_size(), 0);
+  EXPECT_NOT(out);
   EXPECT(
       Log::error_contains(
           "Compression: Unsupported compression method in deflate header"_view));
@@ -219,12 +241,14 @@ VALIDATION_TEST(CompressionTests, bad_method) {
 
 VALIDATION_TEST(CompressionTests, inflate_bad_checksum) {
   auto out = Deflate::inflate(bad_adler_compressed);
-  EXPECT_EQ(out.get_size(), 0);
+  EXPECT_NOT(out);
   EXPECT(Log::error_contains("Compression: Adler-32 checksum mismatch."_view));
 }
 
 VALIDATION_TEST(CompressionTests, inflate_without_checksum) {
-  auto out = Deflate::inflate_without_checksum(bad_adler_compressed);
+  Thread::Bytes out;
+  ASSERT(select_inflated(
+      Deflate::inflate_without_checksum(bad_adler_compressed), out));
 
   ASSERT_EQ(out.get_size(), hello_raw.get_size());
   EXPECT_HEX(out.get_view(), hello_raw.get_view());
@@ -233,7 +257,7 @@ VALIDATION_TEST(CompressionTests, inflate_without_checksum) {
 VALIDATION_TEST(CompressionTests, reject_repeat_without_previous) {
   auto out = Deflate::inflate(repeat_without_previous);
 
-  EXPECT(out.is_empty());
+  EXPECT_NOT(out);
   EXPECT(
       Log::error_contains(
           "Compression: dynamic Huffman block decompression failed"_view));
@@ -242,7 +266,7 @@ VALIDATION_TEST(CompressionTests, reject_repeat_without_previous) {
 VALIDATION_TEST(CompressionTests, reject_invalid_dynamic_symbol) {
   auto out = Deflate::inflate(invalid_dynamic_symbol);
 
-  EXPECT(out.is_empty());
+  EXPECT_NOT(out);
   EXPECT(
       Log::error_contains(
           "Compression: dynamic Huffman block decompression failed"_view));
@@ -279,7 +303,8 @@ VALIDATION_TEST(CompressionTests, deflate_empty_input) {
   // A valid zlib stream must still have a header and a footer.
   EXPECT(compressed.get_size() >= 6);
 
-  auto recovered = Deflate::inflate(compressed);
+  Thread::Bytes recovered;
+  ASSERT(select_inflated(Deflate::inflate(compressed), recovered));
   EXPECT_EQ(recovered.get_size(), 0);
 }
 
@@ -291,7 +316,8 @@ VALIDATION_TEST(CompressionTests, deflate_single_byte) {
   auto compressed = Deflate::deflate(source_bytes);
   EXPECT(compressed.get_size() > 0);
 
-  auto recovered = Deflate::inflate(compressed);
+  Thread::Bytes recovered;
+  ASSERT(select_inflated(Deflate::inflate(compressed), recovered));
   ASSERT_EQ(recovered.get_size(), Count(1));
   EXPECT_EQ(recovered.get_data()[0], U8(0x42));
 }
@@ -300,7 +326,8 @@ VALIDATION_TEST(CompressionTests, roundtrip_short) {
   auto compressed = Deflate::deflate(hello_raw);
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Deflate::inflate(compressed);
+  Thread::Bytes recovered;
+  ASSERT(select_inflated(Deflate::inflate(compressed), recovered));
   ASSERT_EQ(recovered.get_size(), hello_raw.get_size());
   EXPECT_HEX(recovered.get_view(), hello_raw.get_view());
 }
@@ -316,7 +343,8 @@ VALIDATION_TEST(CompressionTests, roundtrip_binary) {
   auto compressed = Deflate::deflate(all_bytes);
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Deflate::inflate(compressed);
+  Thread::Bytes recovered;
+  ASSERT(select_inflated(Deflate::inflate(compressed), recovered));
   ASSERT_EQ(recovered.get_size(), 256);
   EXPECT_HEX(recovered.get_view(), all_bytes.get_view());
 }
@@ -341,7 +369,8 @@ VALIDATION_TEST(CompressionTests, repeating_value) {
   auto compressed = Deflate::deflate(source);
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Deflate::inflate(compressed);
+  Thread::Bytes recovered;
+  ASSERT(select_inflated(Deflate::inflate(compressed), recovered));
   ASSERT_EQ(recovered.get_size(), source_size);
   EXPECT_HEX(recovered.get_view(), source.get_view());
 }
@@ -378,7 +407,8 @@ VALIDATION_TEST(CompressionTests, roundtrip_large) {
   auto compressed = Deflate::deflate(large);
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Deflate::inflate(compressed);
+  Thread::Bytes recovered;
+  ASSERT(select_inflated(Deflate::inflate(compressed), recovered));
   ASSERT_EQ(recovered.get_size(), size);
   EXPECT_HEX(recovered.get_view(), large.get_view());
 }
@@ -395,7 +425,8 @@ VALIDATION_TEST(CompressionTests, skewed_frequencies) {
   auto compressed = Deflate::deflate(source.get_view());
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Deflate::inflate(compressed);
+  Thread::Bytes recovered;
+  ASSERT(select_inflated(Deflate::inflate(compressed), recovered));
   ASSERT_EQ(recovered.get_size(), size);
   EXPECT_HEX(recovered.get_view(), source.get_view());
 }
