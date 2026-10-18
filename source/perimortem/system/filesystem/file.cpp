@@ -15,6 +15,7 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/diagnostics/message.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 
 using namespace Perimortem::Core;
@@ -228,7 +229,7 @@ static auto log_file_warning(
     S64 detail) -> void {
   const View::Bytes components =
       path.get_components().slice(0, max_logged_path_size);
-  Diagnostics::Log::Message<max_warning_size> warning(
+  Diagnostics::Message<max_warning_size> warning(
       Diagnostics::Log::Level::Warning);
   warning << operation << " failed. path=["_view << path.get_anchor_name()
           << "]:/"_view << components;

@@ -13,6 +13,7 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/diagnostics/message.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
@@ -99,8 +100,7 @@ class ThreadInitializer {
         function(function),
         context(context),
         sink(Diagnostics::Log::get_sink()),
-        level(Diagnostics::Log::get_level()),
-        disable_log_header(Diagnostics::Log::get_disable_header()) {
+        level(Diagnostics::Log::get_level()) {
 
 #ifdef TOOLCHAIN_WINDOWS
 
@@ -166,14 +166,12 @@ class ThreadInitializer {
     // callback can replace any setting without mutating that source thread.
     Diagnostics::Log::set_sink(initializer.sink);
     Diagnostics::Log::set_level(initializer.level);
-    Diagnostics::Log::set_disable_header(initializer.disable_log_header);
 
     Process::Thread::Function& function = initializer.function;
     void* context = initializer.context;
 
     {
-      Diagnostics::Log::Message<64> start_message(
-          Diagnostics::Log::Level::Debug);
+      Diagnostics::Message<64> start_message(Diagnostics::Log::Level::Debug);
       start_message << "Process::Thread started."_view;
     }
 
@@ -183,7 +181,7 @@ class ThreadInitializer {
     // Completion uses the callback's current diagnostic policy because a
     // thread can deliberately replace the inherited sink while it runs.
     {
-      Diagnostics::Log::Message<64> completion_message(
+      Diagnostics::Message<64> completion_message(
           Diagnostics::Log::Level::Debug);
       completion_message << "Process::Thread completed."_view;
     }
@@ -196,7 +194,6 @@ class ThreadInitializer {
   void* context;
   Diagnostics::Log::Sink sink;
   Diagnostics::Log::Level level;
-  Bool disable_log_header;
   Bool initialized = False;
   Bool started = False;
 };
@@ -251,7 +248,7 @@ auto Process::Thread::join() -> void {
   const Bool joined = waited == WAIT_OBJECT_0;
   if (joined && !CloseHandle(native_thread)) {
     const U32 close_error = GetLastError();
-    Diagnostics::Log::Message<256> failure(Diagnostics::Log::Level::Error);
+    Diagnostics::Message<256> failure(Diagnostics::Log::Level::Error);
     failure << "Process::Thread finished its callback but could not release "
                "the native handle. Execution can continue, but the handle may "
                "remain until process exit. error="_view

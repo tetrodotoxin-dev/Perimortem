@@ -9,6 +9,7 @@
 #include "perimortem/compression/lz77.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/diagnostics/message.hpp"
 #include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/storage/vector.hpp"
@@ -510,8 +511,7 @@ constexpr auto test_checksum(View::Bytes stream, View::Bytes source) -> Bool {
   U32 checksum = Data::read<Data::ByteOrder::Big, U32>(
       source.get_data() + source.get_size() - sizeof(U32));
   if (stream_checksum != checksum) [[unlikely]] {
-    Diagnostics::Log::Message<128> error_message(
-        Diagnostics::Log::Level::Error);
+    Diagnostics::Message<128> error_message(Diagnostics::Log::Level::Error);
     error_message << "Compression: Adler-32 checksum mismatch. checksum="_view
                   << checksum << " stream_checksum="_view << stream_checksum;
     return False;
@@ -985,8 +985,7 @@ auto Deflate::deflate(View::Bytes source, Level level) -> Thread::Bytes {
   case Level::Best:
     return deflate_dynamic(source, best_search_depth);
   default: {
-    Diagnostics::Log::Message<128> warning_message(
-        Diagnostics::Log::Level::Warning);
+    Diagnostics::Message<128> warning_message(Diagnostics::Log::Level::Warning);
     warning_message << "Compression: unknown compression level "_view
                     << U8(level)
                     << " requested, defaulting to Level::Default"_view;

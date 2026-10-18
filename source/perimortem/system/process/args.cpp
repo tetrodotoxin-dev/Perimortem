@@ -10,6 +10,7 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/diagnostics/message.hpp"
 #include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/storage/pair.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
@@ -146,10 +147,8 @@ auto Process::Args::parse(
     View::Bytes authored_argument = arena.copy(argument_data[i]);
     auto argument = parse_argument(authored_argument);
     if (argument.key != "help"_view && !config.contains(argument.key)) {
-      Diagnostics::Log::Message<256> error_message(
-          Diagnostics::Log::Level::Error);
-      error_message << "unrecognized arg"_view << ' ' << authored_argument
-                    << '\n';
+      Diagnostics::Message<256> error_message(Diagnostics::Log::Level::Error);
+      error_message << "unrecognized arg"_view << ' ' << authored_argument;
       return Values(arena);
     }
 

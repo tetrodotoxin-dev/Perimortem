@@ -4,16 +4,16 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/synchronization/mutex.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/system/process/thread.hpp"
-#include "perimortem/system/synchronization/mutex.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 
-static Harness SystemMutex = {
-  .name = "System::Synchronization::Mutex",
+static Harness CoreMutex = {
+  .name = "Core::Synchronization::Mutex",
 };
 
 static Synchronization::Mutex counter_mutex;
@@ -38,7 +38,7 @@ static_assert(!__is_constructible(
     Synchronization::Mutex::Lock,
     Synchronization::Mutex::Lock&&));
 
-VALIDATION_TEST(SystemMutex, serializes_threads) {
+VALIDATION_TEST(CoreMutex, serializes_threads) {
   constexpr Count thread_count = 4;
   counter = 0;
 

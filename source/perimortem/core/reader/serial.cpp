@@ -5,6 +5,7 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/diagnostics/message.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
@@ -17,8 +18,7 @@ constexpr auto blob_flag = 0x20;
 
 auto Reader::Serial::read() -> Value {
   if (!has_content()) {
-    Diagnostics::Log::Message<128> error_message(
-        Diagnostics::Log::Level::Error);
+    Diagnostics::Message<128> error_message(Diagnostics::Log::Level::Error);
     error_message
         << "Serial read overran data buffer while reading type at byte location "_view
         << cursor << ". source_size="_view << source.get_size();
@@ -31,8 +31,7 @@ auto Reader::Serial::read() -> Value {
   auto byte_flag = data[cursor++];
   U8 encoded_size = byte_flag & 0xF;
   if (cursor + encoded_size > source.get_size()) {
-    Diagnostics::Log::Message<128> error_message(
-        Diagnostics::Log::Level::Error);
+    Diagnostics::Message<128> error_message(Diagnostics::Log::Level::Error);
     error_message
         << "Serial read overran data buffer while reading value at byte location "_view
         << cursor << ". source_size="_view << source.get_size()
@@ -66,8 +65,7 @@ auto Reader::Serial::read() -> Value {
     magnitude = Data::ensure_endian<stream_endian, native_endian>(magnitude);
     break;
   default: {
-    Diagnostics::Log::Message<128> error_message(
-        Diagnostics::Log::Level::Error);
+    Diagnostics::Message<128> error_message(Diagnostics::Log::Level::Error);
     error_message << "Serial read found invalid encoding size "_view
                   << (encoded_size) << " at byte location "_view << cursor
                   << "."_view;
@@ -94,8 +92,7 @@ auto Reader::Serial::read() -> Value {
   }
 
   if (cursor + value > source.get_size()) {
-    Diagnostics::Log::Message<128> error_message(
-        Diagnostics::Log::Level::Error);
+    Diagnostics::Message<128> error_message(Diagnostics::Log::Level::Error);
     error_message << "Serial read of blob sized "_view << value
                   << " bytes overran source buffer at location "_view << cursor
                   << ". source_size="_view << source.get_size()

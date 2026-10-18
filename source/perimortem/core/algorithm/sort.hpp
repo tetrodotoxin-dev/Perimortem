@@ -10,15 +10,19 @@
 
 namespace Perimortem::Core::Algorithm {
 
+// Sort orders mutable contiguous values in place without allocating and returns
+// access to that same range. Runtime ordering requires only `operator>` and
+// uses Data::swap, so values without move operations remain sortable when their
+// representations satisfy its exchange contract. Constant evaluation instead
+// uses ordinary copying and assignment. The const array overload returns a
+// sorted Storage::Vector because const storage cannot be reordered in place.
+//
+// Introsort combines quick partitions with a heap fallback to preserve a worst
+// case O(n log n) bound, then completes deferred small partitions with one
+// insertion pass. Ordering is not stable, and every pointer or reference into
+// the range can identify a different value after sorting.
 class Sort {
  public:
-  // Sort orders a mutable contiguous range in place using only `operator>`.
-  // Introsort combines quick partitions with a heap fallback and one final
-  // insertion pass. This has measured about twenty percent faster than
-  // `std::sort` for extremely large arrays in local benchmarks.
-  //
-  // Values need not be movable, but ordering is not stable and every pointer or
-  // reference into the range can identify a different value after sorting.
   template <typename type>
   constexpr auto operator()(Core::Access::Vector<type> access) const
       -> Core::Access::Vector<type> {
@@ -144,11 +148,11 @@ class Sort {
           return;
         }
 
-        Count pivot_index =
-            (partition_size > ninther_median_cutoff)
-                ? ninther_median(data, partition_size)
-                : branchless_median_three(
-                      data, Count(0), partition_size / 2, partition_size - 1);
+        Count pivot_index = (partition_size > ninther_median_cutoff)
+                                ? ninther_median(partition, partition_size)
+                                : branchless_median_three(
+                                      partition, Count(0), partition_size / 2,
+                                      partition_size - 1);
 
         Count split = quick_partition(partition, partition_size, pivot_index);
         if (split < partition_size - split - 1) {

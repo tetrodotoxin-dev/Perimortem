@@ -11,6 +11,7 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/diagnostics/message.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
@@ -56,7 +57,7 @@ Process::Library::~Library() {
   // FreeLibrary.
   if (handle && !FreeLibrary(Data::bit_cast<HMODULE>(handle))) {
     const U32 unload_error = GetLastError();
-    Diagnostics::Log::Message<256> failure(Diagnostics::Log::Level::Error);
+    Diagnostics::Message<256> failure(Diagnostics::Log::Level::Error);
     failure << "Process::Library could not release its native module handle. "
                "The module may remain loaded until process exit. error="_view
             << unload_error;
@@ -65,7 +66,7 @@ Process::Library::~Library() {
 #else
 
   if (handle && dlclose(handle) != 0) {
-    Diagnostics::Log::Message<max_loader_message_size + 192> failure(
+    Diagnostics::Message<max_loader_message_size + 192> failure(
         Diagnostics::Log::Level::Error);
     failure
         << "Process::Library could not release its native module handle. "

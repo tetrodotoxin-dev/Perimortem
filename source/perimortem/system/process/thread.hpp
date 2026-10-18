@@ -41,9 +41,9 @@ class Thread {
   // invoking the callback.
   //
   // The complete name is retained for diagnostics while the host receives the
-  // platform-supported prefix. An empty name skips native naming and
-  // allocation. The new thread begins with the spawning thread's diagnostic
-  // sink, level and header policy.
+  // platform-supported prefix. An empty name skips the diagnostic name copy and
+  // the native naming call. The new thread begins with the spawning thread's
+  // diagnostic sink and level.
   static EXPORTED(PERIMORTEM) auto start(
       Core::View::Bytes name,
       Function& function,

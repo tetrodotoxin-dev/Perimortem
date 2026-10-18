@@ -5,13 +5,13 @@
 
 #include "toolchain/toolchain.hpp"
 
-namespace Perimortem::System::Synchronization {
+namespace Perimortem::Core::Synchronization {
 
 // Mutex serializes one critical section among threads in the same process.
-// The host synchronization object remains opaque so this header and the public
-// class layout do not depend on Windows or pthread declarations. Acquisition
-// can block until the current Lock ends. Recursive acquisition and fairness are
-// not promised. Destruction requires every Lock and concurrent attempt to have
+// Fixed opaque storage keeps host synchronization declarations out of the
+// public interface without requiring an allocation. Acquisition can block
+// until the current Lock ends. Recursive acquisition and fairness are not
+// promised. Destruction requires every Lock and concurrent attempt to have
 // ended.
 class Mutex {
  public:
@@ -45,7 +45,7 @@ class Mutex {
   auto lock() -> void;
   auto unlock() -> void;
 
-  void* implementation = nullptr;
+  alignas(16) U8 implementation[64] = {};
 };
 
-}  // namespace Perimortem::System::Synchronization
+}  // namespace Perimortem::Core::Synchronization

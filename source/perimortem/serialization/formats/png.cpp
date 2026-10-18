@@ -7,6 +7,7 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/diagnostics/message.hpp"
 #include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/storage/vector.hpp"
@@ -160,7 +161,7 @@ constexpr auto calculate_crc32(View::Bytes data) -> U32 {
 
 constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
   if (offset + chunk_metadata_size > source.get_size()) [[unlikely]] {
-    Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
+    Diagnostics::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: Chunk at offset "_view << S64(offset)
                   << " truncated before header end"_view;
     return Chunk();
@@ -172,8 +173,7 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
   length = Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
       length);
   if (offset + chunk_metadata_size + length > source.get_size()) [[unlikely]] {
-    Diagnostics::Log::Message<128> error_message(
-        Diagnostics::Log::Level::Error);
+    Diagnostics::Message<128> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: Chunk at offset "_view << S64(offset)
                   << " with length "_view << S64(length)
                   << " extends past end of stream"_view;
@@ -200,7 +200,7 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
 
   U32 actual_crc = calculate_crc32(source.slice(offset + 4, 4 + length));
   if (stored_crc != actual_crc) [[unlikely]] {
-    Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
+    Diagnostics::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: CRC-32 mismatch for chunk '"_view << type.get_view()
                   << "' at offset "_view << S64(offset);
     return Chunk();
@@ -551,7 +551,7 @@ auto reconstruct_row(
     break;
 
   default: {
-    Diagnostics::Log::Message<64> error_message(Diagnostics::Log::Level::Error);
+    Diagnostics::Message<64> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: Unknown filter type "_view << U32(filter_type);
     return False;
   }
@@ -571,8 +571,7 @@ constexpr auto reconstruct_filter(
   const auto filtered_row_data = filtered_rows.get_data();
   auto output_pixels = output.get_data();
   if (filtered_rows.get_size() < row_bytes * height) [[unlikely]] {
-    Diagnostics::Log::Message<128> error_message(
-        Diagnostics::Log::Level::Error);
+    Diagnostics::Message<128> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: Decompressed size "_view << filtered_rows.get_size()
                   << " is smaller than required "_view << (row_bytes * height)
                   << " bytes for this image"_view;
@@ -643,8 +642,7 @@ constexpr auto convert_to_pixels(
       // Each indexed color consumes three PLTE bytes. Reject an index whose RGB
       // triple is not completely present.
       if (palette_offset + 3 > palette.get_size()) [[unlikely]] {
-        Diagnostics::Log::Message<128> error_message(
-            Diagnostics::Log::Level::Error);
+        Diagnostics::Message<128> error_message(Diagnostics::Log::Level::Error);
         error_message << "Png: Palette index "_view << U32(palette_index)
                       << " at pixel "_view << S64(pixel_index)
                       << " exceeds palette size "_view
@@ -690,7 +688,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
   auto chunk_tag = source.slice(
       png_signature.get_size() + sizeof(U32), header_tag.get_size());
   if (chunk_tag != "IHDR"_view) [[unlikely]] {
-    Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
+    Diagnostics::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: First chunk must be \"IHDR\". header="_view
                   << chunk_tag;
     return ImageInfo();
@@ -709,7 +707,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
   // unpacking and scaling before conversion.
   if (image_info.get_bit_depth() != Formats::Rgba8::get_bit_depth())
       [[unlikely]] {
-    Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
+    Diagnostics::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: Unsupported bit depth "_view
                   << U32(image_info.get_bit_depth())
                   << " (only 8 bit is supported)"_view;
@@ -718,7 +716,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
 
   const ColorType color_type = image_info.get_color_type();
   if (number_of_color_channels(color_type) == 0) [[unlikely]] {
-    Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
+    Diagnostics::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: Unsupported color type "_view << U32(color_type);
     return ImageInfo();
   }
