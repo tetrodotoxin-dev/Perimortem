@@ -179,6 +179,11 @@ VALIDATION_TEST(SystemPath, parent_and_name) {
   EXPECT_NOT(root.get_parent());
 }
 
+// Canonical Path validation is platform independent. Native emission resolves
+// host anchors and therefore runs only where Perimortem supplies a native
+// filesystem implementation.
+#if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
+
 VALIDATION_TEST(SystemPath, native_emission) {
   constexpr Path path = "[work]:/validation"_path;
   auto emitted = path.emit();
@@ -253,3 +258,5 @@ VALIDATION_TEST(SystemPath, unbounded_native_emission) {
 
       [&] { EXPECT(false); });
 }
+
+#endif

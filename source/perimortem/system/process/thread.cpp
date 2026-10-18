@@ -76,7 +76,7 @@ static auto set_system_thread_name(View::Bytes name) -> void {
     SetThreadDescription(GetCurrentThread(), native_name);
   }
 
-#else
+#elifdef TOOLCHAIN_LINUX
 
   // Pthreads accept at most fifteen name bytes plus one null terminator.
   // Zero extension terminates shorter names, while the final assignment keeps

@@ -50,6 +50,11 @@ static_assert(__is_same(
     decltype(Filesystem::File::fingerprint("[work]:/file"_path)),
     Storage::Option<Filesystem::File::Fingerprint>));
 
+// File and Directory integration changes the process working directory and
+// inspects native streams. Web builds retain the API checks above without
+// claiming a host filesystem contract that Perimortem does not provide.
+#if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
+
 constexpr auto test_contents = "{\"value\":42}"_view;
 constexpr auto replacement_contents = "{\"other\":24}"_view;
 static constexpr CppSize temporary_path_capacity = 512;
@@ -936,3 +941,5 @@ VALIDATION_TEST(SystemDirectory, rejects_file_and_missing_path) {
 
       [&] { EXPECT(false); });
 }
+
+#endif

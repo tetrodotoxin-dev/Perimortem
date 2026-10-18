@@ -156,6 +156,8 @@ VALIDATION_TEST(SerializationBase64, padded_vector_tail) {
   }
 }
 
+#if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
+
 VALIDATION_TEST(SerializationBase64, decode_image) {
   auto source = Filesystem::File::read(
       "[work]:/validation/data/pngs/perimortem_icon.png"_path);
@@ -188,6 +190,8 @@ VALIDATION_TEST(SerializationBase64, decode_image) {
       []() {});
 }
 
+#endif
+
 VALIDATION_TEST(SerializationBase64, encode_empty) {
   const auto source = ""_view;
   const auto decoded_bytes = Encodings::Base64::encode(source);
@@ -202,6 +206,8 @@ VALIDATION_TEST(SerializationBase64, encode_simple) {
 
   EXPECT_TEXT(encoded_bytes.get_view(), encoded);
 }
+
+#if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
 
 VALIDATION_TEST(SerializationBase64, encode_image) {
   auto source = Filesystem::File::read(
@@ -235,3 +241,5 @@ VALIDATION_TEST(SerializationBase64, encode_image) {
 
       []() {});
 }
+
+#endif

@@ -354,6 +354,8 @@ VALIDATION_TEST(SerializationJson, construct_nested) {
   ASSERT_TEXT(formated, expected);
 }
 
+#if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
+
 VALIDATION_TEST(SerializationJson, round_trip_init_rpc) {
   auto source =
       Filesystem::File::read("[work]:/validation/data/json/init_rpc.json"_path);
@@ -374,6 +376,8 @@ VALIDATION_TEST(SerializationJson, round_trip_init_rpc) {
   ASSERT_EQ(formated.get_size(), source_view.get_size());
   ASSERT_TEXT(formated, source_view);
 }
+
+#endif
 
 VALIDATION_TEST(SerializationJson, format_number_zero) {
   Allocator::Arena arena;
@@ -436,6 +440,8 @@ VALIDATION_TEST(SerializationJson, format_null) {
   ASSERT_TEXT(value.format(arena), "{\"a\":1,\"b\":null,\"c\":3}"_view);
 }
 
+#if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
+
 VALIDATION_TEST(SerializationJson, rpc_from_parsed) {
   auto source =
       Filesystem::File::read("[work]:/validation/data/json/init_rpc.json"_path);
@@ -471,3 +477,5 @@ VALIDATION_TEST(SerializationJson, rpc_from_parsed) {
   EXPECT_TEXT(response["jsonrpc"_view].get_string(), "2.0"_view);
   EXPECT_EQ(response["id"_view].get_integer(), 10);
 }
+
+#endif

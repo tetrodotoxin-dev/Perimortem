@@ -7,6 +7,7 @@ build:release --copt=-DPERI_RELEASE
 build:release --strip=always
 
 build:web --platforms=@tetro_toolchain//:wasm32
+build:web_tests --platforms=@tetro_toolchain//:wasm32_runner
 build:scalar --define=perimortem_avx2=false
 
 build:windows --platforms=@tetro_toolchain//:windows_x64

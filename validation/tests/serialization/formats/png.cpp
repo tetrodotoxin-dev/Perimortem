@@ -24,6 +24,8 @@ static Harness SerializationPng = {
   .teardown = Log::end,
 };
 
+#if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
+
 static auto read_fixture(View::Bytes path) -> Global::Bytes {
   auto canonical =
       Filesystem::Path::create(Filesystem::Path::Anchor::Work, path);
@@ -186,6 +188,8 @@ VALIDATION_TEST(SerializationPng, decode_pattern_8x1) {
   EXPECT_EQ(pixels.get_data()[4].green, U8(200));
 }
 
+#endif
+
 VALIDATION_TEST(SerializationPng, decode_invalid) {
   constexpr Storage::Bytes<8> garbage = {
     {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}};
@@ -197,6 +201,8 @@ VALIDATION_TEST(SerializationPng, decode_invalid) {
 
 // The altered IHDR has a matching CRC so decoding reaches the extent check.
 // It must reject the claimed storage before inflating the tiny source payload.
+#if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
+
 VALIDATION_TEST(SerializationPng, decoded_extent_overflow) {
   auto source = read_fixture("validation/data/pngs/red_1x1.png"_view);
   ASSERT_NOT(source.is_empty());
@@ -216,6 +222,8 @@ VALIDATION_TEST(SerializationPng, decoded_extent_overflow) {
   EXPECT(decoded.is_empty());
   EXPECT(Log::error_contains("Png: Decoded extent exceeds address space"_view));
 }
+
+#endif
 
 VALIDATION_TEST(SerializationPng, roundtrip_1x1) {
   Thread::Vector<Formats::Rgba8> source_pixels;
@@ -323,6 +331,8 @@ VALIDATION_TEST(SerializationPng, empty_image) {
   EXPECT(encoded.is_empty());
 }
 
+#if defined(TOOLCHAIN_LINUX) || defined(TOOLCHAIN_WINDOWS)
+
 VALIDATION_TEST(SerializationPng, chunk_header_trunc) {
   // A complete IHDR followed by a partial chunk header must fail before the
   // decoder reads the missing length and type bytes.
@@ -397,5 +407,7 @@ VALIDATION_TEST(SerializationPng, crc_mismatch) {
       Log::error_contains(
           "Png: CRC-32 mismatch for chunk 'IHDR' at offset 8"_view));
 }
+
+#endif
 
 #endif
