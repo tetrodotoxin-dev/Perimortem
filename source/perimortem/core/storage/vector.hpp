@@ -84,14 +84,27 @@ class Vector {
   constexpr auto get_size() const -> Count { return literal_size; }
   constexpr auto get_capacity() const -> Count { return literal_size; }
   constexpr auto get_view() const -> const Core::View::Vector<type> {
-    return Core::View::Vector<type>(values.source_block, literal_size);
+    if constexpr (literal_size == 0) {
+      return Core::View::Vector<type>();
+    }
+
+    return Core::View::Vector<type>(values.source_block[0], literal_size);
   }
 
   constexpr auto get_data() const -> const type* { return values.source_block; }
 
   constexpr auto get_data() -> type* { return values.source_block; }
   constexpr auto get_access() -> Core::Access::Vector<type> {
-    return Core::Access::Vector<type>(values.source_block, literal_size);
+    auto return_access = [](Core::Access::Vector<type>& access) {
+      return access;
+    };
+
+    auto unreachable = []() -> Core::Access::Vector<type> {
+      __builtin_unreachable();
+    };
+
+    return Core::Access::Vector<type>::create(values.source_block, literal_size)
+        .visit(return_access, unreachable);
   }
 };
 

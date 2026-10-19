@@ -82,7 +82,7 @@ VALIDATION_TEST(SerializationBase64, reject_partial_quartet) {
       continue;
     }
 
-    View::Bytes encoded(source, size);
+    View::Bytes encoded(source[0], size);
     expect_decode_failure(encoded, result);
   }
 }
@@ -143,7 +143,7 @@ VALIDATION_TEST(SerializationBase64, padded_vector_tail) {
         encoded[size - index - 1] = '=';
       }
 
-      const View::Bytes source(encoded, size);
+      const View::Bytes source(encoded[0], size);
       const auto decoded = decode(source, result);
       Allocator::Arena arena;
       const auto decoded_view = decode(arena, source, result);

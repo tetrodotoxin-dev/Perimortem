@@ -177,7 +177,7 @@ VALIDATION_TEST(CompressionTests, unaligned_input) {
   Thread::Bytes out;
   ASSERT(select_inflated(
       Deflate::inflate(
-          View::Bytes(storage.get_data() + 1, hello_compressed.get_size())),
+          View::Bytes(storage.get_data()[1], hello_compressed.get_size())),
       out));
 
   ASSERT_EQ(out.get_size(), hello_raw.get_size());

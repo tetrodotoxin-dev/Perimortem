@@ -10,17 +10,21 @@
 
 namespace Perimortem::Core::View {
 
-// Matrix borrows a contiguous range of read only values and assigns one value
-// to every coordinate in its multidimensional Size. Axis zero is contiguous
-// and each following axis advances by the product of the preceding extents.
+// Matrix gives callers read only access to a contiguous value range and assigns
+// one value to every coordinate in its multidimensional Size. Axis zero is
+// contiguous and each following axis advances by the product of the preceding
+// extents.
 // Construction publishes the supplied Size only when its value count is
 // representable and exactly matches the supplied View::Vector. Every other
 // input produces the null representation with zero extents and no values. A
 // valid Size with an empty axis retains its other extents while referencing no
 // values.
 //
-// `get` rejects negative coordinates and coordinates outside any axis. The
-// caller keeps every value alive at the same address through all access.
+// Matrix stores the source View without extending its storage lifetime. An
+// operation that relocates or releases the source values invalidates Matrix, so
+// callers reacquire it after such an operation. While the source remains
+// accessible, `get` rejects negative coordinates and coordinates outside any
+// axis.
 template <typename type, Count dimensions>
 class Matrix {
   static_assert(dimensions > 0);
@@ -33,8 +37,7 @@ class Matrix {
       Math::Size<U32, dimensions> source_size,
       View::Vector<data_type> source) {
     auto publish = [this, source_size, source](Count expected) {
-      if (expected != source.get_size() ||
-          (expected != 0 && source.get_data() == nullptr)) {
+      if (expected != source.get_size()) {
         return;
       }
 

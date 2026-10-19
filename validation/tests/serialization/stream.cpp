@@ -125,8 +125,9 @@ VALIDATION_TEST(SerializationStream, native_vector) {
 
   writer << values.get_view();
 
+  const auto native_data = Data::cast<const U8>(values.get_data());
   const View::Bytes native_bytes(
-      Data::cast<const U8>(values.get_data()), values.get_size() * sizeof(U32));
+      native_data[0], values.get_size() * sizeof(U32));
   EXPECT_EQ(output.get_size(), native_bytes.get_size());
   EXPECT(output.get_view() == native_bytes);
 }

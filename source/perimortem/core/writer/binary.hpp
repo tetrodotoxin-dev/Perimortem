@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/access/bytes.h"
+#include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 
 namespace Perimortem::Core::Writer {
@@ -111,7 +111,11 @@ class Binary {
   constexpr auto get_location() const -> Count { return cursor; }
   constexpr auto is_valid() const -> Bool { return valid_state; }
   constexpr operator View::Bytes() const {
-    return View::Bytes(source.get_data(), cursor);
+    if (cursor == 0) {
+      return View::Bytes();
+    }
+
+    return View::Bytes(source.get_data()[0], cursor);
   }
 
  private:
@@ -174,7 +178,7 @@ class Binary {
     return *this;
   }
 
-  Access::Bytes source{};
+  Access::Bytes source;
   Count cursor = 0;
   Bool valid_state = True;
 };

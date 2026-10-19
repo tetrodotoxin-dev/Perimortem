@@ -19,7 +19,9 @@ namespace Perimortem::Memory::Thread {
 // destruction. Crossing a thread boundary requires copying its values into
 // Global storage.
 //
-// Default construction uses the capability's empty representation.
+// Default construction uses the capability's empty representation. Calling
+// `get_access()` on that state checks out a Bibliotheca block and begins the
+// thread affinity without changing size or constructing a current value.
 template <typename type>
 class Vector final : public Container::Vector<Vector<type>, type> {
   using Base = Container::Vector<Vector<type>, type>;
@@ -70,8 +72,8 @@ class Vector final : public Container::Vector<Vector<type>, type> {
   auto operator=(Core::View::Vector<type> source) -> Vector&
     requires(__is_constructible(type, const type&))
   {
-    // Materialize the borrowed values before releasing this block so `source`
-    // may refer to this Vector.
+    // Materialize every source value before releasing this block because
+    // `source` may reference this Vector.
     Vector replacement(source);
     *this = Core::Data::take(replacement);
     return *this;

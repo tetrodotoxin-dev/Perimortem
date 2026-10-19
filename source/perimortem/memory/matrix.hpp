@@ -117,8 +117,17 @@ class Matrix {
   }
 
   constexpr auto get_access() -> Core::Access::Matrix<type, 2> {
-    return Core::Access::Matrix<type, 2>(
-        domain.get_size(), values.get_access());
+    auto return_access = [](Core::Access::Matrix<type, 2>& access) {
+      return access;
+    };
+
+    auto unreachable = []() -> Core::Access::Matrix<type, 2> {
+      __builtin_unreachable();
+    };
+
+    return Core::Access::Matrix<type, 2>::create(
+               domain.get_size(), values.get_access())
+        .visit(return_access, unreachable);
   }
 
   constexpr auto is_empty() const -> Bool { return domain.is_empty(); }

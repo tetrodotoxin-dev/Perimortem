@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/storage/result.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::System::Process {
 

@@ -7,10 +7,16 @@
 
 namespace Perimortem::Core::View {
 
-// Vector is a borrowed read only range of contiguous values. It preserves the
-// value type and native in memory representation without declaring a byte order
-// or wire format. The caller keeps every value alive at the same address
-// through all access.
+// Vector provides allocation free read access to one contiguous range of typed
+// values. Indexing and slicing never read outside the provided range with out
+// of bounds indices returning zero initialized values. `get_data` is the
+// explicit escape for code that needs to optimize for speed by providing raw
+// pointer access.
+//
+// Vector does not extend the source storage lifetime. Relocating or releasing
+// the referenced storage invalidates every View into it.
+//
+// An empty View is zero initialized and returns nullptr for `get_data()`.
 template <typename type>
 class Vector {
  public:
@@ -18,12 +24,20 @@ class Vector {
 
   constexpr Vector() = default;
   constexpr Vector(const Vector&) = default;
-  constexpr Vector(const data_type* entries, const Count size)
-      : source_block(entries), size(size) {}
+
+  // `first_value` begins one contiguous range containing `value_count` values.
+  // The caller keeps that complete range accessible throughout use of the View.
+  constexpr Vector(const data_type& first_value, const Count value_count)
+      : source_block(value_count == 0 ? nullptr : &first_value),
+        size(value_count) {}
+  constexpr Vector(type&&, Count) = delete;
+  constexpr Vector(const type&&, Count) = delete;
 
   template <Count N>
   constexpr Vector(const data_type (&source)[N])
       : source_block(source), size(N) {}
+  template <Count N>
+  constexpr Vector(const data_type (&&)[N]) = delete;
 
   constexpr auto operator==(const Vector& rhs) const -> Bool {
     if (rhs.size != size) {
@@ -53,9 +67,13 @@ class Vector {
       return View::Vector<data_type>();
     }
 
-    return View::Vector<data_type>(
-        source_block + start,
-        Core::Math::Scalar::min(size, get_size() - start));
+    const Count selected_size =
+        Core::Math::Scalar::min(size, get_size() - start);
+    if (selected_size == 0) {
+      return View::Vector<data_type>();
+    }
+
+    return View::Vector<data_type>(source_block[start], selected_size);
   };
 
   constexpr auto is_empty() const -> Bool { return size == 0; };

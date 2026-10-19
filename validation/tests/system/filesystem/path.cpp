@@ -120,7 +120,7 @@ VALIDATION_TEST(SystemPath, invalid_components) {
   EXPECT_NOT(
       Path::create(
           Path::Anchor::Work,
-          View::Bytes(embedded_null, sizeof(embedded_null))));
+          View::Bytes(embedded_null[0], sizeof(embedded_null))));
 }
 
 VALIDATION_TEST(SystemPath, utf8) {
@@ -131,18 +131,18 @@ VALIDATION_TEST(SystemPath, utf8) {
 
   EXPECT(
       Path::create(
-          Path::Anchor::Home, View::Bytes(valid_text, sizeof(valid_text))));
+          Path::Anchor::Home, View::Bytes(valid_text[0], sizeof(valid_text))));
   EXPECT_NOT(
       Path::create(
-          Path::Anchor::Home, View::Bytes(overlong, sizeof(overlong))));
+          Path::Anchor::Home, View::Bytes(overlong[0], sizeof(overlong))));
   EXPECT_NOT(
       Path::create(
-          Path::Anchor::Home, View::Bytes(surrogate, sizeof(surrogate))));
+          Path::Anchor::Home, View::Bytes(surrogate[0], sizeof(surrogate))));
   EXPECT_NOT(
       Path::create(
-          Path::Anchor::Home, View::Bytes(truncated, sizeof(truncated))));
+          Path::Anchor::Home, View::Bytes(truncated[0], sizeof(truncated))));
 
-  auto parsed = Path::parse(View::Bytes(overlong, sizeof(overlong)));
+  auto parsed = Path::parse(View::Bytes(overlong[0], sizeof(overlong)));
   parsed.visit(
       [&](const Path&) { EXPECT(false); },
       [&](Path::Failure failure) {
@@ -150,7 +150,7 @@ VALIDATION_TEST(SystemPath, utf8) {
       });
 
   U8 canonical[] = {'[', 'w', 'o', 'r', 'k', ']', ':', '/', 0xC0, 0xAF};
-  auto invalid = Path::parse(View::Bytes(canonical, sizeof(canonical)));
+  auto invalid = Path::parse(View::Bytes(canonical[0], sizeof(canonical)));
   invalid.visit(
       [&](const Path&) { EXPECT(false); },
       [&](Path::Failure failure) {

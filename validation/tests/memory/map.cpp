@@ -302,9 +302,7 @@ class AliasedReplacementValue {
     }
   }
 
-  constexpr auto get_view() const -> View::Bytes {
-    return View::Bytes(values, 4);
-  }
+  constexpr auto get_view() const -> View::Bytes { return View::Bytes(values); }
 
  private:
   U8 values[4] = {};

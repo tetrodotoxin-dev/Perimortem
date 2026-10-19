@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Compression::BitStream {
 

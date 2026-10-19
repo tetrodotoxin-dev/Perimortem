@@ -98,7 +98,7 @@ VALIDATION_TEST(SerializationPng, unaligned_input) {
   Data::copy(
       storage.get_data() + 1, source.get_view().get_data(), source.get_size());
 
-  const View::Bytes shifted(storage.get_data() + 1, source.get_size());
+  const View::Bytes shifted(storage.get_data()[1], source.get_size());
   auto image = Formats::Png::decode(shifted);
   const auto pixels = image.get_view().get_values();
 

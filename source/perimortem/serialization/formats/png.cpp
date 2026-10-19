@@ -237,7 +237,7 @@ constexpr auto write_chunk(
   // the resulting CRC32 in big endian order.
   Count chunk_length = type_tag.get_size() + data.get_size();
   U32 chunk_crc = calculate_crc32(
-      View::Bytes(output + write_position - chunk_length, chunk_length));
+      View::Bytes(output[write_position - chunk_length], chunk_length));
   Data::write<Data::ByteOrder::Big>(
       Data::cast<U32>(output + write_position), chunk_crc);
   write_position += 4;
@@ -439,18 +439,19 @@ constexpr auto apply_adaptive_filtering(View::Matrix<Formats::Rgba8, 2> image)
   // The first row specialization scores only None and Sub and never reads its
   // second View. Passing `current_row` supplies a valid placeholder without a
   // separate empty View path.
-  View::Bytes current_row(raw_bytes, row_stride);
+  View::Bytes current_row(raw_bytes[0], row_stride);
   FilterType best_filter = score_row<True>(current_row, current_row);
 
   apply_row_filter(
       best_filter, output.get_access().slice(1, row_stride),
-      View::Bytes(raw_bytes, row_stride), View::Bytes(raw_bytes, row_stride));
+      View::Bytes(raw_bytes[0], row_stride),
+      View::Bytes(raw_bytes[0], row_stride));
 
   output_data[0] = U8(best_filter);
 
   for (Count row = 1; row < image.get_extent(1); row++) {
     View::Bytes previous_row = current_row;
-    current_row = View::Bytes(raw_bytes + row * row_stride, row_stride);
+    current_row = View::Bytes(raw_bytes[row * row_stride], row_stride);
 
     // Score before writing so only the selected residual reaches output instead
     // of materializing all five candidate rows.
@@ -798,7 +799,7 @@ constexpr auto process_data(
     if (!reconstruct_filter(
             filtered_rows, info.get_width(), info.get_height(), bytes_per_pixel,
             Access::Bytes(
-                Data::cast<U8>(pixels.get_data()),
+                Data::cast<U8>(pixels.get_data())[0],
                 pixels.get_size() * sizeof(Formats::Rgba8)))) [[unlikely]] {
       Diagnostics::Log::error(
           "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
@@ -812,7 +813,7 @@ constexpr auto process_data(
     raw_pixels.forgetful_resize(selected_pixel_count * bytes_per_pixel);
     if (!reconstruct_filter(
             filtered_rows, info.get_width(), info.get_height(), bytes_per_pixel,
-            raw_pixels)) [[unlikely]] {
+            raw_pixels.get_access())) [[unlikely]] {
       Diagnostics::Log::error(
           "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
       return Storage::Option<Matrix<Formats::Rgba8>>();
@@ -950,9 +951,10 @@ auto Formats::Png::encode(View::Matrix<Formats::Rgba8, 2> image)
       data.get_data(), png_signature.get_data(), png_signature.get_size());
 
   Count write_position = png_signature.get_size();
+  const auto header_bytes = Data::cast<U8>(&header);
   write_chunk(
       data, write_position, "IHDR"_view,
-      View::Bytes(Data::cast<U8>(&header), ImageInfo::size));
+      View::Bytes(header_bytes[0], ImageInfo::size));
   write_chunk(data, write_position, "IDAT"_view, compressed.get_view());
   write_chunk(data, write_position, "IEND"_view, View::Bytes());
 

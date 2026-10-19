@@ -53,10 +53,45 @@ static auto check_vector_contract(
   EXPECT(empty.is_empty());
   EXPECT_EQ(empty.get_capacity(), Count(0));
   EXPECT(!empty.get_data());
+  EXPECT_NOT(empty.try_access());
+  EXPECT_EQ(empty.get_capacity(), Count(0));
+  EXPECT(!empty.get_data());
+
+  auto materialized_access = empty.get_access();
+  EXPECT(empty.is_empty());
+  EXPECT(empty.get_capacity() > 0);
+  EXPECT(materialized_access.is_empty());
+  EXPECT(materialized_access.get_data() != nullptr);
+  EXPECT(materialized_access.get_data() == empty.get_data());
+
+  auto retained_access = empty.try_access();
+  ASSERT(retained_access);
+  retained_access.visit(
+      [&](Access::Vector<U32>& access) {
+        EXPECT(access.get_data() == empty.get_data());
+        EXPECT(access.is_empty());
+      },
+
+      []() {});
+
+  U32* retained_storage = empty.get_data();
+  empty.clear();
+  EXPECT(empty.get_data() == retained_storage);
+  EXPECT(empty.try_access());
+  empty.reset();
+  EXPECT_NOT(empty.try_access());
+  EXPECT_EQ(empty.get_capacity(), Count(0));
 
   auto reserved = reserve(64);
   EXPECT(reserved.is_empty());
   EXPECT(reserved.get_capacity() >= 64);
+
+  U32* reserved_storage = reserved.get_data();
+  const Count reserved_capacity = reserved.get_capacity();
+  auto reserved_access = reserved.get_access();
+  EXPECT(reserved.get_data() == reserved_storage);
+  EXPECT_EQ(reserved.get_capacity(), reserved_capacity);
+  EXPECT(reserved_access.get_data() == reserved_storage);
 
   U32 source[] = {4, 8, 16};
   auto values = from_view(View::Vector<U32>(source));
@@ -66,7 +101,7 @@ static auto check_vector_contract(
   EXPECT_EQ(values.get_data()[2], U32(16));
 
   View::Vector<U32> converted_view = values;
-  Access::Vector<U32> converted_access = values;
+  Access::Vector<U32> converted_access = values.get_access();
   EXPECT(converted_view.get_data() == values.get_data());
   EXPECT_EQ(converted_view.get_size(), values.get_size());
   EXPECT(converted_access.get_data() == values.get_data());
@@ -266,6 +301,16 @@ static_assert(!supports_forgetful_resize<UnconstructibleValue>);
 static_assert(supports_resize<ConstructedValue>);
 static_assert(!supports_resize<UnconstructibleValue>);
 static_assert(supports_retain<UnconstructibleValue>);
+
+VALIDATION_TEST(ThreadVector, access_materializes_storage_not_values) {
+  Thread::Vector<UnconstructibleValue> values;
+
+  auto access = values.get_access();
+  EXPECT(values.is_empty());
+  EXPECT(values.get_capacity() > 0);
+  EXPECT(access.is_empty());
+  EXPECT(access.get_data() == values.get_data());
+}
 
 VALIDATION_TEST(ThreadVector, capability_contract) {
   const Count requests = Allocator::Bibliotheca::check_out_requests();

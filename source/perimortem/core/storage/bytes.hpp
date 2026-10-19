@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include "perimortem/core/access/bytes.h"
+#include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/algorithm/hash.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/math/scalar.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Core::Storage {
 
@@ -109,20 +109,27 @@ class Bytes {
     }
 
     return View::Bytes(
-        values.source_block + start,
+        values.source_block[start],
         Core::Math::Scalar::min(size, get_size() - start));
   }
 
   constexpr auto get_size() const -> Count { return literal_size; }
   constexpr auto get_capacity() const -> Count { return literal_size; }
   constexpr auto get_view() const -> const View::Bytes {
-    return View::Bytes(values.source_block, literal_size);
+    if constexpr (literal_size == 0) {
+      return View::Bytes();
+    }
+
+    return View::Bytes(values.source_block[0], literal_size);
   }
 
   constexpr auto get_data() const -> const U8* { return values.source_block; }
   constexpr auto get_data() -> U8* { return values.source_block; }
   constexpr auto get_access() -> Access::Bytes {
-    return Access::Bytes(values.source_block, literal_size);
+    auto return_access = [](Access::Bytes& access) { return access; };
+    auto unreachable = []() -> Access::Bytes { __builtin_unreachable(); };
+    return Access::Bytes::create({values.source_block, literal_size})
+        .visit(return_access, unreachable);
   }
 
   constexpr auto hash() const -> U64 {

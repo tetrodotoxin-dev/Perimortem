@@ -16,7 +16,9 @@ namespace Perimortem::Memory::Thread {
 // through access, growth and destruction. Crossing a thread boundary requires
 // copying its values into Global storage.
 //
-// Default construction uses the capability's empty representation.
+// Default construction uses the capability's empty representation. Calling
+// `get_access()` on that state checks out a Bibliotheca block and begins the
+// thread affinity without changing size.
 class Bytes final : public Container::Bytes<Bytes> {
   using Base = Container::Bytes<Bytes>;
   friend Base;

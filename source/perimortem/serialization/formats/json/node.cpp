@@ -3,7 +3,6 @@
 
 #include "perimortem/serialization/formats/json/node.hpp"
 
-#include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
@@ -188,14 +187,9 @@ auto Formats::Json::Node::set() -> void {
 }
 
 auto Formats::Json::Node::operator[](U32 index) const -> Formats::Json::Node {
-  if (data.state == U32(State::Array)) {
-    View::Vector<Formats::Json::Node> array(
-        Data::cast<const Formats::Json::Node>(data.ptr), data.size);
-    if (array.get_size() <= index) {
-      return Formats::Json::Node();
-    }
-
-    return array.get_data()[index];
+  if (data.state == U32(State::Array) && index < data.size) {
+    const auto values = Data::cast<const Formats::Json::Node>(data.ptr);
+    return values[index];
   }
 
   return Formats::Json::Node();
@@ -203,11 +197,11 @@ auto Formats::Json::Node::operator[](U32 index) const -> Formats::Json::Node {
 
 auto Formats::Json::Node::operator[](const View::Bytes name) const
     -> Formats::Json::Node {
-  if (data.state == U32(State::Object)) {
-    View::Vector<Member> members(Data::cast<const Member>(data.ptr), data.size);
-    for (Count i = 0; i < members.get_size(); i++) {
-      if (members.get_data()[i].name == name) {
-        return members.get_data()[i].node;
+  if (data.state == U32(State::Object) && data.size != 0) {
+    const auto members = Data::cast<const Member>(data.ptr);
+    for (Count i = 0; i < data.size; i++) {
+      if (members[i].name == name) {
+        return members[i].node;
       }
     }
   }
@@ -216,14 +210,16 @@ auto Formats::Json::Node::operator[](const View::Bytes name) const
 }
 
 auto Formats::Json::Node::contains(const View::Bytes name) const -> Bool {
-  if (data.state == U32(State::Object)) {
-    View::Vector<Member> members(Data::cast<const Member>(data.ptr), data.size);
-    return Algorithm::Search::match(members, [name](const Member& member) {
-             return member.name == name;
-           }) != Count(-1);
+  if (data.state == U32(State::Object) && data.size != 0) {
+    const auto members = Data::cast<const Member>(data.ptr);
+    for (Count i = 0; i < data.size; i++) {
+      if (members[i].name == name) {
+        return True;
+      }
+    }
   }
 
-  return false;
+  return False;
 }
 
 auto Formats::Json::Node::get_boolean() const -> Bool {
@@ -251,8 +247,9 @@ auto Formats::Json::Node::get_real() const -> R64 {
 }
 
 auto Formats::Json::Node::get_string() const -> View::Bytes {
-  if (data.state == U32(State::String)) {
-    return View::Bytes(Data::cast<const U8>(data.ptr), data.size);
+  if (data.state == U32(State::String) && data.size != 0) {
+    const auto values = Data::cast<const U8>(data.ptr);
+    return View::Bytes(values[0], data.size);
   }
 
   return View::Bytes();
@@ -320,16 +317,18 @@ auto Formats::Json::Node::decode_string(Allocator::Arena& arena) const
 }
 
 auto Formats::Json::Node::get_array() const -> View::Vector<Node> {
-  if (data.state == U32(State::Array)) {
-    return View::Vector<Node>(Data::cast<const Node>(data.ptr), data.size);
+  if (data.state == U32(State::Array) && data.size != 0) {
+    const auto values = Data::cast<const Node>(data.ptr);
+    return View::Vector<Node>(values[0], data.size);
   }
 
   return View::Vector<Node>();
 }
 
 auto Formats::Json::Node::get_object() const -> View::Vector<Member> {
-  if (data.state == U32(State::Object)) {
-    return View::Vector<Member>(Data::cast<const Member>(data.ptr), data.size);
+  if (data.state == U32(State::Object) && data.size != 0) {
+    const auto members = Data::cast<const Member>(data.ptr);
+    return View::Vector<Member>(members[0], data.size);
   }
 
   return View::Vector<Member>();

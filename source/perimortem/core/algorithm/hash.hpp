@@ -5,7 +5,7 @@
 
 #include <string.h>
 
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Core::Algorithm {
 
@@ -205,7 +205,7 @@ class Hash {
   // numeric address escapes this operation or becomes a serializable value.
   template <typename pointer_type>
   Hash(pointer_type* pointer)
-      : Hash(View::Bytes(Data::cast<const U8>(&pointer), sizeof(pointer))) {}
+      : Hash(View::Bytes(Data::cast<const U8>(&pointer)[0], sizeof(pointer))) {}
 
   // Nonpointer types can supply a type specific hash without exposing a byte
   // representation.

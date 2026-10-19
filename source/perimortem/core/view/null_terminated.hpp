@@ -5,13 +5,14 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/storage/bytes.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Core::View {
 
 // NullTerminated calculates the byte extent of a bounded C string once. The
-// resulting View uses the source storage and excludes the first null byte. It
-// remains valid while the caller keeps that storage alive at the same address.
+// resulting View references the source storage and excludes the first null byte
+// without extending that storage's lifetime. Relocating or releasing the source
+// invalidates the View, so callers reacquire it after such an operation.
 class NullTerminated {
  public:
   constexpr NullTerminated(const char* source, Count capacity)
@@ -23,7 +24,13 @@ class NullTerminated {
     }
   }
 
-  auto get_view() const -> View::Bytes { return View::Bytes(source, size); }
+  auto get_view() const -> View::Bytes {
+    if (size == 0) {
+      return View::Bytes();
+    }
+
+    return View::Bytes(source[0], size);
+  }
 
   // Literal makes authored bytes a structural template argument for `_view`
   // and `_bytes`. The `_view` template parameter object has static storage
@@ -46,7 +53,11 @@ class NullTerminated {
     consteval auto get_size() const -> Count { return size_including_null - 1; }
     consteval auto get_data() const -> const U8* { return content; }
     consteval auto get_view() const -> const View::Bytes {
-      return View::Bytes(content, get_size());
+      if constexpr (size_including_null == 1) {
+        return View::Bytes();
+      }
+
+      return View::Bytes(content[0], get_size());
     }
   };
 

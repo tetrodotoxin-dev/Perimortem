@@ -5,9 +5,9 @@
 
 #include "toolchain/toolchain.hpp"
 
-#include "perimortem/core/access/bytes.h"
+#include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/storage/option.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 
 namespace Perimortem::Serialization::Formats {
@@ -115,7 +115,7 @@ class Version {
   }
 
   // Serializes every component into caller supplied storage and returns a View
-  // borrowing the written range. Trailing zeroes remain in the text, so the
+  // over exactly the written range. Trailing zeroes remain in the text, so the
   // selected component count determines the exact output shape. Insufficient
   // storage returns None without changing the supplied bytes.
   constexpr auto serialize(Core::Access::Bytes output) const
@@ -146,7 +146,7 @@ class Version {
       cursor = end;
     }
 
-    return Core::View::Bytes(output.get_data(), required_size);
+    return Core::View::Bytes(output.get_data()[0], required_size);
   }
 
   static constexpr auto get_component_count() -> Count {
@@ -160,7 +160,8 @@ class Version {
   // Returns every component in comparison order. The View remains valid while
   // this Version remains alive at the same address.
   constexpr auto get_components() const -> Core::View::Vector<U16> {
-    return Core::View::Vector<U16>(components.source_block, component_extent);
+    return Core::View::Vector<U16>(
+        components.source_block[0], component_extent);
   }
 
  private:

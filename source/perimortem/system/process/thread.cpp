@@ -55,7 +55,7 @@ static auto copy_thread_name(View::Bytes source) -> View::Bytes {
 
   const auto allocation = Allocator::Bibliotheca::check_out(source.get_size());
   Data::copy(allocation.get_data(), source.get_data(), source.get_size());
-  return View::Bytes(allocation.get_data(), source.get_size());
+  return View::Bytes(allocation.get_data()[0], source.get_size());
 }
 
 static auto set_system_thread_name(View::Bytes name) -> void {

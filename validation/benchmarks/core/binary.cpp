@@ -6,7 +6,7 @@
 #include "toolchain/toolchain.hpp"
 #include "toolchain/validation/benchmark.hpp"
 
-#include "perimortem/core/access/bytes.h"
+#include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/view/null_terminated.hpp"

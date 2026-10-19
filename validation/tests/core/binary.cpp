@@ -188,8 +188,7 @@ VALIDATION_TEST(CoreBinaryReader, multiple_readers) {
 // API.
 static constexpr auto optional_reads() -> Bool {
   const U8 bytes[] = {0, 0, 0, 0};
-  auto reader = Reader::Binary<Data::ByteOrder::Little>(
-      View::Bytes{bytes, sizeof(bytes)});
+  auto reader = Reader::Binary<Data::ByteOrder::Little>(View::Bytes{bytes});
   const auto zero = reader.read_u32();
   const auto empty = reader.read_bytes(0);
   const Bool zero_is_valid = zero.visit(
@@ -421,7 +420,7 @@ VALIDATION_TEST(CoreBinaryWriter, multiple_writers) {
 template <Data::ByteOrder order>
 static constexpr auto word_bytes() -> Storage::Bytes<12> {
   Storage::Bytes<12> bytes;
-  Writer::Binary<order> writer(Access::Bytes(bytes.get_data(), 12));
+  Writer::Binary<order> writer(Access::Bytes(bytes.get_data()[0], 12));
   writer << U64(0x0102030405060708ULL);
   writer << U32(0x090a0b0c);
   return bytes;
@@ -430,7 +429,7 @@ static constexpr auto word_bytes() -> Storage::Bytes<12> {
 static_assert([] {
   const auto bytes = word_bytes<Data::ByteOrder::Big>();
   Reader::Binary<Data::ByteOrder::Big> reader(
-      View::Bytes(bytes.get_data(), 12));
+      View::Bytes(bytes.get_data()[0], 12));
   const auto first = reader.read_u64();
   const auto second = reader.read_u32();
   const auto past_end = reader.read_u32();
@@ -471,8 +470,8 @@ VALIDATION_TEST(CoreBinaryReader, constant_word_io) {
           word_bytes<Data::ByteOrder::Big>().get_data(), big.get_data(), 12));
 
   Reader::Binary<Data::ByteOrder::Little> le(
-      View::Bytes(little.get_data(), 12));
-  Reader::Binary<Data::ByteOrder::Big> be(View::Bytes(big.get_data(), 12));
+      View::Bytes(little.get_data()[0], 12));
+  Reader::Binary<Data::ByteOrder::Big> be(View::Bytes(big.get_data()[0], 12));
   le.read_u64().visit(
       [&](U64 value) { EXPECT_EQ(value, U64(0x0102030405060708ULL)); },
       [&] { EXPECT(false); });

@@ -45,6 +45,42 @@ static auto check_bytes_contract(
   EXPECT(empty.is_empty());
   EXPECT_EQ(empty.get_capacity(), Count(0));
   EXPECT(!empty.get_data());
+  EXPECT_NOT(empty.try_access());
+  EXPECT_EQ(empty.get_capacity(), Count(0));
+  EXPECT(!empty.get_data());
+
+  auto materialized_access = empty.get_access();
+  EXPECT(empty.is_empty());
+  EXPECT(empty.get_capacity() > 0);
+  EXPECT(materialized_access.is_empty());
+  EXPECT(materialized_access.get_data() != nullptr);
+  EXPECT(materialized_access.get_data() == empty.get_data());
+
+  auto retained_access = empty.try_access();
+  ASSERT(retained_access);
+  retained_access.visit(
+      [&](Access::Bytes& access) {
+        EXPECT(access.get_data() == empty.get_data());
+        EXPECT(access.is_empty());
+      },
+
+      []() {});
+
+  U8* retained_storage = empty.get_data();
+  empty.clear();
+  EXPECT(empty.get_data() == retained_storage);
+  EXPECT(empty.try_access());
+  empty.reset();
+  EXPECT_NOT(empty.try_access());
+  EXPECT_EQ(empty.get_capacity(), Count(0));
+
+  auto preallocated = reserve(64);
+  U8* preallocated_storage = preallocated.get_data();
+  const Count preallocated_capacity = preallocated.get_capacity();
+  auto preallocated_access = preallocated.get_access();
+  EXPECT(preallocated.get_data() == preallocated_storage);
+  EXPECT_EQ(preallocated.get_capacity(), preallocated_capacity);
+  EXPECT(preallocated_access.get_data() == preallocated_storage);
 
   auto bytes = from_view("abc"_view);
   const auto& fixed_bytes = bytes;
@@ -65,7 +101,7 @@ static auto check_bytes_contract(
   EXPECT_EQ(bytes.hash(), Algorithm::Hash(bytes.get_view()).get_value());
 
   View::Bytes converted_view = bytes;
-  Access::Bytes converted_access = bytes;
+  Access::Bytes converted_access = bytes.get_access();
   EXPECT_EQ(converted_view, bytes.get_view());
   EXPECT_EQ(converted_access.get_size(), bytes.get_size());
   EXPECT(converted_access.get_data() == bytes.get_data());

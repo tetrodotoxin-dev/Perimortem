@@ -5,7 +5,7 @@
 
 #include "perimortem/core/diagnostics/source.hpp"
 #include "perimortem/core/storage/bytes.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Core::Diagnostics {
 
@@ -15,12 +15,12 @@ namespace Perimortem::Core::Diagnostics {
 // file for each thread by default. `set_sink` replaces that routing without
 // changing diagnostic producers.
 //
-// Log invokes the selected Sink before returning. A Sink borrows the message
-// and Source for that callback and copies any data it retains. A Sink shared by
-// multiple threads serializes its mutable state. The supplied shared sinks use
-// Core::Synchronization::Mutex, while `file_sink` needs no lock because each
-// thread has its own file. A null Sink drops nonfatal diagnostics. Fatal still
-// terminates the process.
+// Log invokes the selected Sink before returning. The message and Source remain
+// accessible only during that callback, so a Sink copies any data it retains. A
+// Sink shared by multiple threads serializes its mutable state. The supplied
+// shared sinks use Core::Synchronization::Mutex, while `file_sink` needs no
+// lock because each thread has its own file. A null Sink drops nonfatal
+// diagnostics. Fatal still terminates the process.
 class Log {
  public:
   // Levels increase in severity. Filtering forwards the selected threshold and
@@ -37,8 +37,8 @@ class Log {
   // Attribution applies one caller-selected Source to every nested diagnostic
   // on the current thread. Only the outermost live guard installs a Source, so
   // helper scopes cannot replace the original context. Moving the guard
-  // transfers responsibility for ending that override. An explicitly authored
-  // Source continues borrowing its file and function Views until that outermost
+  // transfers responsibility for ending that override. The code that authors a
+  // Source keeps its file and function Views accessible until that outermost
   // guard ends.
   class Attribution {
     friend Log;
@@ -180,8 +180,8 @@ class Log {
   // MM:SS:mmm.t with a 100 microsecond reporting floor and expanding minutes.
   // Display names retain their first 64 bytes. Source paths longer than 100
   // bytes retain their final 100 bytes preceded by `...`. An unset Source omits
-  // the location fields. The returned View borrows `buffer` until that buffer
-  // is modified or leaves scope.
+  // the location fields. The returned View references `buffer` until that
+  // buffer is modified or leaves scope.
   static EXPORTED(PERIMORTEM) auto generate_header(
       Level level,
       const Source& location,

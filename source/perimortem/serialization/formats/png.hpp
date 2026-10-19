@@ -41,7 +41,7 @@ class Png {
 
   // Encodes a two dimensional Rgba8 View to a PNG byte stream. Adaptive
   // filtering scores each row under all five filter types and writes the lowest
-  // scoring choice. The caller keeps the borrowed samples accessible until the
+  // scoring choice. The caller keeps every sample accessible until the
   // synchronous call returns.
   //
   // Returns empty bytes for an invalid or empty View.

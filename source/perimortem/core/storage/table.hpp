@@ -7,7 +7,7 @@
 #include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/storage/pair.hpp"
 #include "perimortem/core/storage/vector.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 
 namespace Perimortem::Core::Storage {

@@ -80,11 +80,11 @@ class Matrix {
   constexpr auto get_extent(Count axis) const -> U32 { return size[axis]; }
   constexpr auto get_value_count() const -> Count { return value_count; }
   constexpr auto get_values() const -> View::Vector<data_type> {
-    return View::Vector<data_type>(values.source_block, value_count);
+    return View::Vector<data_type>(values.source_block[0], value_count);
   }
 
   constexpr auto get_values() -> Access::Vector<data_type> {
-    return Access::Vector<data_type>(values.source_block, value_count);
+    return Access::Vector<data_type>(values.source_block[0], value_count);
   }
 
   constexpr auto get_view() const -> View::Matrix<data_type, dimensions> {
@@ -92,7 +92,16 @@ class Matrix {
   }
 
   constexpr auto get_access() -> Access::Matrix<data_type, dimensions> {
-    return Access::Matrix<data_type, dimensions>(size, get_values());
+    auto return_access = [](Access::Matrix<data_type, dimensions>& access) {
+      return access;
+    };
+
+    auto unreachable = []() -> Access::Matrix<data_type, dimensions> {
+      __builtin_unreachable();
+    };
+
+    return Access::Matrix<data_type, dimensions>::create(size, get_values())
+        .visit(return_access, unreachable);
   }
 
   constexpr auto is_empty() const -> Bool { return False; }

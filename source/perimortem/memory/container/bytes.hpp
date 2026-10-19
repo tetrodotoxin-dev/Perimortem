@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include "perimortem/core/access/bytes.h"
+#include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/algorithm/hash.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/storage/option.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Memory::Container {
 
@@ -20,6 +20,11 @@ namespace Perimortem::Memory::Container {
 // exposes default construction produces it in constexpr O(1) time. `clear()`
 // retains storage for reuse while `reset()` detaches the current allocation.
 // The policy decides when detached storage can be reclaimed.
+//
+// `get_view()` always observes the current values without changing capacity.
+// `get_access()` forces capacity to be nonzero while `try_access()` leaves
+// capacity unchanged and returns None when it is zero. Neither operation
+// changes size or adds a current value.
 template <typename policy_type>
 class Bytes {
  public:
@@ -32,7 +37,6 @@ class Bytes {
   }
 
   constexpr operator Core::View::Bytes() const { return get_view(); }
-  constexpr operator Core::Access::Bytes() { return get_access(); }
 
   EXPORTED(PERIMORTEM) auto append(U8 byte) -> void;
   EXPORTED(PERIMORTEM) auto append(U8 byte, Count amount) -> void;
@@ -94,11 +98,32 @@ class Bytes {
   constexpr auto get_data() -> U8* { return source_block; }
   constexpr auto get_data() const -> const U8* { return source_block; }
   constexpr auto get_view() const -> Core::View::Bytes {
-    return Core::View::Bytes(source_block, size);
+    if (is_empty()) {
+      return Core::View::Bytes();
+    }
+
+    return Core::View::Bytes(source_block[0], size);
   }
 
-  constexpr auto get_access() -> Core::Access::Bytes {
-    return Core::Access::Bytes(source_block, size);
+  // Getting access forces capacity to be nonzero so the returned Access always
+  // has a valid storage address. When the container has zero capacity it
+  // allocates enough capacity for at least one value.
+  //
+  // Calling `ensure_capacity` before `get_access` establishes a custom capacity
+  // floor and prevents `get_access` from allocating again.
+  auto get_access() -> Core::Access::Bytes {
+    if (source_block == nullptr) {
+      ensure_capacity(1);
+    }
+
+    return Core::Access::Bytes(source_block[0], size);
+  }
+
+  // Returns writable access without changing capacity. None means capacity is
+  // zero. A selected empty Access means capacity remains available while size
+  // is zero, such as after `clear()`.
+  constexpr auto try_access() -> Core::Storage::Option<Core::Access::Bytes> {
+    return Core::Access::Bytes::create({source_block, size});
   }
 
   auto hash() const -> U64 {

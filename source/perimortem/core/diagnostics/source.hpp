@@ -5,7 +5,7 @@
 
 #include "toolchain/compile/source_location.hpp"
 
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Core::Diagnostics {
 

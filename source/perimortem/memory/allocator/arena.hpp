@@ -5,10 +5,10 @@
 
 #include "toolchain/memory/lifetime.hpp"
 
-#include "perimortem/core/access/bytes.h"
+#include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Memory::Allocator {
 
@@ -60,7 +60,7 @@ class Arena {
     // alignment.
     U8* root = rented_block + usage;
     usage = Core::Data::align<arena_alignment>(usage + bytes_requested);
-    return Core::Access::Bytes(root, bytes_requested);
+    return Core::Access::Bytes(root[0], bytes_requested);
   }
 
   // Reserves storage for one object without beginning its lifetime.
@@ -80,7 +80,16 @@ class Arena {
     const Count bytes =
         size > Count(-1) / sizeof(type) ? Count(-1) : sizeof(type) * size;
     auto ptr = allocate(bytes).get_data();
-    return Core::Access::Vector<type>(Core::Data::cast<type>(ptr), size);
+    auto return_access = [](Core::Access::Vector<type>& access) {
+      return access;
+    };
+
+    auto unreachable = []() -> Core::Access::Vector<type> {
+      __builtin_unreachable();
+    };
+
+    return Core::Access::Vector<type>::create(Core::Data::cast<type>(ptr), size)
+        .visit(return_access, unreachable);
   }
 
   // Allocates `sizeof(type)` bytes from this Arena and begins one value

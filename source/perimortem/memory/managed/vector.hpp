@@ -30,7 +30,10 @@ namespace Perimortem::Memory::Managed {
 // Copy construction uses the source Arena. Assignment retains the destination
 // Arena and materializes an independent copy of the source values there. Move
 // construction transfers the source Arena and current allocation without
-// relocating values or invoking destructors, leaving the source empty.
+// relocating values or invoking destructors, leaving the source empty. Calling
+// `get_access()` on an allocation free Vector reserves an Arena block without
+// changing size or constructing a current value. `Vector::reset()` detaches
+// that block from the object, but only `Arena::reset()` reclaims it.
 template <typename type>
 class Vector final : public Container::Vector<Vector<type>, type> {
   using Base = Container::Vector<Vector<type>, type>;
@@ -79,8 +82,9 @@ class Vector final : public Container::Vector<Vector<type>, type> {
   auto operator=(Core::View::Vector<type> source) -> Vector&
     requires(__is_constructible(type, const type&))
   {
-    // Materialize the borrowed values before detaching this block so `source`
-    // may refer to this Vector. Assignment preserves the selected Arena.
+    // Materialize every source value before detaching this block because
+    // `source` may reference this Vector. Assignment preserves the selected
+    // Arena.
     Vector replacement(arena, source);
     Base::reset();
     Base::take(Core::Data::take(replacement));

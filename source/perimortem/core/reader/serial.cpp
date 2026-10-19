@@ -102,11 +102,15 @@ auto Reader::Serial::read() -> Value {
     return Value();
   }
 
-  // The blob borrows its bytes from the Serial source. Advance past that view
-  // so the next read begins at the following field.
+  // The returned View references bytes in the Serial source. Advance past that
+  // range so the next read begins at the following field.
   auto blob_start = data + cursor;
   cursor += value;
-  return View::Bytes(blob_start, value);
+  if (value == 0) {
+    return View::Bytes();
+  }
+
+  return View::Bytes(blob_start[0], value);
 }
 
 auto Reader::Serial::read_value() -> S64 {

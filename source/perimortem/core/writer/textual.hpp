@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/access/bytes.h"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/access/bytes.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Core::Writer {
 
@@ -55,12 +55,16 @@ class Textual {
   constexpr auto get_location() const -> Count { return cursor; }
   constexpr auto is_valid() const -> Bool { return valid_state; }
   constexpr operator View::Bytes() const {
-    return View::Bytes(source.get_data(), cursor);
+    if (cursor == 0) {
+      return View::Bytes();
+    }
+
+    return View::Bytes(source.get_data()[0], cursor);
   }
 
  private:
   auto write_real(R64 real, R64 precision) -> void;
-  Access::Bytes source{};
+  Access::Bytes source;
   Count cursor = 0;
   Bool valid_state = true;
 };

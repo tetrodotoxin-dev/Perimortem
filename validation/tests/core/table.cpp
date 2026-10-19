@@ -80,7 +80,7 @@ constexpr Storage::Vector<U8, U8(-1)> limit_keys(make_limit_key);
 
 using LimitEntry = Storage::Pair<View::Bytes, U8>;
 constexpr auto make_limit_entry(Count index) -> LimitEntry {
-  return {View::Bytes(limit_keys.get_data() + index, 1), U8(index)};
+  return {View::Bytes(limit_keys[index], 1), U8(index)};
 }
 
 constexpr Storage::Vector<LimitEntry, U8(-1)> limit_source(make_limit_entry);

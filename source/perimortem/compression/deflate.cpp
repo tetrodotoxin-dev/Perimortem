@@ -632,8 +632,9 @@ constexpr auto write_dynamic_block_header(
     Count distance_index) -> void {
   Storage::Vector<RleEntry, 320> rle;
   Count rle_count = rle_encode_code_lengths(
-      View::Vector<U8>(literal_len_lengths.get_data(), literal_index + 257),
-      View::Vector<U8>(distance_lengths.get_data(), distance_index + 1), rle);
+      View::Vector<U8>(literal_len_lengths.get_data()[0], literal_index + 257),
+      View::Vector<U8>(distance_lengths.get_data()[0], distance_index + 1),
+      rle);
 
   Storage::Vector<U32, code_length_order.get_size()> meta_freq;
   for (Count i = 0; i < code_length_order.get_size(); i++) {

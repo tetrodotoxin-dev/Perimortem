@@ -29,5 +29,5 @@ VALIDATION_TEST(NullTerminatedViews, stops_at_null) {
 
 VALIDATION_TEST(NullTerminatedViews, exact_bytes) {
   const char buffer[] = {'a', '\0', 'b', '\0'};
-  EXPECT_EQ(View::Bytes(buffer, sizeof(buffer)), "a\0b\0"_view);
+  EXPECT_EQ(View::Bytes(buffer[0], sizeof(buffer)), "a\0b\0"_view);
 }

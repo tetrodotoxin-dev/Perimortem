@@ -56,12 +56,20 @@ static auto capture_sink(
 
 static auto last_entry() -> View::Bytes {
   auto& event = log_events[(total_events - 1) % event_log_size];
-  return View::Bytes(event.message.get_data(), event.message_size);
+  if (event.message_size == 0) {
+    return View::Bytes();
+  }
+
+  return View::Bytes(event.message.get_data()[0], event.message_size);
 }
 
 static auto prior_entry() -> View::Bytes {
   auto& event = log_events[(total_events - 2) % event_log_size];
-  return View::Bytes(event.message.get_data(), event.message_size);
+  if (event.message_size == 0) {
+    return View::Bytes();
+  }
+
+  return View::Bytes(event.message.get_data()[0], event.message_size);
 }
 
 static auto contains(View::Bytes haystack, View::Bytes message) -> Bool {

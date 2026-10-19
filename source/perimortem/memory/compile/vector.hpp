@@ -14,7 +14,8 @@ namespace Perimortem::Memory::Compile {
 // Every capacity slot has a live value, so insertion and relocation assign
 // existing objects rather than beginning individual lifetimes in raw storage.
 // Immediate allocation prevents this policy from becoming a runtime path to
-// `new`.
+// `new`. Calling `get_access()` on the allocation free state creates capacity
+// during constant evaluation while leaving the current size zero.
 template <typename type>
 class Vector final : public Container::Vector<Vector<type>, type> {
   using Base = Container::Vector<Vector<type>, type>;

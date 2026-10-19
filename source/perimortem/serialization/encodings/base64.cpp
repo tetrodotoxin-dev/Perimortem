@@ -519,7 +519,11 @@ auto Encodings::Base64::decode(Allocator::Arena& arena, View::Bytes source)
   auto storage = arena.allocate(size + decode_extra_bytes);
   U8* text = storage.get_data();
   Count actual_size = vectorized_decode(text, source);
-  return View::Bytes(text, actual_size);
+  if (actual_size == 0) {
+    return View::Bytes();
+  }
+
+  return View::Bytes(text[0], actual_size);
 }
 
 auto Encodings::Base64::encode(View::Bytes source) -> Thread::Bytes {

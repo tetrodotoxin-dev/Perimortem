@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include "perimortem/core/access/bytes.h"
+#include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/storage/result.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/memory/global/vector.hpp"
@@ -32,9 +32,10 @@ namespace Perimortem::System::Filesystem {
 // host and carries no Path confinement guarantee.
 //
 // Path stores an Anchor and a View over the component bytes without allocating.
-// The caller keeps those bytes alive and unchanged through every use. Borrowing
-// makes Path trivially copyable and permits constexpr validation. A system that
-// retains a Path instead copies the component bytes, as Directory does.
+// The caller keeps those bytes alive and unchanged through every use. Storing
+// only that View keeps Path trivially copyable and permits constexpr
+// validation. A system that retains a Path instead copies the component bytes,
+// as Directory does.
 //
 // Canonical serialization can use caller storage. Native emission necessarily
 // allocates because it combines the components with a captured host anchor,
@@ -162,9 +163,10 @@ class Path {
         text.slice(anchor_prefix_size));
   }
 
-  // Writes the complete canonical form into caller storage. The returned View
-  // borrows exactly the written range. Canonical text has no null terminator.
-  // Insufficient storage returns None without changing the supplied bytes.
+  // Serializes the anchor prefix followed by component bytes and returns a View
+  // over exactly that canonical text. It has no null terminator and remains
+  // accessible until `output` changes or becomes inaccessible. Insufficient
+  // capacity returns None without modifying `output`.
   constexpr auto serialize(Core::Access::Bytes output) const
       -> Core::Storage::Option<Core::View::Bytes> {
     const Count required_size = get_serialized_size();
@@ -185,7 +187,7 @@ class Path {
   }
 
   // Resolves the captured host location for the selected anchor into an exact
-  // process heap allocation. The result can outlive the borrowed Path and
+  // process heap allocation. The result has storage independent of Path and can
   // cross thread boundaries. Windows writes UTF 16 with its extended length
   // prefix. Other supported hosts write their native byte path. Failure leaves
   // no partial native string.
@@ -219,7 +221,8 @@ class Path {
   }
 
   // Returns the lexical parent while retaining the same anchor. An anchor root
-  // has no parent. The returned Path borrows the same component storage.
+  // has no parent. The returned Path references the same component storage, so
+  // the caller keeps those bytes accessible through every use of either Path.
   constexpr auto get_parent() const -> Core::Storage::Option<Path> {
     if (components.is_empty()) {
       return {};

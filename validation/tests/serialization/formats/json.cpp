@@ -412,8 +412,8 @@ VALIDATION_TEST(SerializationJson, copies_descriptor_storage) {
   U8 member_name[] = {'n', 'a', 'm', 'e'};
   U8 string_value[] = {'v', 'a', 'l', 'u', 'e'};
   const Formats::Json::Blueprint members[] = {
-    {View::Bytes(member_name, sizeof(member_name)),
-     View::Bytes(string_value, sizeof(string_value))},
+    {View::Bytes(member_name[0], sizeof(member_name)),
+     View::Bytes(string_value[0], sizeof(string_value))},
   };
 
   Allocator::Arena arena;

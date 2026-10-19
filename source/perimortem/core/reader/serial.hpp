@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Core::Reader {
 
@@ -36,11 +36,11 @@ class Serial {
     constexpr operator S64() { return get_value(); }
 
     constexpr auto get_view() -> View::Bytes {
-      if (type_info & 0x8000000000000000) {
+      if ((type_info & 0x8000000000000000) || type_info == 0) {
         return View::Bytes();
       }
 
-      return View::Bytes(blob, type_info);
+      return View::Bytes(blob[0], type_info);
     }
 
     constexpr auto get_value() -> S64 {

@@ -7,7 +7,7 @@
 #include "toolchain/validation/benchmark.hpp"
 
 #include "perimortem/core/storage/bytes.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;

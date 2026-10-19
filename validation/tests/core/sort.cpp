@@ -74,11 +74,16 @@ VALIDATION_TEST(AlgoSort, simple_sort) {
 }
 
 VALIDATION_TEST(AlgoSort, empty_sort) {
-  constexpr auto sorted_const = Algorithm::sort(Access::Vector<S32>());
-  auto sorted = Algorithm::sort(Access::Vector<S32>());
+  constexpr Count sorted_const_size = [] {
+    S32 anchor = 0;
+    return Algorithm::sort(Access::Vector<S32>(anchor, 0)).get_size();
+  }();
+
+  S32 anchor = 0;
+  auto sorted = Algorithm::sort(Access::Vector<S32>(anchor, 0));
 
   EXPECT_EQ(sorted.get_size(), 0);
-  EXPECT_EQ(sorted_const.get_size(), 0);
+  EXPECT_EQ(sorted_const_size, 0);
 }
 
 VALIDATION_TEST(AlgoSort, large_sort) {
@@ -113,7 +118,7 @@ VALIDATION_TEST(AlgoSort, heap_fallback) {
       storage[i] = {i < size / 2 ? i : size - i, &comparisons};
     }
 
-    Algorithm::sort(Access::Vector<Counted>(storage.get_data(), size));
+    Algorithm::sort(Access::Vector<Counted>(storage.get_data()[0], size));
     for (Count i = 0; i < size; ++i) {
       EXPECT_EQ(storage[i].value, (i + 1) / 2);
     }

@@ -23,6 +23,11 @@ namespace Perimortem::Memory::Container {
 // retains storage for reuse while `reset()` detaches the current allocation.
 // The policy decides when detached storage can be reclaimed.
 //
+// `get_view()` always observes the current values without changing capacity.
+// `get_access()` forces capacity to be nonzero while `try_access()` leaves
+// capacity unchanged and returns None when it is zero. Neither operation
+// changes size or adds a current value.
+//
 // Arbitrary values can require nontrivial construction and retirement. Vector
 // routes those lifetime transitions through the policy instead of assuming
 // every retired value is immediately destroyed.
@@ -92,7 +97,6 @@ template <typename policy_type, typename type>
 class Vector {
  public:
   constexpr operator Core::View::Vector<type>() const { return get_view(); }
-  constexpr operator Core::Access::Vector<type>() { return get_access(); }
 
   // Appends a copy of `value` and returns its stored value. `value` may refer
   // to a current value because growth constructs the copy before relocating
@@ -354,7 +358,11 @@ class Vector {
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_capacity() const -> Count { return capacity; }
   constexpr auto get_view() const -> Core::View::Vector<type> {
-    return Core::View::Vector<type>(source_block, size);
+    if (is_empty()) {
+      return Core::View::Vector<type>();
+    }
+
+    return Core::View::Vector<type>(source_block[0], size);
   }
 
   // Exposes the allocation start for unchecked pointer access. The caller keeps
@@ -363,8 +371,36 @@ class Vector {
   // the value represented at an existing address.
   constexpr auto get_data() const -> const type* { return source_block; }
   constexpr auto get_data() -> type* { return source_block; }
+
+  // Getting access forces capacity to be nonzero so the returned Access always
+  // has a valid storage address. When the container has zero capacity it
+  // allocates enough capacity for at least one value.
+  //
+  // Calling `ensure_capacity` before `get_access` establishes a custom capacity
+  // floor and prevents `get_access` from allocating again.
   constexpr auto get_access() -> Core::Access::Vector<type> {
-    return Core::Access::Vector<type>(source_block, size);
+    if (source_block == nullptr) {
+      ensure_capacity(1);
+    }
+
+    auto return_access = [](Core::Access::Vector<type>& access) {
+      return access;
+    };
+
+    auto unreachable = []() -> Core::Access::Vector<type> {
+      __builtin_unreachable();
+    };
+
+    return Core::Access::Vector<type>::create(source_block, size)
+        .visit(return_access, unreachable);
+  }
+
+  // Returns writable access without changing capacity. None means capacity is
+  // zero. A selected empty Access means capacity remains available while size
+  // is zero, such as after `clear()`.
+  constexpr auto try_access()
+      -> Core::Storage::Option<Core::Access::Vector<type>> {
+    return Core::Access::Vector<type>::create(source_block, size);
   }
 
   constexpr auto is_empty() const -> Bool { return size == 0; }

@@ -8,7 +8,7 @@
 
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/storage/vector.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/thread/bytes.hpp"
 #include "perimortem/system/random.hpp"
@@ -149,7 +149,7 @@ static auto populate_words() -> void {
       slot[seed_word.get_size() + 2] = U8('0' + j % 10);
 
       Count generated_size = seed_word.get_size() + 3;
-      word_pool[word_index++] = View::Bytes(slot, generated_size);
+      word_pool[word_index++] = View::Bytes(slot[0], generated_size);
       generated_index += generated_size;
     }
   }

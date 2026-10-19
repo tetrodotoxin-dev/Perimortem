@@ -356,8 +356,7 @@ class TemporaryRoot {
     }
 
     return Path::create(
-        Path::Anchor::Temp,
-        View::Bytes(Data::cast<const U8>(storage), Count(written)));
+        Path::Anchor::Temp, View::Bytes(storage[0], Count(written)));
   }
 
   auto native_member(const char* member, char* storage, CppSize capacity) const

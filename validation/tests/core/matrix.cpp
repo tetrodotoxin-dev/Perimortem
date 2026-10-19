@@ -53,21 +53,15 @@ VALIDATION_TEST(CoreMatrix, invalid_shape) {
   EXPECT_EQ(mismatched.get_extent(0), 0);
   EXPECT_EQ(mismatched.get_value_count(), 0);
 
-  View::Matrix<U32, 2> missing(
-      Math::Size<U32, 2>({{2, 2}}), View::Vector<U32>(nullptr, 4));
-  EXPECT(missing.is_empty());
-  EXPECT_EQ(missing.get_value_count(), 0);
-
   View::Matrix<U32, 3> overflow(
       Math::Size<U32, 3>({{~U32{}, ~U32{}, ~U32{}}}), View::Vector<U32>());
   EXPECT(overflow.is_empty());
   EXPECT_EQ(overflow.get_extent(0), 0);
 
   U32 writable_values[] = {1, 2, 3};
-  Access::Matrix<U32, 2> writable_mismatch(
+  auto writable_mismatch = Access::Matrix<U32, 2>::create(
       Math::Size<U32, 2>({{2, 2}}), Access::Vector<U32>(writable_values));
-  EXPECT(writable_mismatch.is_empty());
-  EXPECT_EQ(writable_mismatch.get_value_count(), 0);
+  EXPECT_NOT(writable_mismatch);
 }
 
 VALIDATION_TEST(CoreMatrix, empty_axis) {
@@ -77,22 +71,46 @@ VALIDATION_TEST(CoreMatrix, empty_axis) {
   EXPECT_EQ(matrix.get_extent(0), 0);
   EXPECT_EQ(matrix.get_extent(1), 4);
   EXPECT_EQ(matrix.get_value_count(), 0);
+
+  U32 writable_anchor = 0;
+  auto writable = Access::Matrix<U32, 2>::create(
+      Math::Size<U32, 2>({{0, 4}}), Access::Vector<U32>(writable_anchor, 0));
+  ASSERT(writable);
+  writable.visit(
+      [&](Access::Matrix<U32, 2>& access) {
+        EXPECT(access.is_empty());
+        EXPECT_EQ(access.get_extent(0), 0);
+        EXPECT_EQ(access.get_extent(1), 4);
+        EXPECT_EQ(access.get_value_count(), 0);
+      },
+
+      []() {});
 }
 
 VALIDATION_TEST(CoreMatrix, writable_access) {
   U32 values[] = {1, 2, 3, 4};
-  Access::Matrix<U32, 2> matrix(
+  auto matrix = Access::Matrix<U32, 2>::create(
       Math::Size<U32, 2>({{2, 2}}), Access::Vector<U32>(values));
+  ASSERT(matrix);
+  matrix.visit(
+      [&](Access::Matrix<U32, 2>& access) {
+        auto selected = access.get(Math::Point<S64, 2>({{0, 1}}));
+        ASSERT(selected);
+        selected.visit([](U32& value) { value = 9; }, []() {});
+      },
 
-  auto selected = matrix.get(Math::Point<S64, 2>({{0, 1}}));
-  ASSERT(selected);
-  selected.visit([](U32& value) { value = 9; }, []() {});
+      []() {});
   EXPECT_EQ(values[2], 9);
 
-  View::Matrix<U32, 2> view = matrix;
-  auto observed = view.get(Math::Point<S64, 2>({{0, 1}}));
-  ASSERT(observed);
-  observed.visit([&](const U32& value) { EXPECT_EQ(value, 9); }, []() {});
+  matrix.visit(
+      [&](const Access::Matrix<U32, 2>& access) {
+        View::Matrix<U32, 2> view = access;
+        auto observed = view.get(Math::Point<S64, 2>({{0, 1}}));
+        ASSERT(observed);
+        observed.visit([&](const U32& value) { EXPECT_EQ(value, 9); }, []() {});
+      },
+
+      []() {});
 }
 
 VALIDATION_TEST(CoreMatrix, embedded_storage) {

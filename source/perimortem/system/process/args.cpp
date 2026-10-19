@@ -38,7 +38,7 @@ static auto process_name() -> View::Bytes {
   S64 size = readlink(
       "/proc/self/exe", Data::cast<char>(path_buffer), sizeof(path_buffer));
   if (size > 0 && Count(size) < sizeof(path_buffer)) {
-    return basename(View::Bytes(path_buffer, Count(size)));
+    return basename(View::Bytes(path_buffer[0], Count(size)));
   }
 
 #endif

@@ -22,7 +22,9 @@ namespace Perimortem::Memory::Managed {
 // Copy construction uses the source Arena. Assignment retains the destination
 // Arena and materializes an independent copy of the source values there. Move
 // construction transfers the source Arena and current allocation, leaving the
-// source empty. Arena reset invalidates every allocation together.
+// source empty. Calling `get_access()` on an allocation free Bytes reserves an
+// Arena block without changing size. `Bytes::reset()` detaches that block from
+// the object, but only `Arena::reset()` reclaims it.
 class Bytes final : public Container::Bytes<Bytes> {
   using Base = Container::Bytes<Bytes>;
   friend Base;

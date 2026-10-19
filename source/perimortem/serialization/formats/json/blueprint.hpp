@@ -5,7 +5,7 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/storage/union.hpp"
-#include "perimortem/core/view/bytes.h"
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/serialization/formats/json/node.hpp"
 
