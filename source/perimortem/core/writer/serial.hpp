@@ -10,29 +10,29 @@
 
 namespace Perimortem::Core::Writer {
 
-// Writes values into bytes in the Perimortem Serial format.
+// Serial writes signed integers and byte blobs into a caller supplied mutable
+// range using Perimortem's schemaless Serial format. Integers use one type byte
+// followed by the narrowest one, two, four or eight byte magnitude. Negative
+// values set the sign flag without widening that magnitude. Multi-byte
+// magnitudes use little endian order. Blobs set the blob flag on an encoded
+// byte count and append their bytes directly afterward.
 //
-// Values are encoded as 1 type byte along with their minimum byte form and are
-// always returned as 64 bit values regardless of how they were encoded.
-//
-// Blobs are encoded as a Value + a string of raw bytes. The Value's type byte
-// contains an additional flag encoding that it is a blob.
-//
-// Negative values store an unsigned magnitude and mark their type byte with the
-// negate flag. Small negative values therefore retain a compact payload.
-//
-// On overflow the writer enters an invalid state and subsequent writes are safe
-// but the resulting `cursor` location is treated as undefined behavior.
+// A write that cannot fit leaves the cursor and destination unchanged, then
+// marks the writer invalid. Later writes remain memory safe, but their cursor
+// and output effects are undefined. A copy receives the same cursor and
+// validity state, then advances independently over the shared destination so
+// writes from either Writer can overlap.
 class Serial {
  public:
   constexpr Serial(Access::Bytes source) : source(source) {};
-  constexpr Serial(const Serial& rhs) : source(rhs.source) {};
+  constexpr Serial(const Serial& rhs)
+      : source(rhs.source), cursor(rhs.cursor), valid_state(rhs.valid_state) {};
 
   // Sets the cursor to the requested location or the end of the buffer when the
   // requested location lies beyond its writable storage.
   EXPORTED(PERIMORTEM) auto set_pointer(Count location) -> void;
 
-  EXPORTED(PERIMORTEM) auto operator<<(const U64 value) -> Serial&;
+  EXPORTED(PERIMORTEM) auto operator<<(const S64 value) -> Serial&;
   EXPORTED(PERIMORTEM) auto operator<<(const View::Bytes blob) -> Serial&;
 
   constexpr auto get_size() const -> Count { return source.get_size(); }

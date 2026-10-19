@@ -10,23 +10,25 @@
 
 namespace Perimortem::Core::Writer {
 
-// Writes typed values into a dense byte buffer.
+// Binary writes typed values into a caller supplied mutable byte range without
+// allocating. Each successful write appends exactly one scalar or vector at the
+// current cursor using the declared byte order. No alignment padding is added,
+// so subranges and packed protocols have the same representation.
 //
-// Each write emits exactly the bytes for the provided value at the current
-// cursor. The writer never inserts alignment padding, so its output can be used
-// directly for packed protocol data and worker handoff payloads.
-//
-// On overflow the writer enters an invalid state and subsequent writes are safe
-// but treated as undefined behavior.
+// A write that cannot fit leaves the cursor and destination unchanged, then
+// marks the writer invalid. Later writes remain memory safe, but their cursor
+// and output effects are undefined. A copy receives the same cursor and
+// validity state, then advances independently over the shared destination so
+// writes from either Writer can overlap.
 template <Data::ByteOrder stream_endian>
 class Binary {
  public:
   constexpr Binary(Core::Access::Bytes source) : source(source) {};
-  constexpr Binary(const Binary& rhs) : source(rhs.source) {};
+  constexpr Binary(const Binary& rhs)
+      : source(rhs.source), cursor(rhs.cursor), valid_state(rhs.valid_state) {};
 
-  // Sets the location of the read/write cursor.
-  // If the index is out of range then the cursor is put to the end of the
-  // buffer.
+  // Moves the write cursor to `location`, clamped to the destination size.
+  // Existing bytes and the current validity state remain unchanged.
   constexpr auto set_pointer(Count location) -> void {
     cursor = location < source.get_size() ? location : source.get_size();
   }
@@ -123,6 +125,10 @@ class Binary {
   // its bytes explicitly there, while runtime writes retain the native copy.
   template <typename T>
   constexpr auto write_unsigned(T value) -> Binary& {
+    if (!valid_state) {
+      return *this;
+    }
+
     if (sizeof(T) > source.get_size() - cursor) [[unlikely]] {
       valid_state = False;
       return *this;
@@ -147,6 +153,10 @@ class Binary {
 
   template <typename T>
   constexpr auto write_vector(T blob) -> Binary& {
+    if (!valid_state) {
+      return *this;
+    }
+
     using element_type = typename T::data_type;
     if (blob.get_size() > (source.get_size() - cursor) / sizeof(element_type))
         [[unlikely]] {

@@ -359,6 +359,26 @@ VALIDATION_TEST(CoreBinaryWriter, big_endian_vector) {
   EXPECT_HEX(buffer, "\x01\x02\x03\x04\x05\x06"_view);
 }
 
+VALIDATION_TEST(CoreBinaryWriter, native_vector) {
+  using Writer = Writer::Binary<Data::ByteOrder::Native>;
+  Storage::Vector<U32, 2> values = {{
+    U32(0x01020304),
+    U32(0x05060708),
+  }};
+
+  constexpr Count value_bytes = sizeof(U32) * 2;
+  Storage::Bytes<value_bytes> buffer;
+  Writer writer(buffer);
+  writer << values.get_view();
+
+  EXPECT(writer.is_valid());
+  EXPECT_EQ(writer.get_location(), value_bytes);
+  EXPECT(
+      Data::compare(
+          buffer.get_data(), Data::cast<const U8>(values.get_data()),
+          value_bytes));
+}
+
 VALIDATION_TEST(CoreBinaryWriter, raw_bytes) {
   using Writer = Writer::Binary<Data::ByteOrder::Native>;
   Storage::Bytes<9> buffer;
@@ -373,11 +393,21 @@ VALIDATION_TEST(CoreBinaryWriter, raw_bytes) {
 VALIDATION_TEST(CoreBinaryWriter, overflow) {
   using Writer = Writer::Binary<Data::ByteOrder::Native>;
   Storage::Bytes<3> buffer;
+  for (Count index = 0; index < buffer.get_size(); index++) {
+    buffer[index] = '?';
+  }
+
   Writer writer(buffer);
 
   writer << U32('PERI');
 
   EXPECT_NOT(writer.is_valid());
+  EXPECT_EQ(writer.get_location(), Count(0));
+  EXPECT_TEXT(buffer, "???"_view);
+
+  writer << U8(1);
+  EXPECT_EQ(writer.get_location(), Count(0));
+  EXPECT_TEXT(buffer, "???"_view);
 }
 
 VALIDATION_TEST(CoreBinaryWriter, set_pointer) {
@@ -415,6 +445,36 @@ VALIDATION_TEST(CoreBinaryWriter, multiple_writers) {
   EXPECT(writers[0].is_valid());
   EXPECT(writers[1].is_valid());
   EXPECT_HEX(buffer, "\xBB\xBB\xCC\xCC"_view);
+}
+
+VALIDATION_TEST(CoreBinaryWriter, copy_state) {
+  using Writer = Writer::Binary<Data::ByteOrder::Little>;
+  Storage::Bytes<8> buffer;
+  for (Count index = 0; index < buffer.get_size(); index++) {
+    buffer[index] = '?';
+  }
+
+  Writer original(buffer);
+  original << U16(0x1122);
+
+  Writer copy(original);
+
+  original << U16(0x3344);
+  copy << U16(0x5566);
+  EXPECT_EQ(original.get_location(), Count(4));
+  EXPECT_EQ(copy.get_location(), Count(4));
+  EXPECT_HEX(buffer, "\x22\x11\x66\x55????"_view);
+
+  original << U64(0);
+
+  Writer invalid_copy(original);
+  EXPECT_NOT(original.is_valid());
+  EXPECT_NOT(invalid_copy.is_valid());
+  EXPECT_EQ(invalid_copy.get_location(), Count(4));
+
+  invalid_copy << U8(0xAA);
+  EXPECT_EQ(invalid_copy.get_location(), Count(4));
+  EXPECT_HEX(buffer, "\x22\x11\x66\x55????"_view);
 }
 
 template <Data::ByteOrder order>

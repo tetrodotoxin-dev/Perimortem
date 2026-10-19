@@ -167,6 +167,18 @@ VALIDATION_TEST(CoreSerialReader, bad_blob) {
   EXPECT(Log::error_contains(error_message));
 }
 
+VALIDATION_TEST(CoreSerialReader, negative_blob) {
+  Reader::Serial reader("\x31\x01"_view);
+  auto scope_attribution = Diagnostics::Log::set_attribution();
+
+  EXPECT_EQ(reader.read_blob(), View::Bytes());
+  EXPECT_EQ(reader.get_location(), Count(-1));
+
+  constexpr auto error_message =
+      "Serial read found a negative blob size at byte location 0."_view;
+  EXPECT(Log::error_contains(error_message));
+}
+
 VALIDATION_TEST(CoreSerialReader, read_from_empty) {
   Reader::Serial reader(""_view);
   auto scope_attribution = Diagnostics::Log::set_attribution();
@@ -210,10 +222,7 @@ VALIDATION_TEST(CoreSerialWriter, negative_values) {
   // bytes also prove that each value carries the sign flag.
   writer << -0xAB << -0x1234 << -'PERI' << -0x0123456789ABCDEF;
 
-  // Converting minus 100 to U64 preserves its bit pattern. Serial recovers the
-  // magnitude and emits one payload byte together with the negate flag.
-  constexpr U64 negative_100 = U64(S64(-100));
-  writer << negative_100;
+  writer << S64(-100);
 
   EXPECT(writer.is_valid());
   EXPECT_HEX(
@@ -228,16 +237,18 @@ VALIDATION_TEST(CoreSerialWriter, negative_values) {
 
 VALIDATION_TEST(CoreSerialWriter, negative_boundaries) {
   constexpr S64 minimum = -9223372036854775807LL - 1;
-  Storage::Bytes<11> buffer;
+  constexpr S64 maximum = 9223372036854775807LL;
+  Storage::Bytes<20> buffer;
   Writer::Serial writer(buffer);
 
-  writer << -1 << minimum;
+  writer << -1 << minimum << maximum;
 
   EXPECT(writer.is_valid());
   EXPECT_HEX(
       buffer,
       "\x11\x01"
-      "\x18\x00\x00\x00\x00\x00\x00\x00\x80"_view);
+      "\x18\x00\x00\x00\x00\x00\x00\x00\x80"
+      "\x08\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x7F"_view);
 }
 
 VALIDATION_TEST(CoreSerialWriter, small_blobs) {
@@ -278,11 +289,35 @@ VALIDATION_TEST(CoreSerialWriter, large_blob) {
 
 VALIDATION_TEST(CoreSerialWriter, overflow) {
   Storage::Bytes<20> buffer;
+  for (Count index = 0; index < buffer.get_size(); index++) {
+    buffer[index] = '?';
+  }
+
   Writer::Serial writer(buffer);
 
   writer << "Perimortem"_view << 4 << "Testing String"_view;
 
   EXPECT_NOT(writer.is_valid());
+  EXPECT_EQ(writer.get_location(), Count(14));
+  EXPECT_TEXT(buffer.slice(14, 6), "??????"_view);
+
+  writer << S64(1);
+  EXPECT_EQ(writer.get_location(), Count(14));
+  EXPECT_TEXT(buffer.slice(14, 6), "??????"_view);
+}
+
+VALIDATION_TEST(CoreSerialWriter, blob_preflight) {
+  Storage::Bytes<3> buffer;
+  for (Count index = 0; index < buffer.get_size(); index++) {
+    buffer[index] = '?';
+  }
+
+  Writer::Serial writer(buffer);
+  writer << "ab"_view;
+
+  EXPECT_NOT(writer.is_valid());
+  EXPECT_EQ(writer.get_location(), Count(0));
+  EXPECT_TEXT(buffer, "???"_view);
 }
 
 VALIDATION_TEST(CoreSerialWriter, pointer_bounds) {
@@ -294,4 +329,33 @@ VALIDATION_TEST(CoreSerialWriter, pointer_bounds) {
 
   EXPECT_EQ(writer.get_location(), writer.get_size());
   EXPECT_NOT(writer.is_valid());
+}
+
+VALIDATION_TEST(CoreSerialWriter, copy_state) {
+  Storage::Bytes<8> buffer;
+  for (Count index = 0; index < buffer.get_size(); index++) {
+    buffer[index] = '?';
+  }
+
+  Writer::Serial original(buffer);
+  original << S64(1);
+
+  Writer::Serial copy(original);
+
+  original << S64(2);
+  copy << S64(3);
+  EXPECT_EQ(original.get_location(), Count(4));
+  EXPECT_EQ(copy.get_location(), Count(4));
+  EXPECT_HEX(buffer, "\x01\x01\x01\x03????"_view);
+
+  original << "12345"_view;
+
+  Writer::Serial invalid_copy(original);
+  EXPECT_NOT(original.is_valid());
+  EXPECT_NOT(invalid_copy.is_valid());
+  EXPECT_EQ(invalid_copy.get_location(), Count(4));
+
+  invalid_copy << S64(4);
+  EXPECT_EQ(invalid_copy.get_location(), Count(4));
+  EXPECT_HEX(buffer, "\x01\x01\x01\x03????"_view);
 }

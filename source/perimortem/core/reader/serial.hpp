@@ -7,24 +7,23 @@
 
 namespace Perimortem::Core::Reader {
 
-// Reads values from bytes in the Perimortem Serial format.
+// Serial decodes signed integers and byte blobs from Perimortem's schemaless
+// Serial format without allocating. Each field begins with one type byte whose
+// low nibble selects a one, two, four or eight byte little endian magnitude.
+// Separate flags distinguish negative integers and blob byte counts.
 //
-// Values are encoded as 1 type byte along with their minimum byte form and are
-// always returned as 64 bit values regardless of how they were encoded.
-//
-// Blobs are encoded as a Value + a string of raw bytes. The Value's type byte
-// contains an additional flag encoding that it is a blob.
-//
-// Negative values store an unsigned magnitude and mark their type byte with the
-// negate flag. Reading reconstructs the signed value after decoding its width.
-//
-// On any error the reader enters an invalid state and all subsequent reads
-// return zero initialized values without advancing the cursor.
+// A successful read advances past the complete field. Malformed or truncated
+// input sets the cursor to `Count(-1)`. Later reads return zero initialized
+// values without accessing the source until `reset`. A copy receives the same
+// source and cursor, then advances independently.
 class Serial {
  public:
   // Value stores either one decoded integer or a View into the Serial source.
   // Blob bytes are not copied, so the caller keeps the source alive while using
   // the returned View. `is_blob` distinguishes an empty blob from integer zero.
+  // A default Value has the empty blob representation. The Reader cursor
+  // distinguishes that zero state after decode failure from a successfully
+  // decoded empty blob.
   class Value {
    public:
     constexpr Value() : type_info(0), value(0) {}
@@ -70,11 +69,9 @@ class Serial {
   constexpr Serial(const Serial& rhs)
       : source(rhs.source), cursor(rhs.cursor) {}
 
-  // Sets the location of the read cursor.
-  //
-  // An out of range location invalidates the reader by setting the position to
-  // the maximum Count value. Converting negative one to Count offers callers a
-  // convenient spelling for that invalid state.
+  // Selects the next byte to decode. A location at the source size represents
+  // ordinary exhaustion. A location beyond it causes the next read to report
+  // an overrun and enter the invalid state.
   constexpr auto set_location(Count location) -> void { cursor = location; }
   constexpr auto get_location() const -> Count { return cursor; }
 

@@ -382,3 +382,32 @@ VALIDATION_TEST(CoreTextual, multiple_writers) {
   EXPECT_NOT(writers[0].is_valid());
   EXPECT(writers[1].is_valid());
 }
+
+VALIDATION_TEST(CoreTextual, copy_state) {
+  Storage::Bytes<8> buffer;
+  for (Count index = 0; index < buffer.get_size(); index++) {
+    buffer[index] = '?';
+  }
+
+  Writer::Textual original(buffer.get_access());
+  original << "ab"_view;
+
+  Writer::Textual copy(original);
+
+  original << "cd"_view;
+  copy << "XY"_view;
+  EXPECT_EQ(original.get_location(), Count(4));
+  EXPECT_EQ(copy.get_location(), Count(4));
+  EXPECT_TEXT(buffer, "abXY????"_view);
+
+  original << "12345"_view;
+
+  Writer::Textual invalid_copy(original);
+  EXPECT_NOT(original.is_valid());
+  EXPECT_NOT(invalid_copy.is_valid());
+  EXPECT_EQ(invalid_copy.get_location(), Count(4));
+
+  invalid_copy << "z"_view;
+  EXPECT_EQ(invalid_copy.get_location(), Count(4));
+  EXPECT_TEXT(buffer, "abXY????"_view);
+}

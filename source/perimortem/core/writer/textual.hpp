@@ -10,13 +10,16 @@ namespace Perimortem::Core::Writer {
 
 // Textual writes primitive values into a caller supplied mutable byte range
 // without allocating or appending a null terminator. Each write begins at the
-// current cursor. Conversion to View exposes exactly the prefix through that
-// cursor.
+// current cursor. Boolean values use lowercase `true` and `false`, integers use
+// decimal, Reals use fixed notation, and characters and byte Views append
+// unchanged. Conversion to View exposes exactly the prefix through that cursor.
 //
 // A write that cannot fit marks the writer invalid. Integer and text writes
 // reserve their complete output before changing storage. Real formatting can
-// leave a partial prefix. Once invalid, later writes perform no work and
-// `is_valid()` remains False.
+// leave a partial prefix. Later writes remain memory safe, but their cursor and
+// output effects are undefined. A copy receives the same cursor and validity
+// state, then advances independently over the shared destination so writes from
+// either Writer can overlap.
 //
 // Real formatting accepts finite values whose integer portion fits S64. Other
 // values mark the writer invalid. Supported values use fixed notation with at
@@ -26,7 +29,8 @@ namespace Perimortem::Core::Writer {
 class Textual {
  public:
   Textual(Core::Access::Bytes source) : source(source) {};
-  Textual(const Textual& rhs) : source(rhs.source) {};
+  Textual(const Textual& rhs)
+      : source(rhs.source), cursor(rhs.cursor), valid_state(rhs.valid_state) {};
 
   // Moves the write cursor to `location`, clamped to the buffer size. Existing
   // values and the current validity state remain unchanged.

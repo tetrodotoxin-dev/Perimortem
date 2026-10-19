@@ -27,6 +27,7 @@ auto Reader::Serial::read() -> Value {
     return Value();
   }
 
+  const Count field_start = cursor;
   auto data = source.get_data();
   auto byte_flag = data[cursor++];
   U8 encoded_size = byte_flag & 0xF;
@@ -91,7 +92,18 @@ auto Reader::Serial::read() -> Value {
     return Value(value);
   }
 
-  if (cursor + value > source.get_size()) {
+  if (value < 0) {
+    Diagnostics::Message<128> error_message(Diagnostics::Log::Level::Error);
+    error_message
+        << "Serial read found a negative blob size at byte location "_view
+        << field_start << "."_view;
+
+    cursor = Count(-1);
+    return Value();
+  }
+
+  const Count blob_size = Count(value);
+  if (cursor > source.get_size() || blob_size > source.get_size() - cursor) {
     Diagnostics::Message<128> error_message(Diagnostics::Log::Level::Error);
     error_message << "Serial read of blob sized "_view << value
                   << " bytes overran source buffer at location "_view << cursor
@@ -105,12 +117,12 @@ auto Reader::Serial::read() -> Value {
   // The returned View references bytes in the Serial source. Advance past that
   // range so the next read begins at the following field.
   auto blob_start = data + cursor;
-  cursor += value;
-  if (value == 0) {
+  cursor += blob_size;
+  if (blob_size == 0) {
     return View::Bytes();
   }
 
-  return View::Bytes(blob_start[0], value);
+  return View::Bytes(blob_start[0], blob_size);
 }
 
 auto Reader::Serial::read_value() -> S64 {

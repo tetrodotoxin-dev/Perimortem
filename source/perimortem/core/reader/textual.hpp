@@ -7,25 +7,29 @@
 
 namespace Perimortem::Core::Reader {
 
-// Reads human readable values from a text byte buffer. Reads are greedy so
-// numeric values must be whitespace separated to be read appropriately.
+// Textual decodes bytes, flags and numbers in fixed notation from one read only
+// byte range without allocating. Numeric and flag reads skip JSON whitespace,
+// while `read_byte` consumes the next byte exactly. Each token consumes its
+// longest accepted prefix, so adjacent numeric fields require a separator byte
+// that is not a digit.
 //
-// Real, Flag, Unsigned, and Signed reads automatically skip leading whitespace.
+// Flags accept `true` and `false` with either case for the first letter.
+// Unsigned integers accept radices from two through sixteen. Signed integers
+// and Reals use decimal with an optional minus sign. Reals do not accept an
+// exponent.
 //
-// An overflow or parse failure sets the reader to an invalid state and
-// subsequent reads return zero initialized values without advancing the
-// cursor.
+// A failed parse or numeric conversion outside the return type's supported
+// range sets the cursor to `Count(-1)` and returns zero. Later reads return
+// zero without accessing the source until `reset`. A copy receives the same
+// source and cursor, then advances independently.
 class Textual {
  public:
   constexpr Textual(View::Bytes source) : source(source) {}
   constexpr Textual(const Textual& rhs)
       : source(rhs.source), cursor(rhs.cursor) {}
 
-  // Sets the location of the read cursor.
-  //
-  // An out of range location invalidates the reader by setting the position to
-  // the maximum Count value. Converting negative one to Count offers callers a
-  // convenient spelling for that invalid state.
+  // Selects the next byte to decode. The source size represents ordinary
+  // exhaustion. A larger location enters the invalid state.
   constexpr auto set_location(Count location) -> void {
     cursor = location <= source.get_size() ? location : Count(-1);
   }
