@@ -22,8 +22,10 @@ namespace Perimortem::Serialization::Formats::Json {
 // Materialization recursively copies string values, object member names, and an
 // existing Node tree into the destination Arena. The resulting Node therefore
 // depends only on that Arena, and resetting the Arena ends access to its
-// complete tree. An existing Node must represent an acyclic JSON tree because
-// every child is visited recursively.
+// complete tree. Materialization preserves values outside the formatter's Real
+// and nesting constraints. `Node::format` reports those failures. An existing
+// Node must represent an acyclic JSON tree because every child is visited
+// recursively.
 class Blueprint {
  private:
   class Array {
@@ -58,10 +60,19 @@ class Blueprint {
   Blueprint() = default;
   Blueprint(Core::View::Bytes text) : value(text) {}
   // Normalize every nonboolean integer to the S64 alternative so visitors do
-  // not distinguish source widths. Bool retains the JSON boolean alternative.
+  // not distinguish representable source widths. Bool retains the JSON boolean
+  // alternative.
   template <typename Integer>
-    requires(__is_integral(Integer) && !__is_same(Integer, bool))
+    requires(
+        __is_integral(Integer) && !__is_same(Integer, bool) &&
+        sizeof(Integer) <= sizeof(S64) &&
+        (__is_signed(Integer) || sizeof(Integer) < sizeof(S64)))
   Blueprint(Integer number) : value(S64(number)) {}
+  template <typename Integer>
+    requires(__is_integral(Integer) && !__is_same(Integer, bool) &&
+             (sizeof(Integer) > sizeof(S64) ||
+              (!__is_signed(Integer) && sizeof(Integer) == sizeof(S64))))
+  Blueprint(Integer) = delete;
   Blueprint(R64 real) : value(real) {}
   Blueprint(R32 real) : Blueprint(R64(real)) {}
   Blueprint(Bool flag) : value(flag) {}
@@ -70,9 +81,16 @@ class Blueprint {
   Blueprint(Core::View::Bytes member_name, Core::View::Bytes text)
       : name(member_name), value(text) {}
   template <typename Integer>
-    requires(__is_integral(Integer) && !__is_same(Integer, bool))
+    requires(__is_integral(Integer) && !__is_same(Integer, bool) &&
+             sizeof(Integer) <= sizeof(S64) &&
+             (__is_signed(Integer) || sizeof(Integer) < sizeof(S64)))
   Blueprint(Core::View::Bytes member_name, Integer number)
       : name(member_name), value(S64(number)) {}
+  template <typename Integer>
+    requires(__is_integral(Integer) && !__is_same(Integer, bool) &&
+             (sizeof(Integer) > sizeof(S64) ||
+              (!__is_signed(Integer) && sizeof(Integer) == sizeof(S64))))
+  Blueprint(Core::View::Bytes, Integer) = delete;
   Blueprint(Core::View::Bytes member_name, R64 real)
       : name(member_name), value(real) {}
   Blueprint(Core::View::Bytes member_name, R32 real)

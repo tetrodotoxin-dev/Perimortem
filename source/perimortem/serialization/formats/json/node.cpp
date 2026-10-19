@@ -13,140 +13,90 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 
-static auto hex_value(U8 value) -> S32 {
-  if (value >= '0' && value <= '9') {
-    return value - '0';
-  }
-
-  if (value >= 'A' && value <= 'F') {
-    return value - 'A' + 10;
-  }
-
-  if (value >= 'a' && value <= 'f') {
-    return value - 'a' + 10;
-  }
-
-  return -1;
-}
-
-static auto read_hex_quad(View::Bytes source, Count position, U32& value)
-    -> Bool {
-  if (position + 4 > source.get_size()) {
-    return False;
-  }
-
-  value = 0;
-  for (Count i = 0; i < 4; i++) {
-    S32 digit = hex_value(source[position + i]);
-    if (digit < 0) {
-      return False;
-    }
-
-    value = (value << 4) | U32(digit);
-  }
-
-  return True;
-}
-
-static auto is_high_surrogate(U32 value) -> Bool {
-  return value >= 0xD800 && value <= 0xDBFF;
-}
-
-static auto is_low_surrogate(U32 value) -> Bool {
-  return value >= 0xDC00 && value <= 0xDFFF;
-}
-
-static auto append_utf8(Managed::Bytes& output, U32 codepoint) -> void {
-  if (codepoint <= 0x7F) {
-    output.append(U8(codepoint));
-    return;
-  }
-
-  if (codepoint <= 0x7FF) {
-    output.append(U8(0xC0 | (codepoint >> 6)));
-    output.append(U8(0x80 | (codepoint & 0x3F)));
-    return;
-  }
-
-  if (codepoint <= 0xFFFF) {
-    output.append(U8(0xE0 | (codepoint >> 12)));
-    output.append(U8(0x80 | ((codepoint >> 6) & 0x3F)));
-    output.append(U8(0x80 | (codepoint & 0x3F)));
-    return;
-  }
-
-  output.append(U8(0xF0 | (codepoint >> 18)));
-  output.append(U8(0x80 | ((codepoint >> 12) & 0x3F)));
-  output.append(U8(0x80 | ((codepoint >> 6) & 0x3F)));
-  output.append(U8(0x80 | (codepoint & 0x3F)));
-}
-
-static auto read_unicode_escape(
-    View::Bytes source,
-    Count slash,
-    U32& codepoint,
-    Count& consumed) -> Bool {
-  if (slash + 6 > source.get_size() || source[slash] != '\\' ||
-      source[slash + 1] != 'u') {
-    return False;
-  }
-
-  U32 first = 0;
-  if (!read_hex_quad(source, slash + 2, first)) {
-    return False;
-  }
-
-  if (!is_high_surrogate(first)) {
-    if (is_low_surrogate(first)) {
-      return False;
-    }
-
-    codepoint = first;
-    consumed = 6;
+static auto decode_hexadecimal(U8 digit, U8& value) -> Bool {
+  if (digit >= '0' && digit <= '9') {
+    value = digit - '0';
     return True;
   }
 
-  if (slash + 12 > source.get_size() || source[slash + 6] != '\\' ||
-      source[slash + 7] != 'u') {
+  if (digit >= 'A' && digit <= 'F') {
+    value = digit - 'A' + 10;
+    return True;
+  }
+
+  if (digit >= 'a' && digit <= 'f') {
+    value = digit - 'a' + 10;
+    return True;
+  }
+
+  return False;
+}
+
+// Strings preserve bytes rather than assigning Unicode semantics. The short
+// JSON escapes map directly to one byte. Only `\u00XX` is accepted because
+// formatting uses it to preserve arbitrary control bytes.
+static auto
+    decode_escape(const U8* source, Count size, U8& value, Count& consumed)
+        -> Bool {
+  if (size == 0) {
     return False;
   }
 
-  U32 second = 0;
-  if (!read_hex_quad(source, slash + 8, second) || !is_low_surrogate(second)) {
+  consumed = 1;
+  switch (source[0]) {
+  case '"':
+  case '\\':
+  case '/':
+    value = source[0];
+    return True;
+  case 'b':
+    value = '\b';
+    return True;
+  case 'f':
+    value = '\f';
+    return True;
+  case 'n':
+    value = '\n';
+    return True;
+  case 'r':
+    value = '\r';
+    return True;
+  case 't':
+    value = '\t';
+    return True;
+  case 'u': {
+    if (size < 5 || source[1] != '0' || source[2] != '0') {
+      return False;
+    }
+
+    U8 upper = 0;
+    U8 lower = 0;
+    if (!decode_hexadecimal(source[3], upper) ||
+        !decode_hexadecimal(source[4], lower)) {
+      return False;
+    }
+
+    value = U8((upper << 4) | lower);
+    consumed = 5;
+    return True;
+  }
+
+  default:
     return False;
   }
-
-  codepoint = 0x10000 + ((first - 0xD800) << 10) + (second - 0xDC00);
-  consumed = 12;
-  return True;
 }
 
-// Scans a string byte by byte so ascii escape characters are skipped.
-auto parse_string(View::Bytes source, Count& position) -> View::Bytes {
-  const auto start = ++position;
-  auto data = source.get_data();
-  while (position < source.get_size()) {
-    switch (data[position]) {
-    case '"': {
-      auto result = source.slice(start, position - start);
-      position++;
-      return result;
-    }
-
-    case '\\':
-      position += 2;
-      break;
-    default:
-      position++;
-      break;
-    }
-  }
-
-  return source.slice(start);
+// Between values the profile groups every byte through ASCII space into one
+// separator class. Strings are scanned separately, so those same C0 bytes
+// remain content inside quotes.
+static auto is_json_whitespace(U8 value) -> Bool {
+  return value <= ' ';
 }
 
-auto ignored_characters(U8 c) -> Bool {
-  return c == ',' || c == '\n' || c == ' ';
+static constexpr auto zero_byte_mask(U64 value) -> U64 {
+  constexpr U64 low_bits = 0x0101010101010101;
+  constexpr U64 high_bits = 0x8080808080808080;
+  return (value - low_bits) & ~value & high_bits;
 }
 
 auto Formats::Json::Node::set(const View::Bytes value) -> void {
@@ -255,67 +205,6 @@ auto Formats::Json::Node::get_string() const -> View::Bytes {
   return View::Bytes();
 }
 
-auto Formats::Json::Node::decode_string(Allocator::Arena& arena) const
-    -> View::Bytes {
-  View::Bytes source = get_string();
-  Managed::Bytes decoded{arena};
-  for (Count i = 0; i < source.get_size(); i++) {
-    if (source[i] != '\\' || i + 1 >= source.get_size()) {
-      decoded.append(source[i]);
-      continue;
-    }
-
-    Count slash = i;
-    i++;
-    switch (source[i]) {
-    case 'n':
-      decoded.append('\n');
-      break;
-    case 'r':
-      decoded.append('\r');
-      break;
-    case 't':
-      decoded.append('\t');
-      break;
-    case '"':
-      decoded.append('"');
-      break;
-    case '\\':
-      decoded.append('\\');
-      break;
-    case '/':
-      decoded.append('/');
-      break;
-    case 'b':
-      decoded.append('\b');
-      break;
-    case 'f':
-      decoded.append('\f');
-      break;
-    case 'u': {
-      U32 codepoint = 0;
-      Count consumed = 0;
-      if (read_unicode_escape(source, slash, codepoint, consumed)) {
-        append_utf8(decoded, codepoint);
-        i = slash + consumed - 1;
-        break;
-      }
-
-      decoded.append('\\');
-      decoded.append(source[i]);
-      break;
-    }
-
-    default:
-      decoded.append('\\');
-      decoded.append(source[i]);
-      break;
-    }
-  }
-
-  return decoded.get_view();
-}
-
 auto Formats::Json::Node::get_array() const -> View::Vector<Node> {
   if (data.state == U32(State::Array) && data.size != 0) {
     const auto values = Data::cast<const Node>(data.ptr);
@@ -374,319 +263,517 @@ auto Formats::Json::Node::is_object() const -> Bool {
   return State(data.state) == State::Object;
 }
 
-auto Formats::Json::Node::parse(
+static constexpr auto is_json_digit(U8 value) -> Bool {
+  return value >= '0' && value <= '9';
+}
+
+static auto skip_json_whitespace(
+    View::Bytes source,
+    const U8* data,
+    Count& position,
+    Bool commas = False) -> void {
+  // Containers enable comma skipping before each value. Consuming zero or more
+  // commas makes them optional, repeatable and valid before a closing token.
+  while (position < source.get_size() && (is_json_whitespace(data[position]) ||
+                                          (commas && data[position] == ','))) {
+    position++;
+  }
+}
+
+static auto parse_json_string(
     Allocator::Arena& arena,
     View::Bytes source,
-    Count position) -> Count {
-  if (position > source.get_size()) {
-    set();
-    return position;
-  }
-
+    U8* mutable_source,
+    Count& position,
+    View::Bytes& value) -> Bool {
+  const U8* data = source.get_data();
+  const Count start = ++position;
+  Bool escaped = False;
   while (position < source.get_size()) {
-    const auto start_char = source[position];
-    switch (start_char) {
-    case '{': {
-      Managed::Vector<Member> members(arena);
-      Bool closed = False;
-      position++;
-      while (position < source.get_size()) {
-        if (source[position] != '"') {
-          if (source[position++] == '}') {
-            closed = True;
-            break;
-          }
+    constexpr U64 quotes = 0x2222222222222222;
+    constexpr U64 slashes = 0x5C5C5C5C5C5C5C5C;
+    while (source.get_size() - position >= sizeof(U64)) {
+      const U64 word =
+          Data::read<Data::ByteOrder::Little, U64>(data + position);
+      const U64 special =
+          zero_byte_mask(word ^ quotes) | zero_byte_mask(word ^ slashes);
+      if (special != 0) {
+        // Each matching byte contributes its high bit to the mask. Its
+        // trailing zero count therefore locates the first quote or escape
+        // without rescanning the preceding bytes.
+        position += Count(__builtin_ctzll(special)) / 8;
+        break;
+      }
 
+      position += sizeof(U64);
+    }
+
+    if (position == source.get_size()) {
+      break;
+    }
+
+    const U8 byte = data[position];
+    if (byte == '"') {
+      const Count end = position++;
+      if (!escaped) {
+        value = source.slice(start, end - start);
+        return True;
+      }
+
+      const Count encoded_size = end - start;
+      // View parsing allocates decoded bytes. Managed parsing supplies writable
+      // source storage, so decoding compacts the string inside its original
+      // window without moving any later JSON bytes.
+      U8* decoded = mutable_source == nullptr
+                        ? arena.allocate(encoded_size).get_data()
+                        : mutable_source + start;
+      Count read_position = start;
+      Count write_position = 0;
+      while (read_position < end) {
+        if (data[read_position] != '\\') {
+          decoded[write_position++] = data[read_position++];
           continue;
         }
 
-        auto name = parse_string(source, position);
-
-        position++;
-
-        // A child failure invalidates the containing object. Propagating the
-        // sentinel prevents a partially parsed member list from being
-        // published.
-        Formats::Json::Node& child = arena.construct<Formats::Json::Node>();
-        position = child.parse(arena, source, position);
-        if (position == Count(-1)) {
-          set();
-          return Count(-1);
+        U8 decoded_byte = 0;
+        Count consumed = 0;
+        if (!decode_escape(
+                data + read_position + 1, end - read_position - 1, decoded_byte,
+                consumed)) {
+          __builtin_unreachable();
         }
 
-        members.insert(Member(name, child));
+        decoded[write_position++] = decoded_byte;
+        read_position += consumed + 1;
       }
 
-      // Publish collected members only after observing the closing brace.
-      // Truncated input leaves this node null and propagates failure.
-      if (!closed) {
-        set();
-        return Count(-1);
-      }
-
-      set(members);
-      return position;
+      value = View::Bytes(decoded[0], write_position);
+      return True;
     }
 
-    // Array
-    case '[': {
-      Managed::Vector<Formats::Json::Node> array(arena);
+    if (byte != '\\') {
       position++;
-      while (position < source.get_size()) {
-        while (position < source.get_size() &&
-               ignored_characters(source[position])) {
-          position++;
-        }
-
-        if (position >= source.get_size()) {
-          set();
-          return Count(-1);
-        }
-
-        if (source[position] == ']') {
-          break;
-        }
-
-        // A child failure invalidates the containing array. Propagating the
-        // sentinel prevents its partial value list from being published.
-        Formats::Json::Node& child = arena.construct<Formats::Json::Node>();
-        position = child.parse(arena, source, position);
-        if (position == Count(-1)) {
-          set();
-          return Count(-1);
-        }
-
-        array.insert(child);
-      }
-
-      if (position >= source.get_size()) {
-        set();
-        return Count(-1);
-      }
-
-      // Publish collected elements only after observing the closing bracket.
-      // Truncated input leaves this node null and propagates failure.
-      set(array.get_view());
-      position++;
-      return position;
+      continue;
     }
 
-    // String
-    case '"': {
-      auto name = parse_string(source, position);
-      set(name);
-      return position;
+    U8 decoded_byte = 0;
+    Count consumed = 0;
+    if (!decode_escape(
+            data + position + 1, source.get_size() - position - 1, decoded_byte,
+            consumed)) {
+      return False;
     }
 
-    // true
-    case 't': {
-      constexpr auto true_view = "true"_view;
-      if (source.slice(position, true_view.get_size()) != "true"_view) {
-        set();
-        return Count(-1);
-      }
+    escaped = True;
+    position += consumed + 1;
+  }
 
-      position += true_view.get_size();
+  return False;
+}
 
-      set(True);
-      return position;
-    }
+static auto parse_json_number(
+    View::Bytes source,
+    Count& position,
+    Formats::Json::Node& value) -> Bool {
+  const U8* data = source.get_data();
+  constexpr U64 signed_maximum = U64(-1) >> 1;
+  constexpr U64 signed_minimum_magnitude = signed_maximum + 1;
+  constexpr S64 signed_minimum = -9223372036854775807LL - 1;
 
-    // false
-    case 'f': {
-      constexpr auto false_view = "false"_view;
-      if (source.slice(position, false_view.get_size()) != "false"_view) {
-        set();
-        return Count(-1);
-      }
-
-      position += false_view.get_size();
-
-      set(False);
-      return position;
-    }
-
-    // Numbers
-    case '-':
-    case '0' ... '9': {
-      Bool positive = True;
-      if (source[position] == '-') {
-        positive = False;
-        position++;
-      }
-
-      S64 value = 0;
-      while (position < source.get_size() && source[position] >= '0' &&
-             source[position] <= '9') {
-        value *= 10;
-        value += source[position] - '0';
-        position++;
-      }
-
-      if (position >= source.get_size() || source[position] != '.') {
-        set(value * positive.sign());
-        return position;
-      }
-
-      position++;
-      R64 float_value = value;
-      U64 divisor = 1;
-
-      // Accumulate fractional digits and their decimal divisor together. One
-      // division then places the accumulated digits after the radix point.
-      while (position < source.get_size() && source[position] >= '0' &&
-             source[position] <= '9') {
-        float_value *= 10;
-        divisor *= 10;
-        float_value += source[position] - '0';
-        position++;
-      }
-
-      set((float_value / R64(divisor)) * positive.sign());
-      return position;
-    }
-
-    // null
-    case 'n': {
-      // JSON null uses the empty Node representation. Only the complete literal
-      // advances the cursor successfully. A mismatch returns the failure
-      // sentinel while leaving that same representation selected.
-      set();
-
-      constexpr auto null_view = "null"_view;
-      if (source.slice(position, null_view.get_size()) != null_view) {
-        return Count(-1);
-      }
-
-      position += null_view.get_size();
-      return position;
-    }
-
-    default:
-      position++;
-      break;
+  Bool negative = False;
+  if (data[position] == '-') {
+    negative = True;
+    position++;
+    if (position == source.get_size() || !is_json_digit(data[position])) {
+      return False;
     }
   }
 
-  set();
-  return position;
+  const U64 integer_limit =
+      negative ? signed_minimum_magnitude : signed_maximum;
+  U64 integer = 0;
+  Count digits = 0;
+  // The profile bounds numeric tokens to 19 magnitude digits even when leading
+  // zeroes would make a longer spelling representable. Rejecting the twentieth
+  // digit before multiplication keeps accumulation defined, then one final
+  // comparison applies the signed range selected above.
+  while (position < source.get_size() && is_json_digit(data[position])) {
+    if (digits == 19) {
+      return False;
+    }
+
+    integer = integer * 10 + data[position] - '0';
+    digits++;
+    position++;
+  }
+
+  if (integer > integer_limit) {
+    return False;
+  }
+
+  if (position < source.get_size() && data[position] == '.') {
+    position++;
+
+    // Converting the largest positive integer part can round to 2^63. Parsing
+    // remains safe, while formatting returns an empty View because that rounded
+    // value is outside the profile's publishable range.
+    R64 selected = R64(integer);
+    R64 place = 0.1;
+    while (position < source.get_size() && is_json_digit(data[position])) {
+      selected += R64(data[position] - '0') * place;
+      place *= 0.1;
+      position++;
+    }
+
+    // Exponents remain outside the profile. Rejecting them here keeps numeric
+    // policy independent of the root or container consuming this value.
+    if (position < source.get_size() &&
+        (data[position] == 'e' || data[position] == 'E')) {
+      return False;
+    }
+
+    value.set(negative ? -selected : selected);
+    return True;
+  }
+
+  if (position < source.get_size() &&
+      (data[position] == 'e' || data[position] == 'E')) {
+    return False;
+  }
+
+  if (integer == signed_minimum_magnitude) {
+    value.set(signed_minimum);
+  } else {
+    const S64 selected = S64(integer);
+    value.set(negative ? -selected : selected);
+  }
+
+  return True;
+}
+
+static auto parse_json_value(
+    Allocator::Arena& arena,
+    View::Bytes source,
+    U8* mutable_source,
+    Count& position,
+    Formats::Json::Node& value,
+    Count depth) -> Bool {
+  using Node = Formats::Json::Node;
+
+  const U8* data = source.get_data();
+  if (position == source.get_size()) {
+    return False;
+  }
+
+  switch (data[position]) {
+  case '{': {
+    if (depth == Node::nesting_limit) {
+      return False;
+    }
+
+    Managed::Vector<Node::Member> members(arena);
+    position++;
+    while (position < source.get_size()) {
+      skip_json_whitespace(source, data, position, True);
+      if (position < source.get_size() && data[position] == '}') {
+        position++;
+        value.set(members.get_view());
+        return True;
+      }
+
+      if (position == source.get_size() || data[position] != '"') {
+        return False;
+      }
+
+      View::Bytes name;
+      if (!parse_json_string(arena, source, mutable_source, position, name)) {
+        return False;
+      }
+
+      skip_json_whitespace(source, data, position);
+      if (position == source.get_size() || data[position] != ':') {
+        return False;
+      }
+
+      position++;
+      skip_json_whitespace(source, data, position);
+
+      Node& child = arena.construct<Node>();
+      if (!parse_json_value(
+              arena, source, mutable_source, position, child, depth + 1)) {
+        return False;
+      }
+
+      members.insert(Node::Member(name, child));
+    }
+
+    return False;
+  }
+
+  case '[': {
+    if (depth == Node::nesting_limit) {
+      return False;
+    }
+
+    Managed::Vector<Node> values(arena);
+    position++;
+    while (position < source.get_size()) {
+      skip_json_whitespace(source, data, position, True);
+      if (position < source.get_size() && data[position] == ']') {
+        position++;
+        value.set(values.get_view());
+        return True;
+      }
+
+      Node child;
+      if (!parse_json_value(
+              arena, source, mutable_source, position, child, depth + 1)) {
+        return False;
+      }
+
+      values.insert(child);
+    }
+
+    return False;
+  }
+
+  case '"': {
+    View::Bytes text;
+    if (!parse_json_string(arena, source, mutable_source, position, text)) {
+      return False;
+    }
+
+    value.set(text);
+    return True;
+  }
+
+  case 't':
+    if (source.slice(position, 4) != "true"_view) {
+      return False;
+    }
+
+    position += 4;
+    value.set(True);
+    return True;
+
+  case 'f':
+    if (source.slice(position, 5) != "false"_view) {
+      return False;
+    }
+
+    position += 5;
+    value.set(False);
+    return True;
+
+  case 'n':
+    if (source.slice(position, 4) != "null"_view) {
+      return False;
+    }
+
+    position += 4;
+    value.set();
+    return True;
+
+  case '-':
+  case '0' ... '9':
+    return parse_json_number(source, position, value);
+
+  default:
+    return False;
+  }
+}
+
+static auto parse_json(
+    Allocator::Arena& arena,
+    View::Bytes source,
+    U8* mutable_source = nullptr) -> Storage::Option<Formats::Json::Node> {
+  const U8* data = source.get_data();
+  Count position = 0;
+  skip_json_whitespace(source, data, position);
+
+  Formats::Json::Node value;
+  if (!parse_json_value(arena, source, mutable_source, position, value, 0)) {
+    return {};
+  }
+
+  // A parse publishes exactly one root. Relaxed container separators do not
+  // permit a second value or arbitrary suffix after that root.
+  skip_json_whitespace(source, data, position);
+  if (position != source.get_size()) {
+    return {};
+  }
+
+  return value;
+}
+
+auto Formats::Json::Node::parse(Allocator::Arena& arena, View::Bytes source)
+    -> Storage::Option<Node> {
+  return parse_json(arena, source);
+}
+
+auto Formats::Json::Node::parse(Managed::Bytes&& source)
+    -> Storage::Option<Node> {
+  Allocator::Arena& arena = source.get_arena();
+  auto parsed = parse_json(arena, source.get_view(), source.get_data());
+  source.reset();
+  return parsed;
+}
+
+// Common control bytes use their short JSON escapes. Remaining C0 bytes use
+// `\u00XX`, while every other byte except quote and backslash is copied without
+// interpretation. This preserves arbitrary byte strings through formatting.
+static auto write_json_string(
+    Stream::Textual<Managed::Bytes>& stream,
+    View::Bytes string) -> void {
+  stream << "\""_view;
+
+  constexpr auto hex_digits = "0123456789ABCDEF"_view;
+  Count start = 0;
+  for (Count i = 0; i < string.get_size(); i++) {
+    View::Bytes escaped;
+    switch (string[i]) {
+    case '"':
+      escaped = "\\\""_view;
+      break;
+
+    case '\\':
+      escaped = "\\\\"_view;
+      break;
+
+    case '\b':
+      escaped = "\\b"_view;
+      break;
+
+    case '\f':
+      escaped = "\\f"_view;
+      break;
+
+    case '\n':
+      escaped = "\\n"_view;
+      break;
+
+    case '\r':
+      escaped = "\\r"_view;
+      break;
+
+    case '\t':
+      escaped = "\\t"_view;
+      break;
+
+    default:
+      if (string[i] < 0x20) {
+        stream << string.slice(start, i - start);
+        stream << "\\u00"_view;
+        stream << hex_digits.slice(string[i] >> 4, 1);
+        stream << hex_digits.slice(string[i] & 0x0F, 1);
+        start = i + 1;
+      }
+
+      continue;
+    }
+
+    stream << string.slice(start, i - start);
+    stream << escaped;
+    start = i + 1;
+  }
+
+  stream << string.slice(start);
+  stream << "\""_view;
 }
 
 auto Formats::Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
   Managed::Bytes output{arena};
   Stream::Textual<Managed::Bytes> stream(output);
 
-  auto inplace_format = [](this auto&& self,
-                           Stream::Textual<Managed::Bytes>& stream,
-                           const Formats::Json::Node& node) -> void {
+  auto inplace_format =
+      [](this auto&& self, Stream::Textual<Managed::Bytes>& stream,
+         const Formats::Json::Node& node, Count depth) -> Bool {
     switch (State(node.data.state)) {
     case State::Null: {
       stream << "null"_view;
-      return;
+      return True;
     }
 
     case State::Array: {
+      if (depth == nesting_limit) {
+        return False;
+      }
+
       stream << "["_view;
 
       View::Vector<Formats::Json::Node> array = node.get_array();
       for (U32 i = 0; i < array.get_size(); i++) {
-        self(stream, array.get_data()[i]);
+        if (!self(stream, array.get_data()[i], depth + 1)) {
+          return False;
+        }
+
         if (i != array.get_size() - 1) {
           stream << ","_view;
         }
       }
 
       stream << "]"_view;
-      return;
+      return True;
     }
 
     case State::Object: {
+      if (depth == nesting_limit) {
+        return False;
+      }
+
       stream << "{"_view;
 
       View::Vector<Member> members = node.get_object();
       for (U32 i = 0; i < members.get_size(); i++) {
         const auto& member = members.get_data()[i];
-        stream << "\""_view << member.name << "\":"_view;
+        write_json_string(stream, member.name);
+        stream << ":"_view;
+        if (!self(stream, member.node, depth + 1)) {
+          return False;
+        }
 
-        self(stream, member.node);
         if (i != members.get_size() - 1) {
           stream << ","_view;
         }
       }
 
       stream << "}"_view;
-      return;
+      return True;
     }
 
     case State::String: {
-      stream << "\""_view;
-      constexpr auto hex_digits = "0123456789ABCDEF"_view;
-      auto string = node.get_string();
-      for (Count i = 0; i < string.get_size(); i++) {
-        switch (string[i]) {
-        case '"':
-          stream << "\\\""_view;
-          break;
-
-        case '\\':
-          stream << "\\\\"_view;
-          break;
-
-        case '\b':
-          stream << "\\b"_view;
-          break;
-
-        case '\f':
-          stream << "\\f"_view;
-          break;
-
-        case '\n':
-          stream << "\\n"_view;
-          break;
-
-        case '\r':
-          stream << "\\r"_view;
-          break;
-
-        case '\t':
-          stream << "\\t"_view;
-          break;
-
-        default:
-          if (string[i] >= 0x20) {
-            stream << string.slice(i, 1);
-            break;
-          }
-
-          stream << "\\u00"_view;
-          stream << hex_digits.slice(string[i] >> 4, 1);
-          stream << hex_digits.slice(string[i] & 0x0F, 1);
-          break;
-        }
-      }
-
-      stream << "\""_view;
-      return;
+      write_json_string(stream, node.get_string());
+      return True;
     }
 
     case State::Boolean: {
       stream << node.data.boolean;
-      return;
+      return True;
     }
 
     case State::Integer: {
       stream << node.data.integer;
-      return;
+      return True;
     }
 
     case State::Real: {
+      constexpr R64 signed_limit = 9'223'372'036'854'775'808.0;
+      if (!__builtin_isfinite(node.data.real) ||
+          node.data.real >= signed_limit || node.data.real < -signed_limit) {
+        return False;
+      }
+
       stream << node.data.real;
-      return;
+      return True;
     }
     }
+
+    __builtin_unreachable();
   };
 
-  inplace_format(stream, *this);
+  if (!inplace_format(stream, *this, 0)) {
+    return {};
+  }
 
-  return output;
+  return output.get_view();
 }

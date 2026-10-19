@@ -22,6 +22,11 @@ static Storage::Bytes<1 << 15> json_data;
 static Writer::Textual json_text(json_data);
 static constexpr Count json_batch = 1024;
 
+static auto reject_json() -> void {
+  Diagnostics::Log::fatal(
+      "JSON benchmark input does not match Perimortem's parser profile."_view);
+}
+
 static auto load_json(View::Bytes source_path) -> void {
   auto path =
       Filesystem::Path::create(Filesystem::Path::Anchor::Work, source_path);
@@ -81,12 +86,13 @@ static Harness JsonSmall = {
 
 VALIDATION_BENCHMARK(JsonSmall, small_x1024) {
   Count size = 0;
+  const auto consume = [&size](const Formats::Json::Node& node) {
+    size += node.get_size();
+  };
 
   Allocator::Arena arena;
   for (Count i = 0; i < json_batch; i++) {
-    Formats::Json::Node node;
-    node.parse(arena, json_text);
-    size += node.get_size();
+    Formats::Json::Node::parse(arena, json_text).visit(consume, reject_json);
     arena.reset();
   }
 
@@ -100,12 +106,13 @@ static Harness JsonTokenizeRpc = {
 
 VALIDATION_BENCHMARK(JsonTokenizeRpc, tokenize_rpc_x1024) {
   Count size = 0;
+  const auto consume = [&size](const Formats::Json::Node& node) {
+    size += node.get_size();
+  };
 
   Allocator::Arena arena;
   for (Count i = 0; i < json_batch; i++) {
-    Formats::Json::Node node;
-    node.parse(arena, json_text);
-    size += node.get_size();
+    Formats::Json::Node::parse(arena, json_text).visit(consume, reject_json);
     arena.reset();
   }
 
@@ -119,12 +126,13 @@ static Harness JsonInitRpc = {
 
 VALIDATION_BENCHMARK(JsonInitRpc, jsonrpc_init_x1024) {
   Count size = 0;
+  const auto consume = [&size](const Formats::Json::Node& node) {
+    size += node.get_size();
+  };
 
   Allocator::Arena arena;
   for (Count i = 0; i < json_batch; i++) {
-    Formats::Json::Node node;
-    node.parse(arena, json_text);
-    size += node.get_size();
+    Formats::Json::Node::parse(arena, json_text).visit(consume, reject_json);
     arena.reset();
   }
 
