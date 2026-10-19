@@ -160,3 +160,13 @@ VALIDATION_TEST(SerializationStream, managed_textual) {
 
   EXPECT_TEXT(output.get_view(), "12.5 false"_view);
 }
+
+VALIDATION_TEST(SerializationStream, invalid_textual_value) {
+  Thread::Bytes output("prefix"_view);
+  Stream::Textual<Thread::Bytes> writer(output);
+
+  writer << R64(__builtin_inf()) << "discarded"_view;
+
+  EXPECT_NOT(writer.is_valid());
+  EXPECT_TEXT(output, "prefix"_view);
+}

@@ -7,8 +7,14 @@
 
 namespace Perimortem::Serialization::Stream {
 
-// Appends Core::Writer::Textual output to byte containers using thread or
-// managed allocation.
+// Textual appends primitive representations and raw byte Views to Thread or
+// Managed Bytes. Booleans, integers and Reals use the same representation as
+// Core::Writer::Textual. Raw bytes append unchanged.
+//
+// Every append begins at the current size and can replace the destination
+// allocation, invalidating earlier Views and Accesses into it. A nonfinite Real
+// or one whose integer portion cannot fit S64 leaves its values and size
+// unchanged and invalidates the stream. Later appends do no work.
 template <typename storage_type>
 class Textual {
  public:
@@ -29,8 +35,11 @@ class Textual {
       -> Textual&;
   auto operator<<(const char* raw) -> Textual& = delete;
 
+  constexpr auto is_valid() const -> Bool { return valid_state; }
+
  private:
   storage_type& storage;
+  Bool valid_state = True;
 };
 
 }  // namespace Perimortem::Serialization::Stream

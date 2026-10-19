@@ -252,7 +252,7 @@ class Archive {
   // contributes only to counters for the paths it uses.
   Count check_out_requests = 0;
   Count allocation_requests = 0;
-  Count demote_requests = 0;
+  Count inventory_ordering_passes = 0;
   Count slab_requests = 0;
 };
 
@@ -278,7 +278,7 @@ class Librarian {
   auto manage_inventory(Count bytes) -> void {
     Slab* current = inventory;
     if (current->get_ancestor()) {
-      secret_archive.demote_requests++;
+      secret_archive.inventory_ordering_passes++;
 
       const auto free_space = current->get_free_space();
 
@@ -502,8 +502,8 @@ auto Allocator::Bibliotheca::allocation_requests() -> Count {
   return secret_archive.allocation_requests;
 }
 
-auto Allocator::Bibliotheca::demote_requests() -> Count {
-  return secret_archive.demote_requests;
+auto Allocator::Bibliotheca::inventory_ordering_passes() -> Count {
+  return secret_archive.inventory_ordering_passes;
 }
 
 auto Allocator::Bibliotheca::slab_requests() -> Count {

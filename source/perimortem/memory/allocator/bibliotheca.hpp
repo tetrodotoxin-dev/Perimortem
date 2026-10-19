@@ -7,16 +7,16 @@
 
 namespace Perimortem::Memory::Allocator {
 
-// The thread local runtime allocator used by Perimortem containers and workers.
+// Bibliotheca supplies reusable raw blocks to Perimortem systems whose complete
+// allocation and remittance stay on one native thread.
 //
-// Each thread caches allocations in power of two size classes. Thread exit
-// releases every slab retained by that cache.
+// Each thread keeps independent power of two free lists, avoiding process wide
+// synchronization while repeated allocation patterns reuse existing blocks.
+// Thread exit releases every slab retained by that cache.
 //
 // A block remains attached to the archive of the thread that checked it out.
 // Every reservation and remittance for that block occurs on the same thread.
 //
-// Stable allocation and remittance patterns maximize reuse while varied
-// workloads continue through the same size classes.
 class Bibliotheca {
  public:
   // Every corpus begins after one cache line sized Preface. Slab pages preserve
@@ -71,7 +71,7 @@ class Bibliotheca {
   // Counts inventory ordering passes for the current thread. A pass occurs
   // when the active slab cannot satisfy a block request and at least one older
   // slab remains to reconsider before mapping another slab.
-  static EXPORTED(PERIMORTEM) auto demote_requests() -> Count;
+  static EXPORTED(PERIMORTEM) auto inventory_ordering_passes() -> Count;
 
   // Counts backing slabs obtained for the current thread, including its
   // initial Librarian slab and later inventory growth.

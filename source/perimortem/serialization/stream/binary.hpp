@@ -9,9 +9,15 @@
 
 namespace Perimortem::Serialization::Stream {
 
-// Appends packed values to byte containers using thread or managed allocation.
-// Existing bytes are never revisited. Core::Writer::Binary supports output
-// that needs later patching.
+// Binary appends packed scalar and vector values to Thread or Managed Bytes.
+// Scalars and multi byte vector elements use the declared byte order. Byte
+// Views and one byte elements retain their existing representation. No
+// alignment padding is added.
+//
+// Every append begins at the current size and can replace the destination
+// allocation, invalidating earlier Views and Accesses into it. Binary never
+// revisits existing values. Use Core::Writer::Binary when output needs a fixed
+// capacity or later patching.
 template <
     Perimortem::Core::Data::ByteOrder stream_endian,
     typename storage_type>

@@ -18,7 +18,7 @@ using namespace Perimortem::Serialization;
 constexpr Count write_window = 64;
 
 template <typename storage_type, typename value_type>
-static auto write(storage_type& storage, value_type value) -> void {
+static auto write(storage_type& storage, value_type value) -> Bool {
   Count start = storage.get_size();
   storage.resize(start + write_window);
 
@@ -27,77 +27,81 @@ static auto write(storage_type& storage, value_type value) -> void {
   Writer::Textual writer(storage.get_access().slice(start, write_window));
   writer << value;
   storage.resize(start + writer.get_location());
+  return writer.is_valid();
 }
 
 template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(Bool flag) -> Textual& {
-  write(storage, flag);
+  valid_state = valid_state && write(storage, flag);
   return *this;
 }
 
 template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(U8 value) -> Textual& {
-  write(storage, value);
+  valid_state = valid_state && write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(U16 value) -> Textual& {
-  write(storage, value);
+  valid_state = valid_state && write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(U32 value) -> Textual& {
-  write(storage, value);
+  valid_state = valid_state && write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(U64 value) -> Textual& {
-  write(storage, value);
+  valid_state = valid_state && write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(S8 value) -> Textual& {
-  write(storage, value);
+  valid_state = valid_state && write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(S16 value) -> Textual& {
-  write(storage, value);
+  valid_state = valid_state && write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(S32 value) -> Textual& {
-  write(storage, value);
+  valid_state = valid_state && write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(S64 value) -> Textual& {
-  write(storage, value);
+  valid_state = valid_state && write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(R32 value) -> Textual& {
-  write(storage, value);
+  valid_state = valid_state && write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(R64 value) -> Textual& {
-  write(storage, value);
+  valid_state = valid_state && write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(View::Bytes raw) -> Textual& {
-  storage.concat(raw);
+  if (valid_state) {
+    storage.concat(raw);
+  }
+
   return *this;
 }
 
