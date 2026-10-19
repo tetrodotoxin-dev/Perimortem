@@ -8,6 +8,7 @@
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/serialization/formats/uuid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Serialization;

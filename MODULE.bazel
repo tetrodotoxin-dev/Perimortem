@@ -1,6 +1,6 @@
 module(
     name = "perimortem",
-    version = "0.3.2",
+    version = "0.4.0",
 )
 
 bazel_dep(name = "rules_cc", version = "0.2.17")
@@ -9,7 +9,7 @@ bazel_dep(name = "rules_pkg", version = "1.3.0")
 bazel_dep(name = "tetro_toolchain", version = "0.4.0")
 archive_override(
     module_name = "tetro_toolchain",
-    sha256 = "9ea59039232dd378b5e9fb6249dd0afd559a38635892689fd6a75af68a7b5726",
+    sha256 = "b65328633b2fa55985dac99a949400a9a502d182c2120b3c1bf6092f1a290c44",
     urls = ["https://github.com/tetrodotoxin-dev/Toolchain/releases/download/v0.4.0/tetro_toolchain-0.4.0-source.tar.gz"],
 )
 

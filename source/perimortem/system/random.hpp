@@ -5,7 +5,7 @@
 
 #include "toolchain/toolchain.hpp"
 
-#include "perimortem/serialization/formats/uuid.h"
+#include "perimortem/serialization/formats/uuid.hpp"
 
 namespace Perimortem::System {
 

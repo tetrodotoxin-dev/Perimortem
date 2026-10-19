@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/serialization/formats/uuid.h"
+#include "perimortem/serialization/formats/uuid.hpp"
 
 #include "toolchain/validation/test.hpp"
 
