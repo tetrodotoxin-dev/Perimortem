@@ -370,6 +370,30 @@ constexpr auto inflate_fixed(BitStream::Reader& reader, Thread::Bytes& output)
   return inflate_symbols(literal_table, distance_table, reader, output);
 }
 
+// Huffman construction indexes fixed tables without repeating length checks.
+// Dynamic headers cross the untrusted stream boundary here, so establish the
+// symbol limit, code width and Kraft inequality before constructing any table.
+constexpr auto valid_huffman_lengths(View::Vector<U8> lengths) -> Bool {
+  if (lengths.get_size() > Huffman::max_symbol_count) {
+    return False;
+  }
+
+  const auto* values = lengths.get_data();
+  Count kraft_sum = 0;
+  for (Count index = 0; index < lengths.get_size(); index++) {
+    const Count length = values[index];
+    if (length > Huffman::max_code_bits) {
+      return False;
+    }
+
+    if (length > 0) {
+      kraft_sum += Count(1) << (Huffman::max_code_bits - length);
+    }
+  }
+
+  return kraft_sum <= (Count(1) << Huffman::max_code_bits);
+}
+
 constexpr auto inflate_dynamic(BitStream::Reader& reader, Thread::Bytes& output)
     -> Bool {
   Count literal_code_count = reader.read_code(5) + 257;
@@ -382,6 +406,12 @@ constexpr auto inflate_dynamic(BitStream::Reader& reader, Thread::Bytes& output)
   Storage::Vector<U8, code_length_order.get_size()> huffman_lengths;
   for (Count i = 0; i < huffman_code_count; i++) {
     huffman_lengths[code_length_order[i]] = U8(reader.read_code(3));
+  }
+
+  if (!valid_huffman_lengths(huffman_lengths)) [[unlikely]] {
+    Diagnostics::Log::error(
+        "Compression: code-length Huffman table violates its bounded prefix code contract"_view);
+    return False;
   }
 
   const auto dynamic_table = Huffman(huffman_lengths);
@@ -450,48 +480,21 @@ constexpr auto inflate_dynamic(BitStream::Reader& reader, Thread::Bytes& output)
   const auto distance_symbols =
       actual_literal_len_lengths.get_view().slice(literal_code_count);
 
-  // Reject overcommitted prefix codes. A sum above the maximum means at least
-  // two codes share a prefix, making decoding ambiguous and the stream invalid
-  // per RFC 1951. This strict check ensures Perimortem inflate agrees with
-  // every conformant DEFLATE decoder rather than silently tolerating bad
-  // tables.
-  auto is_valid_kraft = [](View::Vector<U8> lengths) -> Bool {
-    const auto* length_data = lengths.get_data();
-    Count max_length = 0;
-    for (Count i = 0; i < lengths.get_size(); i++) {
-      if (Count(length_data[i]) > max_length) {
-        max_length = Count(length_data[i]);
-      }
-    }
-
-    if (max_length == 0) {
-      return True;
-    }
-
-    Count kraft = 0;
-    for (Count i = 0; i < lengths.get_size(); i++) {
-      if (length_data[i] > 0) {
-        kraft += Count(1) << (max_length - Count(length_data[i]));
-      }
-    }
-
-    return kraft <= (Count(1) << max_length);
-  };
-
-  if (!is_valid_kraft(literal_symbols)) [[unlikely]] {
+  if (!valid_huffman_lengths(literal_symbols)) [[unlikely]] {
     Diagnostics::Log::error(
         "Compression: literal/length Huffman table violates Kraft inequality"_view);
     return False;
   }
 
-  if (!is_valid_kraft(distance_symbols)) [[unlikely]] {
+  if (!valid_huffman_lengths(distance_symbols)) [[unlikely]] {
     Diagnostics::Log::error(
         "Compression: distance Huffman table violates Kraft inequality"_view);
     return False;
   }
 
-  return inflate_symbols(
-      Huffman(literal_symbols), Huffman(distance_symbols), reader, output);
+  const Huffman literal_table(literal_symbols);
+  const Huffman distance_table(distance_symbols);
+  return inflate_symbols(literal_table, distance_table, reader, output);
 }
 
 constexpr auto write_checksum(Thread::Bytes& output, View::Bytes source)
@@ -646,6 +649,8 @@ constexpr auto write_dynamic_block_header(
   }
 
   Storage::Vector<U8, code_length_order.get_size()> meta_lengths;
+  // These fixed arrays have equal extents below Huffman's symbol limit. Their
+  // types establish the geometry required by the unchecked length generator.
   Huffman::compute_lengths(meta_freq.get_view(), meta_lengths.get_access());
 
   // Trim trailing zero length entries from the meta table.
@@ -845,15 +850,21 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
 
   Storage::Vector<U8, deflate_literal_len_count> literal_len_lengths;
   Storage::Vector<U8, deflate_distance_count> distance_lengths;
+  Bool distance_found = False;
+  Count literal_index = 0;
+  Count distance_index = 0;
+  // Each output has the same fixed extent as its frequency table and both are
+  // below Huffman's symbol limit. Those local types establish the geometry
+  // required by the unchecked length generator.
   Huffman::compute_lengths(
       literal_len_frequencies.get_view(), literal_len_lengths.get_access());
   Huffman::compute_lengths(
       distance_frequencies.get_view(), distance_lengths.get_access());
+
   if (literal_len_lengths[256] == 0) {
     literal_len_lengths[256] = 1;
   }
 
-  Bool distance_found = False;
   for (Count i = 0; i < deflate_distance_count; i++) {
     if (distance_lengths[i] > 0) {
       distance_found = True;
@@ -868,7 +879,6 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
   const Huffman literal_len_table(literal_len_lengths.get_view());
   const Huffman distance_table(distance_lengths.get_view());
 
-  Count literal_index = 0;
   for (Count i = deflate_literal_len_count - 1; i > 256; i--) {
     if (literal_len_lengths[i] > 0) {
       literal_index = i - 256;
@@ -876,7 +886,6 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
     }
   }
 
-  Count distance_index = 0;
   for (Count i = deflate_distance_count - 1; i > 0; i--) {
     if (distance_lengths[i] > 0) {
       distance_index = i;

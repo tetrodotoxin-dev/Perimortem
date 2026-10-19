@@ -9,12 +9,23 @@
 
 namespace Perimortem::Compression {
 
-// Builds the canonical Huffman codes used to encode and decode DEFLATE symbol
-// streams. One set of code lengths produces both directions, which prevents
-// the writer and reader from drifting into separate interpretations of the
-// same tree. All lookup storage is held directly by the value.
+// Huffman derives the encode and decode tables for one DEFLATE symbol alphabet.
+// Canonical assignment orders codes by length and then by symbol index for
+// equal lengths. Deriving both directions from that single rule prevents the
+// writer and reader from interpreting the same lengths differently. All lookup
+// storage lives directly in the value.
+//
+// Fixed lookup storage supports at most 320 symbols. A code length from one
+// through fifteen selects that symbol, while zero omits it. Deflate validates
+// decoded lengths before construction and its encoder produces the same bounded
+// form. Construction indexes the fixed tables without repeating those checks
+// for each symbol. Calling it outside that internal contract is undefined.
 class Huffman {
  public:
+  // Code reverses canonical bits before storage. Writer consumes the stored
+  // value from its least significant bit, so the stream receives the canonical
+  // code from its most significant bit. A zero length is the invalid
+  // representation and appends nothing.
   class Code {
    public:
     constexpr Code() {}
@@ -116,7 +127,11 @@ class Huffman {
     return Huffman(code_lengths.get_view());
   }
 
-  static EXPORTED(PERIMORTEM) auto compute_lengths(
+  // Builds one bounded code length for every supplied frequency. Deflate
+  // supplies equal fixed extents below the symbol limit. Keeping that geometry
+  // in its local types avoids repeated runtime checks here. Zero frequencies
+  // receive a zero length.
+  static auto compute_lengths(
       Core::View::Vector<U32> frequencies,
       Core::Access::Vector<U8> lengths) -> void;
 

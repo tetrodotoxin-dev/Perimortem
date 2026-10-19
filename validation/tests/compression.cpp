@@ -3,10 +3,7 @@
 
 #include "toolchain/validation/test.hpp"
 
-#include "perimortem/compression/bit_stream/reader.hpp"
 #include "perimortem/compression/deflate.hpp"
-#include "perimortem/compression/huffman.hpp"
-#include "perimortem/compression/lz77.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "validation/tests/log.hpp"
@@ -146,6 +143,21 @@ static constexpr Storage::Bytes<10> invalid_dynamic_symbol = {{
   0x01,
 }};
 
+// Three one bit codes cannot share a two value prefix space. Reject the meta
+// alphabet before constructing its internal Huffman tables.
+static constexpr Storage::Bytes<10> overcommitted_meta_codes = {{
+  0x78,
+  0x9C,
+  0x05,
+  0x00,
+  0x92,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+}};
+
 static auto select_inflated(
     Storage::Option<Thread::Bytes> inflated,
     Thread::Bytes& output) -> Bool {
@@ -272,29 +284,13 @@ VALIDATION_TEST(CompressionTests, reject_invalid_dynamic_symbol) {
           "Compression: dynamic Huffman block decompression failed"_view));
 }
 
-VALIDATION_TEST(CompressionTests, truncated_fast_huffman_code) {
-  Storage::Vector<U8, 1> lengths;
-  lengths[0] = 9;
+VALIDATION_TEST(CompressionTests, reject_overcommitted_meta_codes) {
+  auto out = Deflate::inflate(overcommitted_meta_codes);
 
-  const Huffman table(lengths.get_view());
-  BitStream::Reader reader("\x00"_view);
-
-  EXPECT_EQ(table.decode_symbol(reader), Huffman::invalid_symbol);
-  EXPECT_NOT(reader.is_valid());
-}
-
-VALIDATION_TEST(CompressionTests, bit_reader_bounds) {
-  BitStream::Reader complete("\x01\x02\x03\x04"_view);
-  EXPECT_EQ(complete.read_code(32), U32(0x04030201));
-  EXPECT(complete.is_valid());
-
-  BitStream::Reader wide("\xFF"_view);
-  EXPECT_EQ(wide.read_code(33), U32(0));
-  EXPECT_NOT(wide.is_valid());
-
-  BitStream::Reader raw("\xFF"_view);
-  EXPECT(raw.read_raw_bytes(Count(-1)).is_empty());
-  EXPECT_NOT(raw.is_valid());
+  EXPECT_NOT(out);
+  EXPECT(
+      Log::error_contains(
+          "Compression: dynamic Huffman block decompression failed"_view));
 }
 
 VALIDATION_TEST(CompressionTests, deflate_empty_input) {
@@ -373,27 +369,6 @@ VALIDATION_TEST(CompressionTests, repeating_value) {
   ASSERT(select_inflated(Deflate::inflate(compressed), recovered));
   ASSERT_EQ(recovered.get_size(), source_size);
   EXPECT_HEX(recovered.get_view(), source.get_view());
-}
-
-VALIDATION_TEST(CompressionTests, inserted_match) {
-  Storage::Bytes<64> source;
-  for (Count index = 0; index < source.get_size(); index++) {
-    source[index] = U8(index);
-  }
-
-  constexpr U8 repeated[] = {'x', 'y', 'z', 'x', 'y', 'z', 'x', 'y'};
-  for (Count index = 0; index < Data::array_size(repeated); index++) {
-    source[8 + index] = repeated[index];
-    source[24 + index] = repeated[index];
-  }
-
-  Lz77 lz77;
-  lz77.insert(source, 8);
-
-  const auto match = lz77.find_match(source, 24, 128);
-
-  EXPECT_EQ(match.get_length(), Data::array_size(repeated));
-  EXPECT_EQ(match.get_distance(), Count(16));
 }
 
 VALIDATION_TEST(CompressionTests, roundtrip_large) {

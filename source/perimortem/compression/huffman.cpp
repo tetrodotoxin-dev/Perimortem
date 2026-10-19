@@ -13,7 +13,10 @@ auto Huffman::compute_lengths(
     Access::Vector<U8> lengths) -> void {
   const Count symbol_count = frequencies.get_size();
   struct Node {
-    U32 frequency;
+    // Merging as many as 320 U32 symbol counters can exceed U32 before any
+    // individual counter wraps. U64 prevents that combined sum from wrapping
+    // and changing node order for inputs spanning many gigabytes.
+    U64 frequency;
     U16 parent;
     U16 symbol;
   };

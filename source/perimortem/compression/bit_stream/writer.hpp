@@ -7,7 +7,7 @@
 
 namespace Perimortem::Compression::BitStream {
 
-// Writer appends a DEFLATE packed stream to caller supplied Thread Bytes. The
+// Writer appends the Deflate packed stream to caller supplied Thread Bytes. The
 // output can grow during encoding, unlike the fixed Access range consumed by
 // Core Writer.
 //
@@ -15,20 +15,20 @@ namespace Perimortem::Compression::BitStream {
 // codes are written from the most significant bit to match canonical decode
 // order.
 //
-// Internally a 64 bit accumulator buffers bits until complete bytes can be
-// flushed to the output in one store.
-//
-// Huffman::encode_symbol returns pre reversed codes, so write_code is
-// a zero overhead alias for write_bits.
+// A 64 bit accumulator buffers bits until complete bytes can be appended.
+// Deflate supplies no more than the 32 bits represented by each U32 argument.
+// Keeping that bound at the call sites avoids another branch for every encoded
+// field. Huffman::encode_symbol returns reversed stream bits, making
+// `write_code` a direct alias for `write_bits`.
 class Writer {
  public:
   Writer(Memory::Thread::Bytes& output) : output(output) {}
 
-  // Write `length` bits of `value` least significant bit first (extra bits,
-  // block headers).
-  EXPORTED(PERIMORTEM) auto write_bits(U32 value, Count length) -> void;
-  EXPORTED(PERIMORTEM) auto write_code(U32 code, Count length) -> void;
-  EXPORTED(PERIMORTEM) auto flush() -> void;
+  // Writes at most 32 low order bits of `value` least significant bit first.
+  // Extra bits and block headers use this ordering directly.
+  auto write_bits(U32 value, Count length) -> void;
+  auto write_code(U32 code, Count length) -> void;
+  auto flush() -> void;
 
  private:
   auto drain() -> void;

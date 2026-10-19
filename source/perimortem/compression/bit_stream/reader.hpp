@@ -7,23 +7,35 @@
 
 namespace Perimortem::Compression::BitStream {
 
-// A bit reader for DEFLATE packed streams.
+// Reader decodes one DEFLATE packed View inside Deflate without allocating.
+// Each byte is consumed from its least significant bit, while Huffman codes
+// accumulate from their most significant bit to preserve canonical code order.
 //
-// Each byte is consumed starting from its least significant bit, and Huffman
-// codes accumulate from the most significant bit to match canonical decode
-// order.
-//
-// Internally a 64 bit fill buffer is kept loaded from the stream so peek_code /
-// advance_bits require no memory access in the common case. `fill()` is called
-// lazily when the buffer drops below the requested bit count.
+// A 64 bit buffer keeps common peeks and advances independent of another source
+// load. Reading beyond the View or requesting a code wider than U32 makes the
+// invalid state sticky. Values returned by later reads are undefined, while the
+// operations remain within the source View.
 class Reader {
  public:
   constexpr Reader(Core::View::Bytes source) : data(source) {}
 
-  EXPORTED(PERIMORTEM) auto read_bit() -> Bool;
-  EXPORTED(PERIMORTEM) auto read_code(Count count) -> U32;
-  EXPORTED(PERIMORTEM) auto read_raw_bytes(Count count) -> Core::View::Bytes;
-  EXPORTED(PERIMORTEM) auto peek_code(Count count) -> U32;
+  // Consumes one bit. Exhaustion returns False and invalidates the Reader, so
+  // `is_valid()` distinguishes that failure from a decoded zero bit.
+  auto read_bit() -> Bool;
+
+  // Consumes at most 32 low order stream bits. A wider or truncated request
+  // returns zero and invalidates the Reader.
+  auto read_code(Count count) -> U32;
+
+  // Discards a partial byte, then returns the requested complete bytes as a
+  // View into the source. Insufficient input returns an empty View and
+  // invalidates the Reader.
+  auto read_raw_bytes(Count count) -> Core::View::Bytes;
+
+  // Returns at most 32 low order stream bits without advancing. Missing high
+  // bits remain zero so a Huffman decoder can recognize a shorter complete
+  // code. Its later advance determines whether enough bits were available.
+  auto peek_code(Count count) -> U32;
 
   // Advances only through bits already loaded into the buffer. A request past
   // that boundary invalidates the stream without underflowing `buffered_bits`.
