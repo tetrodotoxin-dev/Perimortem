@@ -10,21 +10,18 @@
 
 namespace Perimortem::Core::View {
 
-// Matrix gives callers read only access to a contiguous value range and assigns
-// one value to every coordinate in its multidimensional Size. Axis zero is
-// contiguous and each following axis advances by the product of the preceding
-// extents.
-// Construction publishes the supplied Size only when its value count is
-// representable and exactly matches the supplied View::Vector. Every other
-// input produces the null representation with zero extents and no values. A
-// valid Size with an empty axis retains its other extents while referencing no
-// values.
+// Matrix provides allocation free read access to one value for every coordinate
+// in its multidimensional Size. Axis zero is contiguous and each following axis
+// advances by the product of the preceding extents. Construction preserves the
+// supplied Size only when its value count is representable and exactly matches
+// the supplied View::Vector. Every other input produces the zero initialized
+// representation. A valid Size with an empty axis retains its other extents
+// while referencing no values.
 //
-// Matrix stores the source View without extending its storage lifetime. An
-// operation that relocates or releases the source values invalidates Matrix, so
-// callers reacquire it after such an operation. While the source remains
-// accessible, `get` rejects negative coordinates and coordinates outside any
-// axis.
+// Indexing never reads outside the supplied range with negative coordinates or
+// coordinates outside any axis returning a zero initialized value. Matrix does
+// not extend the source storage lifetime. Relocating or releasing the source
+// values invalidates Matrix, so callers reacquire it after such an operation.
 template <typename type, Count dimensions>
 class Matrix {
   static_assert(dimensions > 0);
@@ -46,24 +43,24 @@ class Matrix {
     };
 
     auto reject = []() {};
-    source_size.get_element_count().visit(publish, reject);
+    calculate_value_count(source_size).visit(publish, reject);
   }
 
-  constexpr auto get(Math::Point<S64, dimensions> point) const
-      -> Storage::Option<const data_type&> {
+  constexpr auto operator[](Math::Point<S64, dimensions> point) const
+      -> data_type {
     Count index = 0;
     Count stride = 1;
     for (Count axis = 0; axis < dimensions; axis++) {
       const S64 coordinate = point[axis];
       if (coordinate < 0 || coordinate >= size[axis]) {
-        return {};
+        return data_type();
       }
 
       index += Count(coordinate) * stride;
       stride *= size[axis];
     }
 
-    return values.get_data()[index];
+    return values[index];
   }
 
   constexpr auto get_size() const -> Math::Size<U32, dimensions> {
@@ -79,6 +76,21 @@ class Matrix {
   constexpr auto is_empty() const -> Bool { return size.is_empty(); }
 
  private:
+  static constexpr auto calculate_value_count(
+      Math::Size<U32, dimensions> source_size) -> Storage::Option<Count> {
+    Count count = 1;
+    for (Count axis = 0; axis < dimensions; axis++) {
+      Count product;
+      if (__builtin_mul_overflow(count, Count(source_size[axis]), &product)) {
+        return {};
+      }
+
+      count = product;
+    }
+
+    return count;
+  }
+
   Math::Size<U32, dimensions> size;
   View::Vector<data_type> values;
 };

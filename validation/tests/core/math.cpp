@@ -3,9 +3,9 @@
 
 #include "toolchain/validation/test.hpp"
 
+#include "perimortem/core/math/bounds.hpp"
 #include "perimortem/core/math/domain.hpp"
 #include "perimortem/core/math/scalar.hpp"
-#include "perimortem/core/math/volume.hpp"
 
 using namespace Perimortem::Core;
 using namespace Toolchain::Validation;
@@ -74,18 +74,32 @@ VALIDATION_TEST(CoreMath, exact_size) {
   EXPECT_EQ(size[1], 4.0f);
 }
 
+VALIDATION_TEST(CoreMath, size_volume) {
+  constexpr Math::Size<U32, 3> size({{3, 2, 4}});
+  static_assert(__is_same(decltype(size.get_volume()), U32));
+  EXPECT_EQ(size.get_volume(), U32(24));
+
+  constexpr Math::Size<U32, 2> empty({{0, 4}});
+  EXPECT_EQ(empty.get_volume(), U32(0));
+
+  constexpr Math::Size<U32, 2> overflow({{~U32{}, 2}});
+  EXPECT_EQ(overflow.get_volume(), U32(0));
+
+  constexpr Math::Size<S32, 2> signed_overflow({{2147483647, 2}});
+  EXPECT_EQ(signed_overflow.get_volume(), S32(0));
+
+  constexpr Math::Size<R32, 3> real({{3.0f, 2.0f, 5.0f}});
+  EXPECT_EQ(real.get_volume(), R32(30.0f));
+
+  constexpr Math::Size<R32, 2> real_overflow({{__FLT_MAX__, 2.0f}});
+  EXPECT_EQ(real_overflow.get_volume(), R32(0.0f));
+}
+
 VALIDATION_TEST(CoreMath, domain_extent) {
   Math::Domain<2> domain(Math::Size<U32, 2>({{3, 2}}));
   EXPECT(domain.contains(Math::Point<U32, 2>({{2, 1}})));
   EXPECT_NOT(domain.contains(Math::Point<U32, 2>({{3, 1}})));
   EXPECT_NOT(domain.contains(Math::Point<S64, 2>({{-1, 1}})));
-
-  auto count = domain.get_element_count();
-  ASSERT(count);
-  count.visit([&](Count value) { EXPECT_EQ(value, 6); }, []() {});
-
-  Math::Domain<3> huge(Math::Size<U32, 3>({{~U32{}, ~U32{}, ~U32{}}}));
-  EXPECT_NOT(huge.get_element_count());
 }
 
 VALIDATION_TEST(CoreMath, clipped_domain) {
@@ -99,9 +113,9 @@ VALIDATION_TEST(CoreMath, clipped_domain) {
       [&](const Math::Point<U32, 1>& point) { EXPECT_EQ(point[0], 2); },
       []() {});
 
-  auto limits = domain.get_limits();
-  EXPECT(limits.contains(Math::Point<S64, 1>({{2}})));
-  EXPECT_NOT(limits.contains(Math::Point<S64, 1>({{3}})));
+  auto bounds = domain.get_bounds();
+  EXPECT(bounds.contains(Math::Point<S64, 1>({{2}})));
+  EXPECT_NOT(bounds.contains(Math::Point<S64, 1>({{3}})));
 }
 
 VALIDATION_TEST(CoreMath, mixed_boundaries) {
@@ -171,32 +185,32 @@ VALIDATION_TEST(CoreMath, empty_domain_boundary) {
   EXPECT_NOT(domain.resolve(Math::Point<S64, 1>({{-1}})));
 }
 
-VALIDATION_TEST(CoreMath, volume_edges) {
-  Math::Volume<S32, 2> volume(
+VALIDATION_TEST(CoreMath, bounds_edges) {
+  Math::Bounds<S32, 2> bounds(
       Math::Point<S32, 2>({{-2147483647 - 1, 0}}),
       Math::Size<S32, 2>({{2147483647, 2}}));
-  EXPECT(volume.contains(Math::Point<S32, 2>({{-2147483647 - 1, 0}})));
-  EXPECT_NOT(volume.contains(Math::Point<S32, 2>({{2147483647, 0}})));
-  EXPECT_NOT(volume.contains(Math::Point<S32, 2>({{-2147483647 - 1, 2}})));
+  EXPECT(bounds.contains(Math::Point<S32, 2>({{-2147483647 - 1, 0}})));
+  EXPECT_NOT(bounds.contains(Math::Point<S32, 2>({{2147483647, 0}})));
+  EXPECT_NOT(bounds.contains(Math::Point<S32, 2>({{-2147483647 - 1, 2}})));
 }
 
-VALIDATION_TEST(CoreMath, volume_wide_edges) {
+VALIDATION_TEST(CoreMath, bounds_wide_edges) {
   constexpr S64 minimum = -9223372036854775807LL - 1;
   constexpr S64 maximum = 9223372036854775807LL;
-  Math::Volume<S64, 2> volume(
+  Math::Bounds<S64, 2> bounds(
       Math::Point<S64, 2>({{minimum, 0}}), Math::Size<S64, 2>({{maximum, 1}}));
-  EXPECT(volume.contains(Math::Point<S64, 2>({{minimum, 0}})));
-  EXPECT(volume.contains(Math::Point<S64, 2>({{-2, 0}})));
-  EXPECT_NOT(volume.contains(Math::Point<S64, 2>({{-1, 0}})));
-  EXPECT_NOT(volume.contains(Math::Point<S64, 2>({{maximum, 0}})));
+  EXPECT(bounds.contains(Math::Point<S64, 2>({{minimum, 0}})));
+  EXPECT(bounds.contains(Math::Point<S64, 2>({{-2, 0}})));
+  EXPECT_NOT(bounds.contains(Math::Point<S64, 2>({{-1, 0}})));
+  EXPECT_NOT(bounds.contains(Math::Point<S64, 2>({{maximum, 0}})));
 }
 
-VALIDATION_TEST(CoreMath, volume_three_axes) {
-  Math::Volume<R32, 3> volume(
+VALIDATION_TEST(CoreMath, bounds_three_axes) {
+  Math::Bounds<R32, 3> bounds(
       Math::Point<R32, 3>({{-2.0f, 1.0f, 4.0f}}),
       Math::Size<R32, 3>({{3.0f, 2.0f, 5.0f}}));
-  EXPECT(volume.contains(Math::Point<R32, 3>({{0.0f, 2.0f, 8.0f}})));
-  EXPECT_NOT(volume.contains(Math::Point<R32, 3>({{1.0f, 2.0f, 8.0f}})));
-  EXPECT_NOT(volume.contains(Math::Point<R32, 3>({{0.0f, 3.0f, 8.0f}})));
-  EXPECT_NOT(volume.contains(Math::Point<R32, 3>({{0.0f, 2.0f, 9.0f}})));
+  EXPECT(bounds.contains(Math::Point<R32, 3>({{0.0f, 2.0f, 8.0f}})));
+  EXPECT_NOT(bounds.contains(Math::Point<R32, 3>({{1.0f, 2.0f, 8.0f}})));
+  EXPECT_NOT(bounds.contains(Math::Point<R32, 3>({{0.0f, 3.0f, 8.0f}})));
+  EXPECT_NOT(bounds.contains(Math::Point<R32, 3>({{0.0f, 2.0f, 9.0f}})));
 }

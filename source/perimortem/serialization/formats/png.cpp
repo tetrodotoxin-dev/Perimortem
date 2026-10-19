@@ -735,35 +735,23 @@ constexpr auto process_data(
     const ImageInfo info,
     View::Bytes source,
     View::Bytes palette) -> Storage::Option<Matrix<Formats::Rgba8>> {
-  // Math::Domain checks the pixel count before either decode path allocates.
-  // The filtered stream also carries one control byte per row, so its byte
-  // extent needs a separate check before the inflater reserves that storage.
+  // Both pixel extents are U32, so their product fits in Count. The filtered
+  // stream also carries one control byte per row, so its byte extent needs a
+  // separate check before the inflater reserves that storage.
   const Math::Domain<2> domain(
       Math::Size<U32, 2>({{info.get_width(), info.get_height()}}));
-  const auto pixel_count = domain.get_element_count();
+  const Count pixel_count = Count(info.get_width()) * info.get_height();
   const Count bytes_per_pixel = number_of_color_channels(info.get_color_type());
   const Count max_bytes = ~CppSize{};
-  Count selected_pixel_count = 0;
-  const Bool valid_extent = pixel_count.visit(
-      [&](Count count) {
-        if (bytes_per_pixel == 0 ||
-            count > max_bytes / sizeof(Formats::Rgba8) ||
-            count > (max_bytes - info.get_height()) / bytes_per_pixel) {
-          return False;
-        }
-
-        selected_pixel_count = count;
-        return True;
-      },
-
-      []() { return False; });
-  if (!valid_extent) {
+  if (bytes_per_pixel == 0 ||
+      pixel_count > max_bytes / sizeof(Formats::Rgba8) ||
+      pixel_count > (max_bytes - info.get_height()) / bytes_per_pixel) {
     Diagnostics::Log::error("Png: Decoded extent exceeds address space"_view);
     return Storage::Option<Matrix<Formats::Rgba8>>();
   }
 
   const Count decompressed_capacity =
-      selected_pixel_count * bytes_per_pixel + info.get_height();
+      pixel_count * bytes_per_pixel + info.get_height();
 
   // Debug validates both the PNG chunk CRC and the zlib Adler32 trailer.
   // Release omits both full payload checksum passes to preserve decode
@@ -795,7 +783,7 @@ constexpr auto process_data(
   // PNG RGBA samples match the four byte Rgba8 layout, so reconstruction can
   // write final pixel storage without an intermediate conversion buffer.
   if (info.get_color_type() == ColorType::Rgba) {
-    pixels.resize(selected_pixel_count);
+    pixels.resize(pixel_count);
     if (!reconstruct_filter(
             filtered_rows, info.get_width(), info.get_height(), bytes_per_pixel,
             Access::Bytes(
@@ -810,7 +798,7 @@ constexpr auto process_data(
     // Other channel layouts need an intermediate byte buffer before conversion
     // can fill the Rgba8 vector.
     Thread::Bytes raw_pixels{};
-    raw_pixels.forgetful_resize(selected_pixel_count * bytes_per_pixel);
+    raw_pixels.forgetful_resize(pixel_count * bytes_per_pixel);
     if (!reconstruct_filter(
             filtered_rows, info.get_width(), info.get_height(), bytes_per_pixel,
             raw_pixels.get_access())) [[unlikely]] {

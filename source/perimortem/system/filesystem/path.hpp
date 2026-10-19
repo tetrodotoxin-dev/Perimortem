@@ -223,7 +223,7 @@ class Path {
   // Returns the lexical parent while retaining the same anchor. An anchor root
   // has no parent. The returned Path references the same component storage, so
   // the caller keeps those bytes accessible through every use of either Path.
-  constexpr auto get_parent() const -> Core::Storage::Option<Path> {
+  constexpr auto try_parent() const -> Core::Storage::Option<Path> {
     if (components.is_empty()) {
       return {};
     }

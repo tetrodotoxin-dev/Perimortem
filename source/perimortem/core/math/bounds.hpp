@@ -8,19 +8,19 @@
 
 namespace Perimortem::Core::Math {
 
-// Volume bounds an axis aligned region in Point's coordinate space. The
-// origin is included and every upper edge is excluded, so adjacent regions
-// can share an edge without sharing points. Size normalizes invalid extents
-// before Volume observes them. Periodic axes such as polar angle need a
-// separate range policy for intervals crossing a wrap seam.
+// Bounds describes one axis aligned region in Point's coordinate space. The
+// origin is included and every upper edge is excluded, so adjacent regions can
+// share an edge without sharing points. Size normalizes invalid extents before
+// Bounds observes them. Periodic axes such as polar angle need a separate range
+// policy for intervals crossing a wrap seam.
 template <typename type, Count dimensions>
-class Volume {
+class Bounds {
   static_assert(dimensions > 0);
   static_assert(sizeof(type) <= sizeof(U64));
 
  public:
-  constexpr Volume() = default;
-  constexpr Volume(Point<type, dimensions> origin, Size<type, dimensions> size)
+  constexpr Bounds() = default;
+  constexpr Bounds(Point<type, dimensions> origin, Size<type, dimensions> size)
       : origin(origin), size(size) {}
 
   constexpr auto get_origin() const -> Point<type, dimensions> {

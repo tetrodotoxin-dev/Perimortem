@@ -18,10 +18,11 @@ namespace Perimortem::Core::Access {
 // Access::Vector. A valid Size with an empty axis retains its other extents
 // while referencing no values.
 //
-// Coordinate access returns None outside any axis. Read only projection keeps
-// the same geometry. Matrix does not extend the source storage lifetime.
-// Relocating or releasing the referenced storage invalidates every Access and
-// View into it. Callers synchronize concurrent writes.
+// Indexing never accesses values outside the supplied range with negative
+// coordinates or coordinates outside any axis returning None. Read only
+// projection keeps the same geometry. Matrix does not extend the source storage
+// lifetime. Relocating or releasing the referenced storage invalidates every
+// Access and View into it. Callers synchronize concurrent writes.
 template <typename type, Count dimensions>
 class Matrix {
   static_assert(dimensions > 0);
@@ -47,10 +48,10 @@ class Matrix {
     };
 
     auto reject = []() -> Storage::Option<Matrix> { return {}; };
-    return source_size.get_element_count().visit(publish, reject);
+    return calculate_value_count(source_size).visit(publish, reject);
   }
 
-  constexpr auto get(Math::Point<S64, dimensions> point)
+  constexpr auto operator[](Math::Point<S64, dimensions> point)
       -> Storage::Option<data_type&> {
     Count index = 0;
     Count stride = 1;
@@ -85,6 +86,21 @@ class Matrix {
   constexpr auto is_empty() const -> Bool { return size.is_empty(); }
 
  private:
+  static constexpr auto calculate_value_count(
+      Math::Size<U32, dimensions> source_size) -> Storage::Option<Count> {
+    Count count = 1;
+    for (Count axis = 0; axis < dimensions; axis++) {
+      Count product;
+      if (__builtin_mul_overflow(count, Count(source_size[axis]), &product)) {
+        return {};
+      }
+
+      count = product;
+    }
+
+    return count;
+  }
+
   constexpr Matrix(
       Math::Size<U32, dimensions> source_size,
       Access::Vector<data_type> source)

@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/storage/vector.hpp"
 
 namespace Perimortem::Core::Math {
@@ -41,26 +40,28 @@ class Size {
     return False;
   }
 
-  // Integral extents describe a count only when their product fits in Count.
-  // An empty axis has zero values, while overflow has no representable count.
-  constexpr auto get_element_count() const -> Storage::Option<Count>
-    requires(__is_integral(type))
-  {
-    if (is_empty()) {
-      return Count();
-    }
-
-    Count count = 1;
+  // Volume is expressed in the same scalar type as each extent, preserving the
+  // Size unit instead of assigning a storage interpretation. An empty Size or
+  // a product that cannot be represented by `type` returns zero.
+  constexpr auto get_volume() const -> type {
+    type volume = type(1);
     for (Count axis = 0; axis < dimensions; axis++) {
-      const Count extent = Count(components[axis]);
-      if (count > Count(-1) / extent) {
-        return {};
+      type product;
+      if constexpr (__is_integral(type)) {
+        if (__builtin_mul_overflow(volume, components[axis], &product)) {
+          return type();
+        }
+      } else {
+        product = volume * components[axis];
+        if (!finite(product)) {
+          return type();
+        }
       }
 
-      count *= extent;
+      volume = product;
     }
 
-    return count;
+    return volume;
   }
 
  private:

@@ -23,8 +23,8 @@ namespace Perimortem::Memory {
 // Matrix has exactly that many live values. An empty axis leaves no addressable
 // values. `get_view()` and `get_access()` expose the shape together with its
 // row major storage but do not carry the Domain's boundary policies. They
-// remain valid until Matrix storage changes. Use Matrix `get` when access needs
-// those policies.
+// remain valid until Matrix storage changes. Matrix indexing retains those
+// policies.
 //
 // Its Boundary arguments follow Domain directly. No arguments select Clip, one
 // selects the same rule for both axes, and two select column then row behavior.
@@ -135,7 +135,7 @@ class Matrix {
   // Clip can reject a coordinate, and no policy can select a value from an
   // empty axis. A successful lookup returns a reference that remains valid
   // until Matrix storage changes.
-  constexpr auto get(Core::Math::Point<S64, 2> point) const
+  constexpr auto operator[](Core::Math::Point<S64, 2> point) const
       -> Core::Storage::Option<const type&> {
     return domain.resolve(point).visit(
         [this](Core::Math::Point<U32, 2> mapped)
@@ -146,7 +146,7 @@ class Matrix {
         []() -> Core::Storage::Option<const type&> { return {}; });
   }
 
-  constexpr auto get(Core::Math::Point<S64, 2> point)
+  constexpr auto operator[](Core::Math::Point<S64, 2> point)
       -> Core::Storage::Option<type&> {
     return domain.resolve(point).visit(
         [this](

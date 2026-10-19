@@ -37,7 +37,7 @@ VALIDATION_TEST(CoreMathRange, representable_end) {
   EXPECT_EQ(range.start, Count(-2));
   EXPECT_EQ(range.size, Count(1));
 
-  const auto end = range.get_end();
+  const auto end = range.try_end();
   ASSERT(end);
   end.visit([&](Count value) { EXPECT_EQ(value, Count(-1)); }, []() {});
 
@@ -47,6 +47,6 @@ VALIDATION_TEST(CoreMathRange, representable_end) {
 
   Math::Range invalid = {Count(-1), 1};
   EXPECT_NOT(invalid.is_valid());
-  EXPECT_NOT(invalid.get_end());
+  EXPECT_NOT(invalid.try_end());
   EXPECT_NOT(invalid.include(0));
 }

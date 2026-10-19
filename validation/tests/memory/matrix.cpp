@@ -47,11 +47,11 @@ VALIDATION_TEST(MemoryMatrix, projects_owned_values) {
   EXPECT(values.get_view().is_empty());
 
   const auto& observed = moved;
-  auto selected = observed.get(Math::Point<S64, 2>({{0, 0}}));
+  auto selected = observed[Math::Point<S64, 2>({{0, 0}})];
   ASSERT(selected);
   selected.visit(
       [&](const Formats::Rgba8& value) { EXPECT_EQ(value.red, 17); }, []() {});
-  EXPECT_NOT(moved.get(Math::Point<S64, 2>({{1, 0}})));
+  EXPECT_NOT((moved[Math::Point<S64, 2>({{1, 0}})]));
 }
 
 VALIDATION_TEST(MemoryMatrix, zero_domain) {
@@ -74,11 +74,11 @@ VALIDATION_TEST(MemoryMatrix, mixed_boundary_access) {
   auto matrix =
       Matrix<Formats::Rgba8, Math::Boundary::Wrap, Math::Boundary::Clip>::
           create(domain, values.get_view());
-  auto wrapped = matrix.get(Math::Point<S64, 2>({{-1, 0}}));
+  auto wrapped = matrix[Math::Point<S64, 2>({{-1, 0}})];
   ASSERT(wrapped);
   wrapped.visit(
       [&](const Formats::Rgba8& value) { EXPECT_EQ(value.red, 3); }, []() {});
-  EXPECT_NOT(matrix.get(Math::Point<S64, 2>({{0, 1}})));
+  EXPECT_NOT((matrix[Math::Point<S64, 2>({{0, 1}})]));
 }
 
 VALIDATION_TEST(MemoryMatrix, uniform_boundary_access) {
@@ -91,7 +91,7 @@ VALIDATION_TEST(MemoryMatrix, uniform_boundary_access) {
   auto matrix = Matrix<Formats::Rgba8, Math::Boundary::Wrap>::create(
       Math::Domain<2, Math::Boundary::Wrap>(Math::Size<U32, 2>({{2, 2}})),
       values.get_view());
-  auto wrapped = matrix.get(Math::Point<S64, 2>({{-1, -1}}));
+  auto wrapped = matrix[Math::Point<S64, 2>({{-1, -1}})];
   ASSERT(wrapped);
   wrapped.visit(
       [&](const Formats::Rgba8& value) { EXPECT_EQ(value.red, 4); }, []() {});
@@ -122,8 +122,8 @@ VALIDATION_TEST(MemoryMatrix, copies_and_pads) {
   EXPECT_EQ(values.get_size(), 1);
   EXPECT(matrix.get_view().get_values().get_data() != values.get_data());
 
-  auto first = matrix.get(Math::Point<S64, 2>({{0, 0}}));
-  auto padded = matrix.get(Math::Point<S64, 2>({{1, 0}}));
+  auto first = matrix[Math::Point<S64, 2>({{0, 0}})];
+  auto padded = matrix[Math::Point<S64, 2>({{1, 0}})];
   ASSERT(first && padded);
   first.visit(
       [&](const Formats::Rgba8& value) { EXPECT_EQ(value.alpha, 255); },
@@ -148,13 +148,12 @@ VALIDATION_TEST(MemoryMatrix, publishes_shaped_access) {
       Math::Domain<2>(Math::Size<U32, 2>({{2, 2}})), source.get_view());
 
   auto access = matrix.get_access();
-  auto selected = access.get(Math::Point<S64, 2>({{1, 1}}));
+  auto selected = access[Math::Point<S64, 2>({{1, 1}})];
   ASSERT(selected);
   selected.visit([](U8& value) { value = 9; }, []() {});
 
-  auto observed = matrix.get_view().get(Math::Point<S64, 2>({{1, 1}}));
-  ASSERT(observed);
-  observed.visit([&](const U8& value) { EXPECT_EQ(value, 9); }, []() {});
+  auto observed = matrix.get_view()[Math::Point<S64, 2>({{1, 1}})];
+  EXPECT_EQ(observed, U8(9));
 }
 
 VALIDATION_TEST(MemoryMatrix, truncates_source_view) {

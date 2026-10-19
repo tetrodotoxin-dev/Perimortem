@@ -14,7 +14,7 @@ struct Range {
   Count start = 0;
   Count size = 0;
 
-  constexpr auto get_end() const -> Core::Storage::Option<Count> {
+  constexpr auto try_end() const -> Core::Storage::Option<Count> {
     if (size > Count(-1) - start) {
       return Core::Storage::Option<Count>();
     }
@@ -23,15 +23,15 @@ struct Range {
   }
 
   constexpr auto is_empty() const -> Bool { return size == 0; }
-  constexpr auto is_valid() const -> Bool { return Bool(get_end()); }
+  constexpr auto is_valid() const -> Bool { return Bool(try_end()); }
   constexpr auto has_overlap(Range other) const -> Bool {
     if (is_empty() || other.is_empty()) {
       return False;
     }
 
-    return get_end().visit(
+    return try_end().visit(
         [&](Count end) {
-          return other.get_end().visit(
+          return other.try_end().visit(
               [&](Count other_end) {
                 return Bool(start < other_end && other.start < end);
               },
@@ -48,7 +48,7 @@ struct Range {
   // both bounds unchanged when the current interval or requested index is
   // invalid.
   constexpr auto include(Count index) -> Bool {
-    return get_end().visit(
+    return try_end().visit(
         [&](Count end) {
           if (index == Count(-1)) {
             return False;

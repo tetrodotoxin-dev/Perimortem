@@ -163,7 +163,7 @@ VALIDATION_TEST(SystemPath, parent_and_name) {
   EXPECT_EQ(path.get_name(), "main.ttx"_view);
   EXPECT_EQ(path.get_extension(), "ttx"_view);
 
-  auto parent = path.get_parent();
+  auto parent = path.try_parent();
   parent.visit(
       [&](const Path& selected) {
         EXPECT(selected.get_anchor() == Path::Anchor::Root);
@@ -185,7 +185,7 @@ VALIDATION_TEST(SystemPath, parent_and_name) {
   EXPECT(plain.get_extension().is_empty());
 
   constexpr Path root = "[root]:/"_path;
-  EXPECT_NOT(root.get_parent());
+  EXPECT_NOT(root.try_parent());
 }
 
 // Canonical Path validation is platform independent. Native emission resolves

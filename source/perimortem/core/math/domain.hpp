@@ -4,10 +4,10 @@
 #pragma once
 
 #include "perimortem/core/math/boundary.hpp"
+#include "perimortem/core/math/bounds.hpp"
 #include "perimortem/core/math/point.hpp"
 #include "perimortem/core/math/scalar.hpp"
 #include "perimortem/core/math/size.hpp"
-#include "perimortem/core/math/volume.hpp"
 #include "perimortem/core/storage/option.hpp"
 #include "perimortem/core/storage/vector.hpp"
 
@@ -57,13 +57,13 @@ class Domain {
 
   constexpr auto is_empty() const -> Bool { return extent.is_empty(); }
 
-  constexpr auto get_limits() const -> Volume<S64, dimensions> {
+  constexpr auto get_bounds() const -> Bounds<S64, dimensions> {
     Core::Storage::Vector<S64, dimensions> limits;
     for (Count axis = 0; axis < dimensions; axis++) {
       limits[axis] = extent[axis];
     }
 
-    return Volume<S64, dimensions>(
+    return Bounds<S64, dimensions>(
         Point<S64, dimensions>(), Size<S64, dimensions>(limits));
   }
 
@@ -102,12 +102,6 @@ class Domain {
     }
 
     return Point<U32, dimensions>{{mapped}};
-  }
-
-  // Every axis is at most 32 bits, but several axes can still overflow Count.
-  // Returning None lets the caller reject allocation before fitting its buffer.
-  constexpr auto get_element_count() const -> Core::Storage::Option<Count> {
-    return extent.get_element_count();
   }
 
  private:

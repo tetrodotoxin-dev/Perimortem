@@ -20,34 +20,46 @@ namespace Perimortem::Core::Storage {
 // Template extents are ordered by axis. Every extent must be greater than zero
 // and their product must fit in Count. Default construction value initializes
 // every position. Aggregate construction lists values with axis zero changing
-// first.
+// first. Indexing returns None when a coordinate is negative or outside its
+// axis.
 template <typename type, U32... extents>
 class Matrix {
- public:
-  using data_type = type;
+  static constexpr Count dimension_count = sizeof...(extents);
+  static_assert(dimension_count > 0);
 
-  static constexpr Count dimensions = sizeof...(extents);
-  static_assert(dimensions > 0);
+  static constexpr Storage::Vector<U32, dimension_count> shape = {{extents...}};
 
- private:
-  static constexpr Storage::Vector<U32, dimensions> shape = {{extents...}};
+  static constexpr auto calculate_value_count() -> Count {
+    Count count = 1;
+    for (Count axis = 0; axis < dimension_count; axis++) {
+      Count product;
+      if (__builtin_mul_overflow(count, Count(shape[axis]), &product)) {
+        return Count();
+      }
 
- public:
-  static constexpr Math::Size<U32, dimensions> size =
-      Math::Size<U32, dimensions>(shape);
-  static constexpr Count value_count = size.get_element_count().visit(
-      [](Count count) { return count; },
-      []() { return Count(); });
-  static_assert(value_count > 0);
+      count = product;
+    }
 
- private:
+    return count;
+  }
+
+  static constexpr Count storage_count = calculate_value_count();
+  static_assert(storage_count > 0);
+
   struct Values {
-    data_type source_block[value_count];
+    type source_block[storage_count];
   };
 
   Values values{};
 
  public:
+  using data_type = type;
+
+  static constexpr Count dimensions = dimension_count;
+  static constexpr Math::Size<U32, dimensions> size =
+      Math::Size<U32, dimensions>(shape);
+  static constexpr Count value_count = storage_count;
+
   constexpr Matrix() {}
 
   // Aggregate construction initializes the complete storage from one source.
@@ -63,14 +75,26 @@ class Matrix {
     return get_access();
   }
 
-  constexpr auto get(Math::Point<S64, dimensions> point)
+  constexpr auto operator[](Math::Point<S64, dimensions> point)
       -> Storage::Option<data_type&> {
-    return get_access().get(point);
+    return get_access()[point];
   }
 
-  constexpr auto get(Math::Point<S64, dimensions> point) const
+  constexpr auto operator[](Math::Point<S64, dimensions> point) const
       -> Storage::Option<const data_type&> {
-    return get_view().get(point);
+    Count index = 0;
+    Count stride = 1;
+    for (Count axis = 0; axis < dimensions; axis++) {
+      const S64 coordinate = point[axis];
+      if (coordinate < 0 || coordinate >= size[axis]) {
+        return {};
+      }
+
+      index += Count(coordinate) * stride;
+      stride *= size[axis];
+    }
+
+    return values.source_block[index];
   }
 
   constexpr auto get_size() const -> Math::Size<U32, dimensions> {

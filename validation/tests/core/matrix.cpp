@@ -26,13 +26,11 @@ VALIDATION_TEST(CoreMatrix, exact_shape) {
   EXPECT_EQ(matrix.get_extent(1), 2);
   EXPECT_EQ(matrix.get_value_count(), 6);
 
-  auto selected = matrix.get(Math::Point<S64, 2>({{1, 1}}));
-  ASSERT(selected);
-  selected.visit([&](const U32& value) { EXPECT_EQ(value, 5); }, []() {});
+  EXPECT_EQ((matrix[Math::Point<S64, 2>({{1, 1}})]), U32(5));
 
-  EXPECT_NOT(matrix.get(Math::Point<S64, 2>({{-1, 0}})));
-  EXPECT_NOT(matrix.get(Math::Point<S64, 2>({{3, 0}})));
-  EXPECT_NOT(matrix.get(Math::Point<S64, 2>({{0, 2}})));
+  EXPECT_EQ((matrix[Math::Point<S64, 2>({{-1, 0}})]), U32(0));
+  EXPECT_EQ((matrix[Math::Point<S64, 2>({{3, 0}})]), U32(0));
+  EXPECT_EQ((matrix[Math::Point<S64, 2>({{0, 2}})]), U32(0));
 }
 
 VALIDATION_TEST(CoreMatrix, three_dimensions) {
@@ -40,9 +38,7 @@ VALIDATION_TEST(CoreMatrix, three_dimensions) {
   View::Matrix<U32, 3> matrix(
       Math::Size<U32, 3>({{2, 2, 2}}), View::Vector<U32>(values));
 
-  auto selected = matrix.get(Math::Point<S64, 3>({{1, 0, 1}}));
-  ASSERT(selected);
-  selected.visit([&](const U32& value) { EXPECT_EQ(value, 5); }, []() {});
+  EXPECT_EQ((matrix[Math::Point<S64, 3>({{1, 0, 1}})]), U32(5));
 }
 
 VALIDATION_TEST(CoreMatrix, invalid_shape) {
@@ -94,9 +90,12 @@ VALIDATION_TEST(CoreMatrix, writable_access) {
   ASSERT(matrix);
   matrix.visit(
       [&](Access::Matrix<U32, 2>& access) {
-        auto selected = access.get(Math::Point<S64, 2>({{0, 1}}));
+        auto selected = access[Math::Point<S64, 2>({{0, 1}})];
         ASSERT(selected);
         selected.visit([](U32& value) { value = 9; }, []() {});
+        EXPECT_NOT((access[Math::Point<S64, 2>({{-1, 0}})]));
+        EXPECT_NOT((access[Math::Point<S64, 2>({{2, 0}})]));
+        EXPECT_NOT((access[Math::Point<S64, 2>({{0, 2}})]));
       },
 
       []() {});
@@ -105,9 +104,7 @@ VALIDATION_TEST(CoreMatrix, writable_access) {
   matrix.visit(
       [&](const Access::Matrix<U32, 2>& access) {
         View::Matrix<U32, 2> view = access;
-        auto observed = view.get(Math::Point<S64, 2>({{0, 1}}));
-        ASSERT(observed);
-        observed.visit([&](const U32& value) { EXPECT_EQ(value, 9); }, []() {});
+        EXPECT_EQ((view[Math::Point<S64, 2>({{0, 1}})]), U32(9));
       },
 
       []() {});
@@ -121,21 +118,19 @@ VALIDATION_TEST(CoreMatrix, embedded_storage) {
   EXPECT_EQ(matrix.get_value_count(), 6);
 
   Access::Matrix<U32, 2> access = matrix;
-  auto selected = access.get(Math::Point<S64, 2>({{1, 1}}));
+  auto selected = access[Math::Point<S64, 2>({{1, 1}})];
   ASSERT(selected);
   selected.visit([](U32& value) { value = 9; }, []() {});
 
   View::Matrix<U32, 2> view = matrix;
-  auto observed = view.get(Math::Point<S64, 2>({{1, 1}}));
-  ASSERT(observed);
-  observed.visit([&](const U32& value) { EXPECT_EQ(value, 9); }, []() {});
+  EXPECT_EQ((view[Math::Point<S64, 2>({{1, 1}})]), U32(9));
 }
 
 VALIDATION_TEST(CoreMatrix, embedded_default_values) {
   constexpr Storage::Matrix<U32, 2, 2> matrix;
   static_assert(matrix.get_value_count() == 4);
 
-  auto selected = matrix.get(Math::Point<S64, 2>({{1, 1}}));
+  auto selected = matrix[Math::Point<S64, 2>({{1, 1}})];
   ASSERT(selected);
   selected.visit([&](const U32& value) { EXPECT_EQ(value, 0); }, []() {});
 }
