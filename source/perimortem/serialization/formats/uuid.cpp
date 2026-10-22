@@ -125,23 +125,23 @@ static constexpr auto deserialize_ascii(
 #endif
 
 auto Formats::Uuid::parse(const Storage::Bytes<36>& uuid_string)
-    -> Formats::Uuid {
-  Formats::Uuid result;
+    -> Identity::Uuid {
+  perimortem_uuid result{};
 
 #ifdef PERI_AVX2
 
   const auto* source = uuid_string.get_data();
   if (source[8] != '-' || source[13] != '-' || source[18] != '-' ||
       source[23] != '-') {
-    return Formats::Uuid();
+    return Identity::Uuid();
   }
 
   const auto ascii = load_dashed_ascii(source);
   if (!valid_hexadecimal(ascii)) {
-    return Formats::Uuid();
+    return Identity::Uuid();
   }
 
-  deserialize_ascii(ascii, result.value);
+  deserialize_ascii(ascii, result);
 
 #else
 
@@ -154,23 +154,23 @@ auto Formats::Uuid::parse(const Storage::Bytes<36>& uuid_string)
   for (Count index = 0; index < uuid_string.get_size(); ++index) {
     if (index == 8 || index == 13 || index == 18 || index == 23) {
       if (uuid_string[index] != '-') {
-        return Formats::Uuid();
+        return Identity::Uuid();
       }
 
       continue;
     }
 
     if (!is_hex(uuid_string[index])) {
-      return Formats::Uuid();
+      return Identity::Uuid();
     }
 
-    U64& word = digits++ < 16 ? result.value.high : result.value.low;
+    U64& word = digits++ < 16 ? result.high : result.low;
     word = (word << 4) | ascii_to_nibble(uuid_string[index]);
   }
 
 #endif
 
-  return result;
+  return Identity::Uuid(result);
 }
 
 auto Formats::Uuid::validate(View::Bytes source) -> Bool {
@@ -230,18 +230,18 @@ auto Formats::Uuid::validate(View::Bytes source) -> Bool {
 }
 
 auto Formats::Uuid::parse(const Storage::Bytes<32>& uuid_string)
-    -> Formats::Uuid {
-  Formats::Uuid result;
+    -> Identity::Uuid {
+  perimortem_uuid result{};
 
 #ifdef PERI_AVX2
 
   const auto ascii_buffer =
       _mm256_loadu_si256(Data::cast<const __m256i_u>(uuid_string.get_data()));
   if (!valid_hexadecimal(ascii_buffer)) {
-    return Formats::Uuid();
+    return Identity::Uuid();
   }
 
-  deserialize_ascii(ascii_buffer, result.value);
+  deserialize_ascii(ascii_buffer, result);
 
 #else
 
@@ -252,19 +252,20 @@ auto Formats::Uuid::parse(const Storage::Bytes<32>& uuid_string)
 
   for (Count index = 0; index < uuid_string.get_size(); ++index) {
     if (!is_hex(uuid_string[index])) {
-      return Formats::Uuid();
+      return Identity::Uuid();
     }
 
-    U64& word = index < 16 ? result.value.high : result.value.low;
+    U64& word = index < 16 ? result.high : result.low;
     word = (word << 4) | ascii_to_nibble(uuid_string[index]);
   }
 
 #endif
 
-  return result;
+  return Identity::Uuid(result);
 }
 
-auto Formats::Uuid::serialize() const -> const Storage::Bytes<36> {
+auto Formats::Uuid::serialize(Identity::Uuid source) -> Storage::Bytes<36> {
+  const auto value = source.get_value();
   Storage::Bytes<36> uuid_string;
   auto byte_buffer = uuid_string.get_access().get_data();
 

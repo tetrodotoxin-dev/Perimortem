@@ -21,7 +21,6 @@ _COMPONENTS = {
     "system": [
         "core",
         "memory",
-        "serialization",
     ],
 }
 

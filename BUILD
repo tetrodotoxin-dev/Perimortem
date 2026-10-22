@@ -55,7 +55,6 @@ package(
         "system": [
             "core",
             "memory",
-            "serialization",
         ],
     },
     module = "perimortem",

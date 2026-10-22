@@ -27,7 +27,6 @@
 #include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
 
 static constexpr Count channel_depth = 4;
@@ -395,7 +394,7 @@ auto Random::generate() -> U64 {
   return engine.output[engine.index++];
 }
 
-auto Random::generate_uuid_v4() -> Formats::Uuid {
+auto Random::generate_uuid_v4() -> Identity::Uuid {
 
 #ifdef PERI_AVX2
 
@@ -408,20 +407,20 @@ auto Random::generate_uuid_v4() -> Formats::Uuid {
 
   U64 values[2];
   _mm_storeu_si128(Data::cast<__m128i>(values), identified);
-  return Formats::Uuid(values[1], values[0]);
+  return Identity::Uuid(values[1], values[0]);
 
 #else
 
   const U64 high = generate();
   const U64 low = generate();
-  return Formats::Uuid(
+  return Identity::Uuid(
       (high & 0xFFFFFFFFFFFF0FFFULL) | 0x4000,
       (low & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL);
 
 #endif
 }
 
-auto Random::generate_uuid_v7() -> Formats::Uuid {
+auto Random::generate_uuid_v7() -> Identity::Uuid {
   const U64 timestamp = unix_milliseconds();
 
 #ifdef PERI_AVX2
@@ -437,14 +436,14 @@ auto Random::generate_uuid_v7() -> Formats::Uuid {
 
   U64 values[2];
   _mm_storeu_si128(Data::cast<__m128i>(values), identified);
-  return Formats::Uuid(values[1], values[0]);
+  return Identity::Uuid(values[1], values[0]);
 
 #else
 
   const U64 high =
       ((timestamp & 0xFFFFFFFFFFFF) << 16) | (generate() & 0xFFF) | 0x7000;
   const U64 low = (generate() & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL;
-  return Formats::Uuid(high, low);
+  return Identity::Uuid(high, low);
 
 #endif
 }

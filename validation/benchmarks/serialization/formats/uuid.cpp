@@ -15,10 +15,10 @@ using namespace Perimortem::System;
 using namespace Toolchain::Validation;
 
 static constexpr Count uuid_batch = 1024;
-static constexpr Formats::Uuid serialize_source_a{
+static constexpr Identity::Uuid serialize_source_a{
   0x550e8400e29b41d4ULL, 0xa716446655440000ULL};
 
-static constexpr Formats::Uuid serialize_source_b{
+static constexpr Identity::Uuid serialize_source_b{
   0x123e4567e89b42d3ULL, 0xa456426614174000ULL};
 
 static constexpr auto dashed_source_a =
@@ -50,7 +50,7 @@ VALIDATION_BENCHMARK(SerializationUuid, serialize_x1024) {
                              : &serialize_source_b;
     Benchmark::prevent_optimization(source);
 
-    auto serialized = source->serialize();
+    auto serialized = Formats::Uuid::serialize(*source);
     value += serialized[i % serialized.get_size()];
   }
 
@@ -65,7 +65,7 @@ VALIDATION_BENCHMARK(SerializationUuid, deserialize_dashed_x1024) {
                              : &dashed_source_b;
     Benchmark::prevent_optimization(source);
 
-    const Formats::Uuid uuid = Formats::Uuid::deserialize(*source);
+    const Identity::Uuid uuid = Formats::Uuid::deserialize(*source);
     value ^= uuid.get_value().high;
   }
 
@@ -80,7 +80,7 @@ VALIDATION_BENCHMARK(SerializationUuid, deserialize_packed_x1024) {
                              : &packed_source_b;
     Benchmark::prevent_optimization(source);
 
-    const Formats::Uuid uuid = Formats::Uuid::deserialize(*source);
+    const Identity::Uuid uuid = Formats::Uuid::deserialize(*source);
     value ^= uuid.get_value().high;
   }
 

@@ -6,12 +6,11 @@
 #include "toolchain/validation/test.hpp"
 
 #include "perimortem/core/access/bytes.hpp"
+#include "perimortem/core/identity/uuid.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/serialization/formats/uuid.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Serialization;
 using namespace Toolchain::Validation;
 
 // The public C records remain plain values that C++ can copy without invoking
@@ -43,11 +42,11 @@ static_assert(!__is_constructible(Access::Bytes));
 static_assert(!__is_constructible(Access::Bytes, U8*, Count));
 static_assert(!__is_constructible(Access::Bytes, U8&&, Count));
 static_assert(!__is_constructible(Access::Bytes, U8 (&&)[3]));
-static_assert(sizeof(Formats::Uuid) == sizeof(perimortem_uuid));
-static_assert(alignof(Formats::Uuid) == alignof(perimortem_uuid));
+static_assert(sizeof(Identity::Uuid) == sizeof(perimortem_uuid));
+static_assert(alignof(Identity::Uuid) == alignof(perimortem_uuid));
 static_assert([] {
   View::Bytes view;
-  Formats::Uuid uuid;
+  Identity::Uuid uuid;
   return view.is_empty() && !uuid.is_set();
 }());
 
@@ -80,11 +79,6 @@ static_assert([] {
   return data[1] == 4;
 }());
 
-static_assert(
-    Formats::Uuid::deserialize("0123456789abcdeffedcba9876543210"_bytes)
-        .get_value()
-        .high == 0x0123456789abcdefULL);
-
 static Harness CoreAbi = {
   .name = "Core::ABI",
 };
@@ -109,7 +103,7 @@ VALIDATION_TEST(CoreAbi, c_records) {
   EXPECT_NOT(Access::Bytes::create({nullptr, 0}));
   EXPECT_NOT(Access::Bytes::create({nullptr, 3}));
 
-  Formats::Uuid uuid = perimortem_test_uuid(5, 6);
+  Identity::Uuid uuid = perimortem_test_uuid(5, 6);
   EXPECT_EQ(uuid.get_value().high, U64(5));
   EXPECT_EQ(uuid.get_value().low, U64(6));
 }

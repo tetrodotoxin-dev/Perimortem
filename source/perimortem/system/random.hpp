@@ -5,7 +5,7 @@
 
 #include "toolchain/toolchain.hpp"
 
-#include "perimortem/serialization/formats/uuid.hpp"
+#include "perimortem/core/identity/uuid.hpp"
 
 namespace Perimortem::System {
 
@@ -23,15 +23,13 @@ class Random {
 
   // Generates an RFC 4122 version 4 identifier from the noncryptographic thread
   // local stream. Use it for identity rather than secrecy.
-  static EXPORTED(PERIMORTEM) auto generate_uuid_v4()
-      -> Serialization::Formats::Uuid;
+  static EXPORTED(PERIMORTEM) auto generate_uuid_v4() -> Core::Identity::Uuid;
 
   // The timestamp orders version 7 identifiers from different Unix
   // milliseconds while the random suffix distinguishes independent
   // generators. Calls within one millisecond remain randomly ordered, and a
   // clock adjustment applies to the next timestamp.
-  static EXPORTED(PERIMORTEM) auto generate_uuid_v7()
-      -> Serialization::Formats::Uuid;
+  static EXPORTED(PERIMORTEM) auto generate_uuid_v7() -> Core::Identity::Uuid;
 };
 
 }  // namespace Perimortem::System

@@ -11,7 +11,6 @@
 #include "validation/tests/log.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
 using namespace Perimortem::Tests;
 using namespace Toolchain::Validation;
@@ -39,30 +38,25 @@ VALIDATION_TEST(SystemRandom, generate_stream) {
 }
 
 VALIDATION_TEST(SystemRandom, generate_uuid_v4) {
-  Formats::Uuid uuid = Random::generate_uuid_v4();
+  const Identity::Uuid uuid = Random::generate_uuid_v4();
+  const auto value = uuid.get_value();
 
   EXPECT(uuid.is_set());
 
-  const auto serialized = uuid.serialize();
-  EXPECT_EQ(serialized[14], U8('4'));
-  EXPECT(
-      serialized[19] == '8' || serialized[19] == '9' || serialized[19] == 'a' ||
-      serialized[19] == 'b');
+  EXPECT_EQ((value.high >> 12) & 15, U64(4));
+  EXPECT_EQ(value.low >> 62, U64(2));
 }
 
 VALIDATION_TEST(SystemRandom, generate_uuid_v7) {
   const U64 before = U64(time(nullptr)) * 1'000;
-  Formats::Uuid uuid = Random::generate_uuid_v7();
+  const Identity::Uuid uuid = Random::generate_uuid_v7();
   const U64 after = U64(time(nullptr) + 1) * 1'000;
 
-  auto output = uuid.serialize();
-  const U64 timestamp = uuid.get_value().high >> 16;
+  const auto value = uuid.get_value();
+  const U64 timestamp = value.high >> 16;
   EXPECT(timestamp >= before);
   EXPECT(timestamp < after);
-  EXPECT(output.hash());
-  EXPECT_EQ(output[14], U8('7'));
-  EXPECT(
-      output[19] == '8' || output[19] == '9' || output[19] == 'a' ||
-      output[19] == 'b');
+  EXPECT_EQ((value.high >> 12) & 15, U64(7));
+  EXPECT_EQ(value.low >> 62, U64(2));
   EXPECT(uuid.is_set());
 }

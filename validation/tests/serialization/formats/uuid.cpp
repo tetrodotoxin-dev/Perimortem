@@ -24,43 +24,15 @@ static_assert(
 static_assert(
     !Formats::Uuid::deserialize("cb8c03d8-2b01-4a39-b31d-2c6805e6503g"_bytes)
          .is_set());
-
-VALIDATION_TEST(SerializationUuid, default) {
-  Formats::Uuid uuid{};
-  constexpr Formats::Uuid uuid_const{};
-
-  EXPECT(!uuid.is_set());
-  EXPECT_EQ(uuid.get_value().high, 0);
-  EXPECT_EQ(uuid.get_value().low, 0);
-
-  EXPECT(!uuid_const.is_set());
-  EXPECT_EQ(uuid_const.get_value().high, 0);
-  EXPECT_EQ(uuid_const.get_value().low, 0);
-
-  EXPECT(Formats::Uuid(1, 0).is_set());
-  EXPECT(Formats::Uuid(0, 1).is_set());
-}
-
-VALIDATION_TEST(SerializationUuid, deserialize_bits_64) {
-  Formats::Uuid uuid{0x0123456789abcdefULL, 0xfedcba9876543210ULL};
-  constexpr Formats::Uuid uuid_const{
-    0x0123456789abcdefULL, 0xfedcba9876543210ULL};
-
-  EXPECT(uuid.is_set());
-  EXPECT_EQ(uuid.get_value().high, 0x0123456789abcdefULL);
-  EXPECT_EQ(uuid.get_value().low, 0xfedcba9876543210ULL);
-
-  EXPECT(uuid_const.is_set());
-  EXPECT_EQ(uuid_const.get_value().high, 0x0123456789abcdefULL);
-  EXPECT_EQ(uuid_const.get_value().low, 0xfedcba9876543210ULL);
-
-  EXPECT(uuid == uuid_const);
-}
+static_assert(
+    Formats::Uuid::deserialize("0123456789abcdeffedcba9876543210"_bytes)
+        .get_value()
+        .high == 0x0123456789abcdefULL);
 
 VALIDATION_TEST(SerializationUuid, decode_32_nibble) {
-  Formats::Uuid uuid =
+  Identity::Uuid uuid =
       Formats::Uuid::deserialize("0123456789abcdeffedcba9876543210"_bytes);
-  constexpr Formats::Uuid uuid_const =
+  constexpr Identity::Uuid uuid_const =
       Formats::Uuid::deserialize("0123456789abcdeffedcba9876543210"_bytes);
 
   EXPECT(uuid.is_set());
@@ -75,9 +47,9 @@ VALIDATION_TEST(SerializationUuid, decode_32_nibble) {
 }
 
 VALIDATION_TEST(SerializationUuid, deserialize_uuid_v4) {
-  Formats::Uuid uuid =
+  Identity::Uuid uuid =
       Formats::Uuid::deserialize("cb8c03d8-2b01-4a39-b31d-2c6805e6503c"_bytes);
-  constexpr Formats::Uuid uuid_const =
+  constexpr Identity::Uuid uuid_const =
       Formats::Uuid::deserialize("cb8c03d8-2b01-4a39-b31d-2c6805e6503c"_bytes);
 
   EXPECT(uuid.is_set());
@@ -92,13 +64,13 @@ VALIDATION_TEST(SerializationUuid, deserialize_uuid_v4) {
 }
 
 VALIDATION_TEST(SerializationUuid, uppercase_hexadecimal) {
-  Formats::Uuid packed =
+  Identity::Uuid packed =
       Formats::Uuid::deserialize("0123456789ABCDEFFEDCBA9876543210"_bytes);
-  constexpr Formats::Uuid packed_const =
+  constexpr Identity::Uuid packed_const =
       Formats::Uuid::deserialize("0123456789ABCDEFFEDCBA9876543210"_bytes);
-  Formats::Uuid dashed =
+  Identity::Uuid dashed =
       Formats::Uuid::deserialize("CB8C03D8-2B01-4A39-B31D-2C6805E6503C"_bytes);
-  constexpr Formats::Uuid dashed_const =
+  constexpr Identity::Uuid dashed_const =
       Formats::Uuid::deserialize("CB8C03D8-2B01-4A39-B31D-2C6805E6503C"_bytes);
 
   EXPECT_EQ(packed.get_value().high, 0x0123456789abcdefULL);
@@ -138,7 +110,30 @@ VALIDATION_TEST(SerializationUuid, validation) {
 }
 
 VALIDATION_TEST(SerializationUuid, serialize_uuid_v4) {
-  Formats::Uuid uuid{0xcb8c03d82b014a39ULL, 0xb31d2c6805e6503cULL};
+  Identity::Uuid uuid{0xcb8c03d82b014a39ULL, 0xb31d2c6805e6503cULL};
 
-  EXPECT_TEXT(uuid.serialize(), "cb8c03d8-2b01-4a39-b31d-2c6805e6503c"_bytes);
+  EXPECT_TEXT(
+      Formats::Uuid::serialize(uuid),
+      "cb8c03d8-2b01-4a39-b31d-2c6805e6503c"_bytes);
+}
+
+VALIDATION_TEST(SerializationUuid, identifier_values) {
+  const Identity::Uuid zero;
+  const Identity::Uuid maximum{U64(-1), U64(-1)};
+  EXPECT_TEXT(
+      Formats::Uuid::serialize(zero),
+      "00000000-0000-0000-0000-000000000000"_bytes);
+  EXPECT_TEXT(
+      Formats::Uuid::serialize(maximum),
+      "ffffffff-ffff-ffff-ffff-ffffffffffff"_bytes);
+
+  const Identity::Uuid values[] = {
+    zero, maximum, {0x0123456789abcdefULL, 0xfedcba9876543210ULL}};
+
+  for (const auto& value : values) {
+    const auto text = Formats::Uuid::serialize(value);
+    EXPECT_EQ(text.get_size(), Count(36));
+    EXPECT(Formats::Uuid::is_valid(text));
+    EXPECT(Formats::Uuid::deserialize(text) == value);
+  }
 }
