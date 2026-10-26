@@ -3,6 +3,8 @@
 
 #pragma once
 
+#define TOOLCHAIN_PRIVATE_HEADER 1
+
 #include "perimortem/memory/thread/bytes.hpp"
 
 namespace Perimortem::Compression::BitStream {

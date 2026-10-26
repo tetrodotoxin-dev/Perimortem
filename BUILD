@@ -2,7 +2,6 @@
 
 load(
     "@tetro_toolchain//:defs.bzl",
-    "WEB",
     "format",
     "package",
     "snapshot",
@@ -70,10 +69,10 @@ snapshot()
 # before SDK publication. Web validation links the static runtime because the
 # hosted shared module requires an embedding application. The same suite
 # therefore exercises both supported linkage boundaries.
-validation(deps = select({
-    WEB: ["//source:perimortem"],
-    "//conditions:default": ["//source:perimortem_shared"],
-}))
+validation(
+    web_deps = ["//source:perimortem"],
+    deps = ["//source:perimortem_shared"],
+)
 
 # Run `bazel run :vscode` to create a VSCode setup for the repository.
 vscode()

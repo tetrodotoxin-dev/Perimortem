@@ -3,6 +3,8 @@
 
 #pragma once
 
+#define TOOLCHAIN_PRIVATE_HEADER 1
+
 #include "perimortem/compression/bit_stream/reader.hpp"
 #include "perimortem/core/storage/bytes.hpp"
 #include "perimortem/core/storage/vector.hpp"

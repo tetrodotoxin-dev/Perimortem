@@ -43,7 +43,7 @@ archives the clean Git commit that reproduces the source and validation state.
 Run the same tests as a standalone WebAssembly program with:
 
 ```sh
-bazel run :tests --config=web_tests
+bazel run :tests --config=web
 ```
 
 For VS Code tasks, debugging and header navigation, run `bazel run :vscode`.
